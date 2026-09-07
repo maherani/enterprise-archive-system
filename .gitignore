@@ -1,0 +1,5 @@
+# Ignore sensitive files and volumes
+.env
+db/
+nextcloud/
+venv/
