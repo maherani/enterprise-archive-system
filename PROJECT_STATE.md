@@ -140,3 +140,13 @@ Status: **Completed**
 10. Before starting a new development step, verify documentation and GitHub state.
 11. Prefer inspection before modification.
 12. Never remove existing data or functionality without first verifying its purpose and impact.
+
+## Step 6 Checkpoint — Retention & Automated Tagging
+
+- Nextcloud version: 34.0.3.2
+- `files_retention` 5.0.0 installed and enabled.
+- `files_automatedtagging` 5.0.0 installed and enabled.
+- Created restricted system tag: `Archive Protected`.
+- Manually applied `Archive Protected` to a test file successfully.
+- App Store automatic installation was blocked by slow/incomplete download of `apps.json`; official compatible app releases were installed manually.
+- Pending: configure Automated Tagging rule and Retention policy, then perform an end-to-end retention test.
