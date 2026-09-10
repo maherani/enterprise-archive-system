@@ -2,9 +2,9 @@
 <info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
 	<id>archive_autotag</id>
 	<name>Archive Auto Tagger &amp; Governance</name>
-	<summary>Automatic hierarchical parent folder tagging and per-user upload limit governance for enterprise archive</summary>
-	<description>Automatically tags files with their hierarchical parent folder names as restricted system tags upon upload, updates tags upon folder rename, and enforces per-user upload file size limits configurable by admin.</description>
-	<version>1.1.0</version>
+	<summary>Automatic hierarchical parent folder tagging, per-user upload limit, and folder creation restriction for enterprise archive</summary>
+	<description>Automatically tags files with their hierarchical parent folder names as restricted system tags upon upload, updates tags upon folder rename, enforces per-user upload file size limits, and restricts folder hierarchy creation to administrators.</description>
+	<version>1.2.0</version>
 	<licence>agpl</licence>
 	<author>Enterprise Archive System</author>
 	<namespace>ArchiveAutoTag</namespace>
@@ -16,5 +16,6 @@
 	<commands>
 		<command>OCA\ArchiveAutoTag\Command\RetagAllCommand</command>
 		<command>OCA\ArchiveAutoTag\Command\UserLimitCommand</command>
+		<command>OCA\ArchiveAutoTag\Command\FolderPolicyCommand</command>
 	</commands>
 </info>

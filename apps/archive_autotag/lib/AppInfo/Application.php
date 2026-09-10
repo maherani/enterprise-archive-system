@@ -8,6 +8,7 @@ use OCA\ArchiveAutoTag\Listener\BeforeNodeWrittenListener;
 use OCA\ArchiveAutoTag\Listener\NodeCreatedListener;
 use OCA\ArchiveAutoTag\Listener\NodeRenamedListener;
 use OCA\ArchiveAutoTag\Listener\NodeWrittenListener;
+use OCA\ArchiveAutoTag\Service\FolderPolicyService;
 use OCA\ArchiveAutoTag\Service\UploadLimitService;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -30,11 +31,11 @@ class Application extends App implements IBootstrap {
     }
 
     public function register(IRegistrationContext $context): void {
-        // Enforce per-user upload size limits before and after writing
+        // Enforce per-user upload size limits and folder creation restriction
         $context->registerEventListener(BeforeNodeCreatedEvent::class, BeforeNodeCreatedListener::class);
         $context->registerEventListener(BeforeNodeWrittenEvent::class, BeforeNodeWrittenListener::class);
 
-        // SabreDAV 403 Forbidden upload limit enforcement
+        // SabreDAV 403 Forbidden enforcement (Upload limits and MKCOL folder restriction)
         $context->registerEventListener(
             \OCA\DAV\Events\SabrePluginAuthInitEvent::class,
             \OCA\ArchiveAutoTag\Listener\SabrePluginInitListener::class
@@ -47,16 +48,31 @@ class Application extends App implements IBootstrap {
     }
 
     public function boot(IBootContext $context): void {
-        // Connect legacy filesystem hooks for WebDAV early pre-upload interception
+        // Connect legacy filesystem hooks for WebDAV early pre-upload and pre-mkdir interception
         Util::connectHook('OC_Filesystem', 'write', self::class, 'preWriteHook');
         Util::connectHook('OC_Filesystem', 'create', self::class, 'preWriteHook');
+        Util::connectHook('OC_Filesystem', 'mkdir', self::class, 'preMkdirHook');
+    }
+
+    /**
+     * Intercept filesystem mkdir to enforce admin-only folder creation.
+     */
+    public static function preMkdirHook(array &$params): void {
+        $container = \OC::$server;
+        /** @var FolderPolicyService $folderPolicyService */
+        $folderPolicyService = $container->get(FolderPolicyService::class);
+        if (!$folderPolicyService->canCreateFolder()) {
+            $params['run'] = false;
+            $msg = 'Creating new folders is restricted to administrators only. You may only upload documents into existing folders.';
+            if (class_exists(\Sabre\DAV\Exception\Forbidden::class)) {
+                throw new \Sabre\DAV\Exception\Forbidden($msg);
+            }
+            throw new ForbiddenException($msg, false);
+        }
     }
 
     /**
      * Intercept filesystem pre-write to enforce per-user upload size limits.
-     *
-     * @param array $params
-     * @throws ForbiddenException
      */
     public static function preWriteHook(array &$params): void {
         $container = \OC::$server;

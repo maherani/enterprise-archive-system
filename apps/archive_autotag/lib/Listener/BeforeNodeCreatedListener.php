@@ -20,10 +20,12 @@ class BeforeNodeCreatedListener implements IEventListener {
             return;
         }
 
+        $node = $event->getNode();
+
         $contentLength = isset($_SERVER['CONTENT_LENGTH']) && is_numeric($_SERVER['CONTENT_LENGTH'])
             ? (int)$_SERVER['CONTENT_LENGTH']
             : null;
 
-        $this->uploadLimitService->enforceLimit($event->getNode(), $contentLength);
+        $this->uploadLimitService->enforceLimit($node, $contentLength);
     }
 }

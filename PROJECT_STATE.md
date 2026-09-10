@@ -132,10 +132,17 @@ Status: **Completed**
     - WebDAV storage engine enforcement via `SabrePluginInitListener` hooking `beforeCreateFile` and `beforeWriteContent`. Inspects `Content-Length` before storage and terminates oversized uploads immediately with `HTTP 403 Forbidden`.
     - Secondary filesystem stream enforcement via `BeforeNodeCreatedListener` and `NodeWrittenListener` to guarantee zero bypass even on chunked uploads.
   - Built comprehensive automated verification test suite in `tests/test_dynamic_archive_system.py` verifying all 6 requirements with 100% pass rate.
+  - **Admin-Only Folder Hierarchy Protection (File Upload Allowed, Folder Creation Prohibited):**
+    - Decoupled document uploading from folder creation. Regular users retain full permission to upload files into existing archive folders, while folder and subfolder creation (WebDAV `MKCOL` and `mkdir`) is strictly restricted to Administrators.
+    - Implemented `FolderPolicyService` and enhanced `SabrePluginInitListener` and `Application::preMkdirHook` to reject unauthorized folder creation with `HTTP 403 Forbidden`.
+    - Added administrative OCC command `occ archive:folder:policy [status|enable|disable]` for runtime policy control.
+    - Created and executed dedicated automated verification test suite `tests/test_folder_creation_restriction.py` with 100% pass rate.
 
 Status: **Completed**
 
 ## Major Lessons Learned
+
+- Native Nextcloud permissions bundle file creation and folder creation into a single permission flag (`PERMISSION_CREATE`). Decoupling these capabilities in enterprise archiving requires intercepting the `MKCOL` WebDAV method and `mkdir` filesystem hooks via custom Sabre plugins, enabling users to upload documents while preventing unauthorized folder tree sprawl.
 
 - Directly exposing the application container (`archive_app`) bypasses reverse proxy buffering and timeout controls. Placing Nginx in front standardizes the entry point and isolates Nextcloud.
 - When Nextcloud is behind a reverse proxy, `trusted_proxies` and `overwriteprotocol` must be explicitly configured in config.php via occ config:system:set.
@@ -175,3 +182,4 @@ Status: **Completed**
 10. Before starting a new development step, verify documentation and GitHub state.
 11. Prefer inspection before modification.
 12. Never remove existing data or functionality without first verifying its purpose and impact.
+
