@@ -136,7 +136,16 @@ def run_tests():
     if r_create_pub.status_code in (200, 201):
         pub_tag_id = r_create_pub.headers.get("Location", "").strip("/").split("/")[-1]
     else:
-        pub_tag_id = "9"
+        # Query existing tag ID if already created
+        r_list = requests.get(pub_tag_url, headers={"Accept": "application/json"}, auth=admin_auth)
+        pub_tag_id = "5"
+        try:
+            for item in r_list.json():
+                if item.get("name") == "Verified_E2E":
+                    pub_tag_id = str(item.get("id"))
+                    break
+        except Exception:
+            pass
 
     if pub_tag_id.isdigit():
         user_rel_url = f"{NEXTCLOUD_URL}/remote.php/dav/systemtags-relations/files/{file_id}/{pub_tag_id}"
@@ -211,3 +220,4 @@ def run_tests():
 
 if __name__ == "__main__":
     run_tests()
+
