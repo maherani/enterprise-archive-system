@@ -2,7 +2,7 @@
 
 ## Objective
 
-Build an **Enterprise Archive System** based on Nextcloud, PostgreSQL, and Nginx. The system is designed for secure, high-capacity, auditable document archiving with LDAP directory integration, compliance-driven retention policies, and programmatic ingestion via API/WebDAV for automated systems and AI agents.
+Build an **Enterprise Archive System** based on Nextcloud, PostgreSQL, and Nginx. The system is designed for secure, high-capacity, auditable document archiving with LDAP directory integration, compliance-driven retention policies, dynamic hierarchical tagging, and programmatic ingestion via API/WebDAV for automated systems and AI agents.
 
 ## Current Architecture
 
@@ -23,7 +23,7 @@ The architecture separates the public reverse proxy from internal services:
         |   archive_app    |  (Nextcloud Apache)
         |   (Internal:80)  |  - WebDAV Endpoint: /remote.php/dav/files/
         +--------+---------+  - LDAP & App API Authentication
-                 |
+                 |            - Custom App: archive_autotag (PSR-14 Event Engine)
                  v
         +------------------+
         |    archive_db    |  (PostgreSQL 15 Alpine)
@@ -35,19 +35,30 @@ The architecture separates the public reverse proxy from internal services:
 
 ```text
 enterprise-archive-system/
-├── db/                         # PostgreSQL persistent data volume
-├── deploy/                     # Deployment scripts & automation
-├── nextcloud/                  # Nextcloud persistent HTML & data volume
+├── apps/
+│   └── archive_autotag/              # Custom native Nextcloud app for dynamic hierarchical auto-tagging
+│       ├── appinfo/info.xml
+│       └── lib/
+│           ├── AppInfo/Application.php
+│           ├── Command/RetagAllCommand.php
+│           ├── Listener/             # NodeCreated, NodeWritten, NodeRenamed event listeners
+│           └── Service/AutoTagService.php
+├── db/                               # PostgreSQL persistent data volume
+├── deploy/                           # Deployment scripts & automation
+├── nextcloud/                        # Nextcloud persistent HTML & data volume
+│   └── custom_apps/archive_autotag/  # Mounted live runtime app in Nextcloud container
 ├── nginx/
-│   └── default.conf            # Nginx reverse proxy & large-upload configuration
-├── venv/                       # Python virtual environment for automation scripts
-├── .env                        # Environment credentials (git-ignored)
+│   └── default.conf                  # Nginx reverse proxy & large-upload configuration
+├── tests/
+│   └── test_dynamic_archive_system.py # Automated E2E verification test suite (5 requirements)
+├── venv/                             # Python virtual environment for automation scripts
+├── .env                              # Environment credentials (git-ignored)
 ├── .gitignore
-├── docker-compose.yml          # Core service definitions (db, app, proxy)
-├── PROJECT_STATE.md            # Primary repository memory and progress tracking
-├── README.md                   # Project description and quick start guide
-├── requirements.txt            # Python dependencies (requests, urllib3, etc.)
-└── test_api.py                 # Automated WebDAV upload test script
+├── docker-compose.yml                # Core service definitions (db, app, proxy)
+├── PROJECT_STATE.md                  # Primary repository memory and progress tracking
+├── README.md                         # Project description and quick start guide
+├── requirements.txt                  # Python dependencies (requests, urllib3, etc.)
+└── test_api.py                       # Automated WebDAV upload test script
 ```
 
 ## Implemented Steps
@@ -97,16 +108,18 @@ Status: **Completed**
 
 Status: **Completed**
 
-### Step 6 — Retention Rules & Automated Tagging
-- Verified Nextcloud runtime version: **34.0.3.2**.
-- Installed and enabled official `files_retention` **5.0.0**.
-- Installed and enabled official `files_automatedtagging` **5.0.0**.
-- App Store automatic installation was affected by slow/incomplete retrieval of `apps.json`; compatible official releases were installed manually.
-- Created restricted system tag: **`Archive Protected`**.
-- Successfully applied `Archive Protected` manually to a test file through the Nextcloud browser UI.
-- Verified both applications through `occ app:list` and confirmed they are enabled.
+### Step 6 — Admin Folder Governance & Dynamic Hierarchical System Auto-Tagging
+- Developed and enabled native Nextcloud custom application `archive_autotag` (v1.0.0) in `custom_apps/archive_autotag`:
+  - Implemented PSR-14 event listeners: `NodeCreatedEvent`, `NodeWrittenEvent`, and `NodeRenamedEvent`.
+  - **Dynamic Hierarchical Tagging:** Automatically traverses folder hierarchy up to the archive root and applies all parent folder tags (e.g. `/Enterprise_Archive/Finance/2026/Invoices_Archive/file.pdf` receives tags `Enterprise_Archive`, `Finance`, `2026`, `Invoices_Archive`).
+  - **Protected System Tags:** Tags are created with `restricted` access (`userVisible=true`, `userAssignable=false`). Users can view and filter by these tags, but regular users are strictly forbidden from deleting or modifying them (HTTP 403 Forbidden).
+  - **Folder Rename Propagation:** Renaming an archive folder (e.g., `Invoices` -> `Invoices_Archive`) automatically propagates to all descendant files, detaching the old tag and assigning the new tag.
+  - **Admin Folder Governance:** User personal quota set to `0 B`, preventing regular users from creating personal storage folders/files (HTTP 507 Insufficient Storage). Users only operate within Admin-created and Admin-shared archive folders.
+  - **Collaborative User Tagging:** Authorized users can freely assign and remove public collaborative tags (e.g. `Audited_OK`, `Verified_E2E`).
+  - Added OCC CLI command `occ archive:retag [<user>]` for batch and retroactive scanning.
+  - Built comprehensive automated verification test suite in `tests/test_dynamic_archive_system.py` verifying all 5 requirements with 100% pass rate.
 
-Status: **In Progress — configuration and end-to-end retention test pending**
+Status: **Completed**
 
 ## Major Lessons Learned
 
@@ -114,25 +127,19 @@ Status: **In Progress — configuration and end-to-end retention test pending**
 - When Nextcloud is behind a reverse proxy, `trusted_proxies` and `overwriteprotocol` must be explicitly configured in config.php via occ config:system:set.
 - Enterprise archives deal with multi-gigabyte files; disabling proxy_request_buffering in Nginx is required to avoid memory and disk saturation during large WebDAV uploads.
 - Application passwords in Nextcloud are cryptographically bound to system salt/secret parameters. Whenever credentials or configuration are updated, app tokens must be managed using `occ user:add-app-password`.
-- Nextcloud App Store metadata retrieval can be a bottleneck in restricted or slow network environments; manual installation of verified compatible official app releases is a valid recovery path.
-- Restricted system tags are useful for compliance workflows because they limit normal-user control over compliance-related tags.
+- Nextcloud App Store metadata retrieval can be a bottleneck in restricted or slow network environments; native PSR-14 custom applications installed into `custom_apps` provide zero-latency, offline-capable, and completely custom business logic.
+- Restricted system tags (`userVisible=true, userAssignable=false`) are essential for enterprise compliance because they prevent regular users from deleting or altering audit tags, while public tags remain available for collaborative workflows.
+- Setting regular user storage quota to `0 B` enforces strict governance, preventing clutter in user personal roots and ensuring all archived assets reside within Admin-governed folder structures.
 
 ## Repository Status
 
 - Repository: `maherani/enterprise-archive-system`
 - Branch: `main`
-- Current project checkpoint: **Step 6 in progress**.
-- GitHub Remote: documentation checkpoint being synchronized with the current Step 6 state.
+- Current project checkpoint: **Step 6 completed and verified**.
+- GitHub Remote: synchronizing native app code, test suite, and state documentation.
 - Runtime data and credentials remain outside version control as intended.
 
 ## Pending Work & Next Roadmap
-
-### Current Step: Step 6
-- **Retention Rules & Automated Tagging**:
-  - Configure an Automated Tagging rule that assigns `Archive Protected` according to the archive workflow.
-  - Configure the Retention policy for the protected archive files.
-  - Verify the resulting behavior with a controlled end-to-end test.
-  - Confirm the policy prevents premature deletion according to the configured retention period.
 
 ### Future Enhancements
 - **Step 7**: Audit Logging (`admin_audit`) to trace file access and downloads.

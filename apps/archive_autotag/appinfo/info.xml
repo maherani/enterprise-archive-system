@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+	<id>archive_autotag</id>
+	<name>Archive Auto Tagger</name>
+	<summary>Automatic hierarchical parent folder tagging for enterprise archive</summary>
+	<description>Automatically tags files with their hierarchical parent folder names as restricted system tags upon upload and updates tags upon folder rename.</description>
+	<version>1.0.0</version>
+	<licence>agpl</licence>
+	<author>Enterprise Archive System</author>
+	<namespace>ArchiveAutoTag</namespace>
+	<category>organization</category>
+	<category>tools</category>
+	<dependencies>
+		<nextcloud min-version="28" max-version="35"/>
+	</dependencies>
+	<commands>
+		<command>OCA\ArchiveAutoTag\Command\RetagAllCommand</command>
+	</commands>
+</info>
