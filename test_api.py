@@ -4,7 +4,7 @@ from requests.auth import HTTPBasicAuth
 # API Configuration
 NEXTCLOUD_URL = "http://localhost"
 USERNAME = "api_worker"
-APP_PASSWORD = "YtcdP0LEoc0Z0bsQlAJLUHnG5nvcXZLHAngvvgI0LtenaDRzoXRFCL3lbGISDJvaCj9YCKKG" # Replace with the generated app password
+APP_PASSWORD = "5NJ8SmJLllNypBwaus3TmQwhdbjDdYQ4PFwbUz6h4LJtiMbA14QwyvCazozux7lh8aOKc72b" # Replace with the generated app password
 
 # WebDAV API Endpoint
 upload_url = f"{NEXTCLOUD_URL}/remote.php/dav/files/{USERNAME}/audit_report_2026.txt"
@@ -23,6 +23,7 @@ if response.status_code in (201, 204):
     print("Success! Document successfully integrated and archived via API.")
 else:
     print(f"Failed. Status code: {response.status_code}")
+
 
 
 
