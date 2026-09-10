@@ -1,44 +1,50 @@
 # Enterprise Archive System - Deployment Runbook
 
-این سند راهنمای اجرایی نصب و راه‌اندازی سامانه برای کارشناس زیرساخت است. مبنای آن وضعیت فعلی Repository پروژه است.
+این سند راهنمای اجرایی نصب، پیکربندی و راه‌اندازی سامانه آرشیو سازمانی برای کارشناس زیرساخت و DevOps است. مبنای آن وضعیت جاری Repository پروژه و ویژگی‌های پیاده‌سازی‌شده مدیریت متمرکز پوشه‌ها و تگ‌گذاری داینامیک است.
+
+---
 
 ## 1. معماری
 
 ```text
-[ External Clients / AI Agents / API ]
-                 |
-             HTTP :80
-                 v
-        +------------------+
-        |  archive_proxy   |  Nginx Alpine
-        |    Port 80:80    |
-        +--------+---------+
-                 |
-                 v
-        +------------------+
-        |   archive_app    |  Nextcloud Apache
-        |   Internal :80   |
-        +--------+---------+
-                 |
-                 v
-        +------------------+
-        |    archive_db    |  PostgreSQL 15 Alpine
-        |   Internal :5432 |
-        +------------------+
+[ External Clients / AI Agents / WebDAV API ]
+                      |
+                  HTTP :80
+                      v
+             +------------------+
+             |  archive_proxy   |  Nginx Alpine (Reverse Proxy)
+             |    Port 80:80    |  - client_max_body_size 10G
+             +--------+---------+  - request_buffering off
+                      | (archive_net bridge)
+                      v
+             +------------------+
+             |   archive_app    |  Nextcloud Apache
+             |   Internal :80   |  - WebDAV Endpoint: /remote.php/dav/files/
+             +--------+---------+  - Custom App: archive_autotag (PSR-14 Event Engine)
+                      |            - User Quota: 0 B (Admin Folder Governance)
+                      v
+             +------------------+
+             |    archive_db    |  PostgreSQL 15 Alpine
+             |   Internal :5432 |  - Database: nextcloud
+             +------------------+
 ```
 
-دسترسی خارجی فقط از Nginx انجام شود؛ PostgreSQL و پورت داخلی Nextcloud نباید مستقیم روی شبکه عمومی منتشر شوند.
+دسترسی خارجی فقط از طریق Nginx انجام می‌شود؛ سرویس‌های PostgreSQL و پورت داخلی Nextcloud به هیچ وجه نباید مستقیماً روی شبکه عمومی منتشر شوند.
 
-## 2. پیش‌نیاز
+---
 
-- Ubuntu Server 22.04/24.04 LTS
-- sudo و دسترسی شبکه مناسب برای GitHub و Docker Registry
-- Docker و Docker Compose Plugin
-- فضای دیسک کافی برای PostgreSQL و آرشیو
-- پورت 80 آزاد؛ در Production بعداً 443 نیز لازم است
-- NTP/زمان سیستم صحیح
+## 2. پیش‌نیازها
 
-## 3. دریافت پروژه
+- سیستم‌عامل Ubuntu Server 22.04 یا 24.04 LTS
+- دسترسی `sudo` و اتصال پایدار شبکه جهت دریافت پکیج‌ها و ایمیج‌های داکر
+- نصب Docker Engine و Docker Compose Plugin (v2)
+- فضای دیسک کافی متناسب با ظرفیت آرشیو اسناد سازمانی و پایگاه داده PostgreSQL
+- پورت 80 آزاد (در فاز Production، پورت 443 و گواهی SSL/TLS نیز الزامی است)
+- تنظیم صحیح ساعت سیستم و NTP سرور
+
+---
+
+## 3. دریافت پروژه از مخزن گیت
 
 ```bash
 cd ~
@@ -47,246 +53,290 @@ cd ~/enterprise-archive-system
 git status
 ```
 
-شاخه و Commit مورد تأیید پروژه باید کنترل شود و Working Tree تمیز باشد.
+شاخه اصلی `main` و Commit معتبر پروژه باید کنترل شود و Working Tree در وضعیت `clean` باشد.
 
-## 4. ایجاد `.env`
+---
+
+## 4. ایجاد و تنظیم فایل متغیرهای محیطی (`.env`)
 
 ```bash
 nano .env
 ```
 
-نمونه:
+نمونه پیکربندی استاندارد:
 
 ```env
+# Database Configuration
 POSTGRES_DB=nextcloud
-POSTGRES_USER=nextcloud
+POSTGRES_USER=nextcloud_user
 POSTGRES_PASSWORD=<STRONG_DB_PASSWORD>
 
+# Nextcloud Admin Configuration
 NEXTCLOUD_ADMIN_USER=admin
 NEXTCLOUD_ADMIN_PASSWORD=<STRONG_ADMIN_PASSWORD>
-
 NEXTCLOUD_TRUSTED_DOMAINS=localhost 127.0.0.1 <SERVER_IP_OR_FQDN>
 ```
 
-رمزهای واقعی توسط مسئول امنیت/بهره‌برداری تعیین شوند. `.env` نباید وارد Git، Ticket، Chat یا Screenshot شود.
+> [!CAUTION]
+> رمزهای عبور واقعی باید توسط مسئول امنیت/بهره‌برداری تعیین شوند. فایل `.env` حاوی اطلاعات محرمانه است و هرگز نباید وارد Git، تیکت‌ها، پیام‌رسان‌ها یا اسکرین‌شات‌ها شود.
 
-کنترل:
+کنترل وضعیت گیت:
 
 ```bash
 git status
 ```
 
-باید Working Tree همچنان clean باشد.
+باید فایل `.env` توسط `.gitignore` نادیده گرفته شده و وضعیت مخزن clean بماند.
 
-## 5. راه‌اندازی Compose
+---
+
+## 5. راه‌اندازی کانتینرها با Docker Compose
 
 ```bash
 docker compose up -d
 docker compose ps
 ```
 
-باید سرویس‌های زیر Up باشند:
+سرویس‌های زیر باید در وضعیت Healthy / Up باشند:
+- `archive_db` (PostgreSQL 15)
+- `archive_app` (Nextcloud Apache)
+- `archive_proxy` (Nginx Alpine)
 
-- `archive_db`
-- `archive_app`
-- `archive_proxy`
+> [!WARNING]
+> هرگز برای رفع خطاهای موقت از دستور `docker compose down -v` یا حذف دستی دایرکتوری‌های `db/` و `nextcloud/` استفاده نکنید زیرا داده‌ها و متادیتا پاک خواهند شد.
 
-هرگز برای رفع مشکل از `docker compose down -v` یا حذف `db/` و `nextcloud/` استفاده نشود.
+---
 
-## 6. تست Nginx و Nextcloud
+## 6. اعتبارسنجی Nginx و سرویس وب
 
 ```bash
 curl -I http://localhost
 ```
 
-پاسخ 200 یا 302 قابل قبول است. از مرورگر نیز `http://<SERVER_IP_OR_FQDN>` بررسی شود.
+پاسخ `HTTP 200` یا ریدایرکت `HTTP 302` نشان‌دهنده در دسترس بودن سرویس است. همچنین از طریق مرورگر، آدرس `http://<SERVER_IP_OR_FQDN>` را باز کرده و صفحه ورود Nextcloud را بررسی نمایید.
 
-## 7. بررسی Nextcloud
+---
+
+## 7. بررسی وضعیت هسته Nextcloud
 
 ```bash
 docker compose exec app php occ status
 ```
 
-نسخه مرجع فعلی پروژه: `34.0.3.2` و نصب باید `true` و maintenance برابر `false` باشد.
+خروجی مورد انتظار:
+- `installed: true`
+- `version: 34.0.3.2`
+- `maintenance: false`
 
-## 8. بررسی App Paths
+---
+
+## 8. بررسی مسیرهای نصب برنامه‌ها (`apps_paths`)
 
 ```bash
-docker compose exec app php occ config:list
+docker compose exec app php occ config:system:get apps_paths
 ```
 
-مسیرهای مورد انتظار:
-
+مسیرهای استاندارد پیکربندی‌شده:
 ```text
-/var/www/html/apps
-/var/www/html/custom_apps
+0: /var/www/html/apps (Read-only)
+1: /var/www/html/custom_apps (Writable)
 ```
 
-`custom_apps` باید Writable باشد.
+دایرکتوری `custom_apps` جهت استقرار ماژول‌های بومی و اپلیکیشن‌های سفارشی استفاده می‌شود.
 
-## 9. LDAP
+---
 
-در محیط دارای LDAP/Active Directory:
+## 9. یکپارچه‌سازی با سامانه دایرکتوری سازمانی (LDAP / Active Directory)
+
+در محیط‌های سازمانی متصل به اکتیودایرکتوری یا OpenLDAP:
 
 ```bash
 docker compose exec app php occ app:enable user_ldap
 ```
 
-سپس Base DN، Bind Account، اتصال و گروه‌ها طبق استاندارد سازمان تنظیم و با یک حساب آزمایشی تست شوند. Bind Password و سایر Secretها در Git ثبت نشوند.
+سپس مقادیر Base DN، Bind DN، پورت (389 یا 636) و فیلترهای ورود و گروه‌ها طبق شناسنامه هویتی سازمان تنظیم و تست اتصال انجام گیرد.
 
-## 10. Compliance Group و Service Account
+---
 
-در صورت استفاده از الگوی فعلی پروژه، گروه `Compliance_Unit` و Service Account `api_worker` با حداقل دسترسی لازم ایجاد شوند. برای API از App Password/Token اختصاصی استفاده شود و Token در Secret Manager نگهداری شود.
+## 10. ساختار حاکمیت پوشه‌ها توسط ادمین (Admin-Only Folder Governance)
 
-## 11. WebDAV/API Ingestion
+بر اساس خط‌مشی امنیت داده‌های آرشیو، کاربران عادی نباید بتوانند پوشه‌های دلخواه در ریشه شخصی ایجاد کنند یا ساختار آرشیو را تغییر دهند:
 
-Repository شامل `test_api.py` برای تست دریافت فایل است:
-
+### ۱. محدودسازی سهمیه دیسک شخصی کاربران به صفر:
+برای کاربران استاندارد آرشیو (مانند `archive_user1` یا کل گروه کاربران):
 ```bash
-source venv/bin/activate
-python test_api.py
+docker compose exec app php occ user:setting <username> files quota 0
+```
+با این تنظیم، تلاش کاربر برای آپلود یا ساخت پوشه در فضای شخصی با خطای `HTTP 507 (Insufficient Storage)` مسدود می‌شود.
+
+### ۲. ساخت پوشه‌های سازمانی توسط ادمین:
+پوشه‌های اصلی آرشیو منحصراً توسط ادمین در وب یا از طریق خط فرمان ایجاد می‌شوند:
+- `/Enterprise_Archive/Finance/2026/Invoices`
+- `/Enterprise_Archive/Legal/Contracts`
+- `/Enterprise_Archive/Technical/Blueprints`
+
+### ۳. اشتراک‌گذاری پوشه‌ها با گروه‌ها با دسترسی‌های کنترل‌شده:
+ادمین پوشه ریشه `/Enterprise_Archive` را با گروه دسترسی مربوطه (مثلاً `Compliance_Unit`) به اشتراک می‌گذارد:
+- مجوزهای مجاز: **مشاهده (Read)، ایجاد فایل (Create)، ویرایش (Update)**
+- مجوزهای غیرمجاز: **حذف پوشه ریشه (Delete Root) و اشتراک مجدد (Reshare)**
+
+بدین ترتیب کاربران صرفاً درون پوشه‌های هدایت‌شده توسط ادمین امکان آپلود دارند.
+
+---
+
+## 11. استقرار و فعال‌سازی ماژول تگ‌گذاری داینامیک (`archive_autotag`)
+
+پروژه شامل یک اپلیکیشن بومی سبک و بدون وابستگی خارجی به نام `archive_autotag` است که در مسیر `apps/archive_autotag` مخزن گیت قرار دارد.
+
+### ۱. کپی سورس ماژول به دایرکتوری `custom_apps`:
+در صورتی که برنامه هنوز در کانتینر مستقر نشده باشد:
+```bash
+docker compose exec app mkdir -p custom_apps/archive_autotag
+docker cp apps/archive_autotag/. archive_app:/var/www/html/custom_apps/archive_autotag/
+docker compose exec app chown -R www-data:www-data /var/www/html/custom_apps/archive_autotag
 ```
 
-تست موفق باید Upload را از مسیر Nginx انجام دهد و پاسخ HTTP موفق دریافت شود.
-
-## 12. تنظیمات Nginx برای آرشیو حجیم
-
-در `nginx/default.conf` موارد کلیدی فعلی پروژه باید حفظ شوند:
-
-- `client_max_body_size 10G;`
-- `proxy_request_buffering off;`
-- `proxy_buffering off;`
-- Timeoutهای مناسب برای انتقال فایل حجیم
-- Service discovery مربوط به CalDAV/CardDAV در صورت نیاز
-
-بعد از هر تغییر، Config و مسیر HTTP تست شوند.
-
-## 13. Step 6 - Retention و Automated Tagging
-
-Appهای مورد نیاز:
-
-- `files_retention` نسخه `5.0.0`
-- `files_automatedtagging` نسخه `5.0.0`
-
-نصب معمول:
-
+### ۲. فعال‌سازی اپلیکیشن در Nextcloud:
 ```bash
-docker compose exec app php occ app:install files_retention
-docker compose exec app php occ app:install files_automatedtagging
+docker compose exec app php occ app:enable archive_autotag
 ```
 
-بررسی:
-
-```bash
-docker compose exec app php occ app:list | grep -E 'files_retention|files_automatedtagging'
+خروجی تایید:
+```text
+archive_autotag 1.0.0 enabled
 ```
 
-اگر App Store به علت محدودیت شبکه یا Timeout در دسترس نبود، نسخه رسمی سازگار با Nextcloud 34 باید از منبع رسمی تهیه و پس از بررسی نسخه در `custom_apps` نصب شود.
+---
 
-## 14. ساخت Compliance Tag
+## 12. نحوه کارکرد تگ‌گذاری داینامیک و سلسله‌مراتبی (Hierarchical Auto-Tagging)
+
+ماژول `archive_autotag` با استفاده از شنوندگان رویدادهای هسته Nextcloud (PSR-14 Event Dispatcher) به صورت آنی و خودکار عمل می‌کند:
+
+1. **رویداد آپلود فایل (`NodeCreatedEvent` و `NodeWrittenEvent`):**
+   - به محض بارگذاری یک فایل توسط کاربر یا سیستم از طریق Web UI یا WebDAV API، سلسله‌مراتب کامل پوشه‌های والد استخراج می‌شود.
+   - مثال: برای فایل در مسیر `/Enterprise_Archive/Finance/2026/Invoices/doc.pdf`، تگ‌های `Enterprise_Archive`، `Finance`، `2026` و `Invoices` به صورت داینامیک ایجاد و به فایل الصاق می‌شوند.
+2. **محافظت از تگ‌های سیستمی (`Restricted Tags`):**
+   - تمامی تگ‌های والد به صورت سیستمی و با ویژگی **Restricted** (`userAssignable=false` و `userVisible=true`) ساخته می‌شوند.
+   - کاربران عادی این تگ‌ها را می‌بینند و می‌توانند اسناد را بر اساس آن‌ها فیلتر کنند، اما دکمه حذف ندارند و هرگونه تلاش مستقیم از طریق API با خطای `HTTP 403 Forbidden` متوقف می‌شود.
+3. **تگ‌گذاری مشارکتی توسط کاربران مجاز:**
+   - کاربران مجاز می‌توانند علاوه بر تگ‌های والد، تگ‌های عمومی دلخواه (`public`) را به فایل‌ها اضافه یا از آن‌ها حذف نمایند.
+4. **انتشار تغییرات تغییر نام پوشه (`NodeRenamedEvent`):**
+   - هرگاه ادمین نام یک پوشه را تغییر دهد (مثلاً از `Invoices` به `Invoices_Archive`)، تگ قبلی به صورت خودکار از تمام اسناد فرزند حذف و تگ جدید به آن‌ها الصاق می‌گردد.
+
+---
+
+## 13. مدیریت سطوح دسترسی تگ‌ها توسط ادمین (CLI)
+
+ادمین سیستم می‌تواند تگ‌ها را با هر سه سطح دسترسی استاندارد مدیریت کند:
 
 ```bash
-docker compose exec app php occ tag:add "Archive Protected" restricted
+# ایجاد تگ عمومی (قابل مشاهده و ویرایش توسط تمام کاربران)
+docker compose exec app php occ tag:add "Public_Tag_Name" public
+
+# ایجاد تگ حفاظت‌شده سیستمی (قابل مشاهده، اما غیرقابل حذف توسط کاربران عادی)
+docker compose exec app php occ tag:add "System_Protected_Tag" restricted
+
+# ایجاد تگ مخفی (نامرئی برای کاربران عادی)
+docker compose exec app php occ tag:add "Internal_Audit_Tag" invisible
+
+# لیست تمامی تگ‌های موجود در سیستم
 docker compose exec app php occ tag:list
 ```
 
-باید Tag زیر وجود داشته باشد:
+---
 
-```text
-name: Archive Protected
-access: restricted
+## 14. دستور خط فرمان اسکن و تگ‌گذاری دسته‌ای (`occ archive:retag`)
+
+برای فایل‌ها یا پوشه‌هایی که قبل از نصب ماژول آپلود شده‌اند، از دستور اختصاصی زیر برای بازخوانی سلسله‌مراتب و تگ‌گذاری دسته‌ای استفاده کنید:
+
+```bash
+# تگ‌گذاری مجدد برای تمامی کاربران سیستم
+docker compose exec app php occ archive:retag
+
+# تگ‌گذاری مجدد فقط برای یک حساب کاربری خاص
+docker compose exec app php occ archive:retag admin
 ```
 
-سپس از Browser روی یک فایل آزمایشی Tag را اعمال و نتیجه را بررسی کنید.
+---
 
-## 15. Automated Tagging Rule
+## 15. اجرای تست‌های خودکار جامع انتها-به-انتها (E2E Verification)
 
-از مسیر زیر در Nextcloud:
+مخزن شامل اسکریپت تست کامل `tests/test_dynamic_archive_system.py` است که هر ۵ نیازمندی حاکمیت و تگ‌گذاری را بررسی می‌کند:
 
-`Administration settings -> Workflow -> Automated tagging`
+```bash
+# فعال‌سازی محیط مجازی پایتون
+source venv/bin/activate
 
-Rule باید فقط محدوده واقعی آرشیو را هدف قرار دهد و در Action، Tag `Archive Protected` را اعمال کند.
+# اجرای سوئیت آزمون
+python tests/test_dynamic_archive_system.py
+```
 
-ابتدا روی حساب/پوشه آزمایشی اجرا شود و سپس به داده عملیاتی تعمیم داده شود.
+گام‌های اعتبارسنجی اسکریپت:
+1. بررسی مسدود بودن آپلود کاربر در فضای شخصی (`HTTP 507/403`).
+2. آپلود سند در ساختار سلسله‌مراتبی ادمین و بررسی دریافت پاسخ موفق (`HTTP 201/204`).
+3. بازخوانی تگ‌های فایل و تایید الصاق خودکار تمام تگ‌های سلسله‌مراتب پوشه‌های والد.
+4. تلاش کاربر برای حذف تگ والد و تایید دریافت خطای `HTTP 403 Forbidden`.
+5. الصاق و حذف تگ عمومی توسط کاربر و تایید عملکرد موفق.
+6. تغییر نام پوشه توسط ادمین و تایید تعویض خودکار تگ تمام اسناد درون آن.
 
-## 16. Retention Policy
+نتیجه نهایی باید پیام `ALL 5 REQUIREMENTS VERIFIED AND PASSED SUCCESSFULLY!` باشد.
 
-پس از اطمینان از Automated Tagging، Retention Policy برای فایل‌های دارای `Archive Protected` تعریف شود. مدت نگهداری باید دقیقاً از سیاست رسمی سازمان گرفته شود؛ این Runbook عمداً عدد ثابتی تعیین نمی‌کند.
+---
 
-تا قبل از تأیید Compliance و تست کنترل‌شده، Cleanup روی داده واقعی فعال نشود.
+## 16. Step 7 - لاگ ممیزی امنیتی (`admin_audit`)
 
-## 17. End-to-End Test
-
-حداقل این موارد ثبت و تأیید شوند:
-
-1. ایجاد فایل آزمایشی در محدوده آرشیو
-2. اعمال خودکار `Archive Protected`
-3. بررسی محدودیت تغییر Tag توسط کاربر عادی
-4. بررسی وضعیت/تاریخ Retention
-5. ثبت زمان و نتیجه تست
-6. تأیید مالک سامانه/Compliance
-
-## 18. Step 7 - Audit Logging
-
-پس از تکمیل Step 6:
+جهت ممیزی دسترسی به فایل‌ها، دانلودها، اشتراک‌گذاری‌ها و لاگین‌ها:
 
 ```bash
 docker compose exec app php occ app:enable admin_audit
 ```
 
-سپس رخدادهای حساس و سیاست نگهداری لاگ تست شوند.
+رویدادهای حساس ممیزی در مسیر `/var/www/html/data/audit.log` (یا لاگ سیستم) ثبت می‌شوند.
 
-## 19. Step 8 - SSL/TLS
+---
 
-برای Production، HTTPS باید روی Nginx فعال شود و گواهی/تمدید آن مدیریت شود. پس از فعال‌سازی HTTPS، `trusted_proxies`، `overwriteprotocol` و URLهای Nextcloud مجدداً تست شوند.
+## 17. Step 8 - فعال‌سازی امنیتی SSL/TLS و HTTPS
 
-## 20. Step 9 - Backup/Disaster Recovery
+در محیط Production، ترافیک پورت 80 باید به 443 هدایت شده و گواهی معتبر SSL/TLS (مانند Let's Encrypt یا گواهی سازمانی) بر روی Nginx پیکربندی شود:
+1. قرار دادن گواهی در مسیر `nginx/certs/`.
+2. تنظیم بلوک `server` روی پورت `443 ssl` در `nginx/default.conf`.
+3. تنظیم پارامترهای `overwriteprotocol => 'https'` و `trusted_proxies` در Nextcloud.
 
-Backup باید حداقل شامل این موارد باشد:
+---
 
-- PostgreSQL database
-- Nextcloud data directory
-- Nextcloud configuration
-- `custom_apps` در صورت نیاز
-- فایل‌های Repository مانند `docker-compose.yml` و `nginx/default.conf` از Git قابل بازیابی‌اند
+## 18. Step 9 - پشتیبان‌گیری و بازیابی فاجعه (Backup & Disaster Recovery)
 
-Restore Test دوره‌ای الزامی است؛ Backup بدون Restore Test راهکار DR کامل محسوب نمی‌شود.
+نسخه پشتیبان روزانه باید شامل موارد زیر باشد:
+1. **پایگاه داده PostgreSQL:**
+   ```bash
+   docker compose exec db pg_dump -U nextcloud_user nextcloud > backup_db_$(date +%F).sql
+   ```
+2. **فایل‌های داده و تنظیمات Nextcloud:** پشتیبان‌گیری از دایرکتوری‌های `nextcloud/` و `db/`.
+3. **کدها و اسکریپت‌ها:** کدهای برنامه و ماژول `apps/archive_autotag` درون Git نگهداری می‌شوند.
 
-## 21. Step 10 - Scheduled Cleanup & Reporting
+> [!IMPORTANT]
+> پشتیبان‌گیری بدون انجام دوره‌ای آزمون بازیابی (Restore Test) فاقد ارزش عملیاتی در شرایط بحران است.
 
-پس از تثبیت Retention و Audit، Job زمان‌بندی‌شده برای گزارش وضعیت Retention، خطاها و موارد مشمول Cleanup ایجاد شود. Agent گزارش‌دهنده نباید بدون مجوز، داده عملیاتی را حذف کند.
+---
 
-## 22. چک‌لیست تحویل
+## 19. چک‌لیست تحویل سامانه به تیم بهره‌برداری
 
-- [ ] OS و Docker سالم
-- [ ] Repository و Commit تأییدشده
-- [ ] `.env` ساخته شده و خارج از Git است
-- [ ] `archive_db`, `archive_app`, `archive_proxy` Up هستند
-- [ ] Nginx پاسخ HTTP مناسب می‌دهد
-- [ ] Nextcloud version/status تأیید شده
-- [ ] LDAP در صورت نیاز متصل و تست شده
-- [ ] Service Account و Token با حداقل دسترسی آماده است
-- [ ] WebDAV/API Upload تست شده
-- [ ] Nginx برای فایل حجیم بررسی شده
-- [ ] Retention App فعال است
-- [ ] Automated Tagging App فعال است
-- [ ] `Archive Protected` به‌صورت Restricted ساخته شده
-- [ ] Automated Tagging Rule تست و تأیید شده
-- [ ] Retention Policy تست شده
-- [ ] Audit Logging فعال و بررسی شده
-- [ ] HTTPS فعال و تست شده
-- [ ] Backup و Restore Test انجام شده
+- [ ] سیستم‌عامل و سرویس داکر در وضعیت پایدار است.
+- [ ] فایل `.env` پیکربندی شده و خارج از گیت است.
+- [ ] کانتینرهای `archive_db`، `archive_app` و `archive_proxy` بدون خطا در حال اجرا هستند.
+- [ ] تنطیمات Nginx برای فایل‌های حجیم (`client_max_body_size 10G` و `request_buffering off`) فعال است.
+- [ ] ماژول بومی `archive_autotag` نصب و فعال است (`occ app:list`).
+- [ ] سهمیه دیسک کاربران عادی روی `0 B` تنظیم شده است.
+- [ ] ساختار پوشه‌های آرشیو توسط ادمین ساخته شده و با مجوزهای لازم به اشتراک گذاشته شده است.
+- [ ] آزمون تست خودکار انتها-به-انتها (`tests/test_dynamic_archive_system.py`) با موفقیت ۱۰۰٪ پاس شده است.
+- [ ] خطای 403 در صورت تلاش کاربر برای حذف تگ والد تایید شده است.
+- [ ] انتشار خودکار تغییر نام پوشه به تگ فایل‌ها تست و تایید شده است.
+- [ ] فرآیند پشتیبان‌گیری دوره‌ای و مستندات بازیابی مستقر شده است.
 
-## 23. نکات حیاتی
+---
 
-- هیچ Volume یا داده‌ای بدون Backup و تأیید حذف نشود.
-- رمزها و Tokenها هرگز در Git ذخیره نشوند.
-- تغییرات حساس ابتدا در محیط تست انجام شوند.
-- هر Step فقط پس از تست موفق تکمیل اعلام شود.
-- پس از هر Step تکمیل‌شده، `PROJECT_STATE.md` به‌روزرسانی و Commit/Push شود.
+## 20. نکات حیاتی و الزامات نگهداشت
 
-## 24. تفکیک Clean Deployment و Migration
-
-`git clone + docker compose` یک نمونه جدید با همان Software State می‌سازد.
-
-برای انتقال دقیق Instance موجود همراه با فایل‌ها، کاربران، دیتابیس، Tagها و تنظیمات، باید Backup/Restore انجام شود و این کار به‌عنوان Migration با Maintenance Window برنامه‌ریزی گردد.
+- هیچ Volume، Container یا کلاستری بدون پشتیبان‌گیری قبلی حذف یا دستکاری نشود.
+- Secretها، Tokenها و رمزهای پایگاه داده هرگز نباید وارد مستندات عمومی یا مخزن گیت شوند.
+- هرگونه به‌روزرسانی کدها ابتدا روی محیط تست اعتبارسنجی شده و سپس با ثبت لاگ در `PROJECT_STATE.md` اعمال گردد.
