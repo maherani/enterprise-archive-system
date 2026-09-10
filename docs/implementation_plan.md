@@ -1,6 +1,6 @@
-# طرح پیاده‌سازی مدیریت متمرکز پوشه‌ها و سیستم تگ‌گذاری داینامیک در سامانه آرشیو سازمانی
+# طرح پیاده‌سازی مدیریت متمرکز پوشه‌ها، سیستم تگ‌گذاری داینامیک و کنترل سقف حجم آپلود کاربران در سامانه آرشیو سازمانی
 
-این سند فنی، پلن اجرایی ۵ نیاز کلیدی اعلام‌شده توسط کاربر برای سامانه آرشیو سازمانی مبتنی بر Nextcloud را به همراه معماری فنی، نحوه کارکرد ماژول بومی، سطوح دسترسی و مراحل آزمون تشریح می‌کند.
+این سند فنی، پلن اجرایی ۶ نیاز کلیدی اعلام‌شده توسط کاربر برای سامانه آرشیو سازمانی مبتنی بر Nextcloud را به همراه معماری فنی، نحوه کارکرد ماژول‌های بومی، سطوح دسترسی و نتایج آزمون جامع تشریح می‌کند.
 
 ---
 
@@ -11,123 +11,139 @@
 3. **تگ‌گذاری آنی هنگام آپلود**: بلافاصله پس از آپلود شدن فایل توسط کاربر یا از طریق API/WebDAV، تگ والد به فایل الصاق شود.
 4. **تگ‌گذاری مکمل توسط کاربران بدون امکان حذف تگ سیستمی**: کاربران دارای مجوز بتوانند تگ‌های دلخواه خود را به فایل‌ها اضافه کنند، اما هرگز نتوانند تگ‌های والد/سیستمی را حذف یا دستکاری کنند.
 5. **انتشار تغییرات تغییر نام یا حذف فولدر**: در صورت تغییر نام پوشه توسط ادمین، تگ قبلی از تمام فایل‌های درون آن حذف و تگ جدید جایگزین شود؛ و در صورت حذف فولدر، اتصالات تگ متناسباً مدیریت شود.
+6. **محدودیت حجم آپلود فایل برای هر کاربر توسط ادمین**: ادمین سیستم بتواند برای هر کاربر سقف مشخصی برای حداکثر حجم مجاز هر فایل آپلودی تعیین کند (مثلاً 10MB، 500MB یا نامحدود). در صورتی که کاربری فایلی بزرگتر از حد مجاز خود آپلود کند، سیستم بلافاصله آپلود را با خطای `HTTP 403 Forbidden` متوقف و رد کند.
 
 ---
 
-## معماری پیشنهادی (Architecture & Design)
+## معماری سامانه (Architecture & Design)
 
-```
-[ کاربر / API Worker ]
-         │ (Upload File via WebDAV / Web UI)
-         ▼
-[ Nextcloud Storage Engine ]
-         │
-         ├───▶ [ رویداد بومی: NodeCreatedEvent ]
-         │            │
-         │            ▼
-         │     [ ماژول archive_autotag ]
-         │            │
-         │            ├── استخراج نام فولدر والد ($node->getParent()->getName())
-         │            ├── بررسی/ایجاد Restricted System Tag (غیرقابل حذف توسط کاربر)
-         │            └── الصاق مستقیم تگ والد به فایل
-         │
-         └───▶ [ در صورت تغییر نام پوشه: NodeRenamedEvent ]
-                      │
-                      ▼
-               [ ماژول archive_autotag ]
-                      │
-                      ├── یافتن فایل‌های درون پوشه تغییرنام‌یافته
-                      ├── حذف تگ والد قدیمی ($oldTagName)
-                      └── تخصیص تگ والد جدید ($newTagName)
+```text
+[ کاربر عادی / Service Account / API ]
+                   |
+             HTTP PUT :80
+                   v
+          [ Nginx Reverse Proxy ]
+                   | (Client Max Body Size: 10G)
+                   v
+        [ Nextcloud WebDAV Engine ]
+                   |
+                   +---▶ [ لیسنر Sabre Plugin: beforeCreateFile / beforeWriteContent ]
+                   |            |
+                   |            +--- بررسی محدودیت حجم کاربر ($uploadLimitService->getUserLimit($uid))
+                   |            +--- آیا Content-Length > سقف مجاز کاربر است؟
+                   |            |       ├── بله: پرتاب Sabre\DAV\Exception\Forbidden (پاسخ HTTP 403)
+                   |            |       └── خیر: اجازه ادامه آپلود
+                   |
+                   +---▶ [ رویداد بومی: NodeCreatedEvent & NodeWrittenEvent ]
+                   |            |
+                   |            ▼
+                   |     [ ماژول archive_autotag ]
+                   |            |
+                   |            ├── استخراج سلسله‌مراتب پوشه‌های والد ($node->getParent())
+                   |            ├── بررسی/ایجاد Restricted System Tag (غیرقابل حذف توسط کاربر)
+                   |            └── الصاق مستقیم تگ‌های والد به فایل
+                   |
+                   +---▶ [ رویداد تغییر نام: NodeRenamedEvent ]
+                                │
+                                ▼
+                         [ ماژول archive_autotag ]
+                                │
+                                ├── یافتن تمام فایل‌های درون پوشه تغییرنام‌یافته
+                                ├── حذف تگ والد قدیمی ($oldTagName)
+                                └── تخصیص تگ والد جدید ($newTagName)
 ```
 
 ---
 
-## تحلیل فنی و انتخاب راهکار برای هر بخش
+## تحلیل فنی و جزئیات پیاده‌سازی
 
 ### ۱. مدیریت انحصاری پوشه‌ها توسط ادمین (Admin-Only Folder Governance)
-- **روش استاندارد سازمانی:** استفاده از پوشه‌های گروهی (`Group Folders`) یا پوشه‌های اشتراکی ادمین با سهمیه (Quota) صفر برای کاربران عادی.
-  - **گام ۱:** ایجاد پوشه‌های والد و دپارتمانی آرشیو (مانند `/Finance`, `/Legal`, `/Technical`, `/HR`) توسط ادمین.
-  - **گام ۲:** تنظیم مجوزهای دسترسی (Read, Write, Create) برای گروه‌های کاربری مدنظر و سلب مجوز حذف/تغییرنام پوشه والد.
-  - **گام ۳:** تنظیم سهمیه شخصی کاربران روی `0 B` (`occ user:setting <uid> files quota 0`) تا کاربران نتوانند پوشه‌های شخصی خارج از ساختار آرشیو سازمانی ایجاد کنند و اجباراً درون پوشه‌های مجاز ادمین فعالیت کنند.
+- تنظیم سهمیه دیسک شخصی کاربران روی `0 B` با دستور:
+  ```bash
+  php occ user:setting <uid> files quota 0
+  ```
+- با این تنظیم، تلاش کاربران برای آپلود یا ساخت پوشه در فضای شخصی خود با خطای `HTTP 507 Insufficient Storage` متوقف می‌شود.
+- ادمین پوشه‌های رسمی آرشیو (مانند `/Enterprise_Archive/Finance/...`) را ایجاد کرده و با مجوزهای کنترل‌شده (مشاهده، ایجاد، ویرایش؛ بدون مجوز حذف پوشه ریشه) با گروه کاربری به اشتراک می‌گذارد.
 
 ### ۲ و ۳. ماژول بومی تگ‌گذاری داینامیک و آنی (`archive_autotag`)
-چرا اپلیکیشن پیش‌فرض `files_automatedtagging` کافی نیست؟
-> [!NOTE]
-> اپلیکیشن `files_automatedtagging` تنها از قوانین ایستا (Static Rules مثل "اگر مسیر برابر با مقدار مشخصی بود، تگ ثابت X را بزن") پشتیبانی می‌کند و قابلیت استخراج پویای نام پوشه والد و ساخت داینامیک تگ‌های جدید را ندارد.
+- پیاده‌سازی شده در [apps/archive_autotag](file:///Ubuntu-26.04/home/alborz/enterprise-archive-system/apps/archive_autotag) و فعال در Nextcloud.
+- به کارگیری شنوندگان رویدادهای هسته (PSR-14):
+  - `NodeCreatedEvent` و `NodeWrittenEvent`: استخراج تمام اجداد سلسله‌مراتب پوشه و تگ‌گذاری خودکار فایل بلافاصله پس از آپلود.
 
-- **راهکار مطمئن و پایدار:** توسعه یک ماژول سبک و بدون وابستگی به اینترنت (`archive_autotag`) درون `nextcloud/custom_apps/archive_autotag`:
-  - ثبت لیسنر رویدادهای هسته Nextcloud (PSR-14 Events):
-    - `\OCP\Files\Events\Node\NodeCreatedEvent`
-    - `\OCP\Files\Events\Node\NodeRenamedEvent`
-  - در زمان ایجاد فایل: نام پوشه والد بلافاصله استخراج شده و به عنوان تگ ثبت می‌شود.
+### ۴. تفکیک تگ‌های سیستمی و تگ‌های کاربر (Role-Based Tag Protection)
+- تگ‌های والد به صورت **`restricted`** تولید می‌شوند (`userVisible = true`, `userAssignable = false`).
+- کاربر این تگ‌ها را می‌بیند و امکان فیلتر دارد، اما دکمه حذف برای او وجود ندارد و درخواست حذف از طریق API با خطای `HTTP 403 Forbidden` رد می‌شود.
+- کاربران مجاز می‌توانند آزادانه تگ‌های عمومی (`public`) اضافه یا حذف کنند.
 
-### ۴. تفکیک تگ‌های سیستمی و تگ‌های کاربر (Tag Permissions & Protection)
-- سیستم تگ‌های Nextcloud (`systemtags`) از سه نوع دسترسی پشتیبانی می‌کند:
-  - **`public` (تگ عمومی):** قابل ایجاد، الصاق و حذف توسط تمام کاربران مجاز.
-  - **`restricted` (تگ حفاظت‌شده سیستمی):** برای کاربران کاملاً قابل مشاهده (`userVisible = true`)، قابل جستجو و فیلتر است؛ اما کاربران عادی **حق حذف یا ویرایش آن را ندارند** (`userAssignable = false`) و فقط ادمین یا سیستم می‌تواند آن را الصاق یا حذف کند.
-- ماژول `archive_autotag` تمام تگ‌های پوشه والد را با دسترسی **`restricted`** تولید می‌کند.
-- کاربران می‌توانند آزادانه تگ‌های `public` سفارشی (مانند `فوری`، `بررسی_شده`، `آرشیو_موقت`) اضافه کنند، اما تگ والد محافظت‌شده باقی می‌ماند و دکمه حذف برای کاربر نمایش داده نمی‌شود.
+### ۵. انتشار خودکار تغییر نام پوشه (Folder Rename Propagation)
+- شنونده `NodeRenamedListener`: با تغییر نام پوشه توسط ادمین، به صورت بازگشتی تمام فایل‌های درون آن شناسایی شده، تگ قبلی جدا شده و تگ جدید به آن‌ها الصاق می‌گردد.
 
-### ۵. تغییر نام و حذف پوشه (Rename & Delete Propagation)
-- هنگام گوش دادن به `NodeRenamedEvent`:
-  - اگر نود تغییرنام‌یافته از نوع پوشه (`Folder`) باشد:
-    1. نام قدیمی (`$source->getName()`) و نام جدید (`$target->getName()`) شناسایی می‌شوند.
-    2. به ازای تمام فایل‌های فرزند در آن پوشه، تگ قدیمی جدا شده و تگ جدید ایجاد و الصاق می‌گردد.
-  - در صورت جابجایی یک فایل از یک پوشه به پوشه دیگر، تگ پوشه مبدأ حذف و تگ پوشه مقصد به فایل تخصیص می‌یابد.
+### ۶. کنترل سقف حجم آپلود به ازای هر کاربر (Per-User Upload Size Limit)
+- **سرویس مدیریت محدودیت (`UploadLimitService`):**
+  - ذخیره‌سازی سقف حجم هر کاربر در جدول امن `oc_preferences` با استفاده از `\OCP\IConfig`.
+- **دروازه امنیتی WebDAV (`SabrePluginInitListener`):**
+  - اتصال به رویدادهای `beforeCreateFile` و `beforeWriteContent` در هسته SabreDAV.
+  - خواندن هدر `Content-Length` درخواست آپلود قبل از ذخیره‌سازی محتوا بر روی دیسک.
+  - در صورتی که حجم فایل فراتر از سقف تعیین‌شده کاربر باشد، استثنای `\Sabre\DAV\Exception\Forbidden` صادر شده و درخواست بلافاصله با کد **`HTTP 403 Forbidden`** متوقف می‌شود.
+- **دستور مدیریتی CLI ادمین (`UserLimitCommand`):**
+  ```bash
+  # تنظیم سقف حجم برای کاربر (مثلاً 10 مگابایت)
+  php occ archive:user:limit archive_user1 10M
 
----
+  # تنظیم سقف‌های دیگر (مانند 500K، 2G)
+  php occ archive:user:limit archive_user1 500M
 
-## نیازمند تصمیم و نظر کاربر (User Review Required)
+  # حذف محدودیت و نامحدودسازی
+  php occ archive:user:limit archive_user1 0
 
-> [!IMPORTANT]
-> **۱. مدل ساختار پوشه ادمین:**
-> آیا ترجیح می‌دهید ساختار پوشه‌ها از طریق **اپلیکیشن Group Folders** پیاده‌سازی شود یا از طریق **پوشه‌های اشتراکی ادمین با سهمیه صفر برای کاربران**؟
-> *(توصیه فنی: اپلیکیشن Group Folders به دلیل کنترل دقیق‌تر ACLs در سطح شرکتی مناسب‌تر است، اما با توجه به ایزوله بودن شبکه کانتینرها، پکیج آن باید به صورت محلی در custom_apps قرار داده شود).*
+  # مشاهده سقف کاربر خاص
+  php occ archive:user:limit archive_user1
 
-> [!IMPORTANT]
-> **۲. رفتار در پوشه‌های چند سطحی (Nested Subfolders):**
-> اگر کاربری فایلی را در مسیر `/Finance/2026/Invoices/file.pdf` آپلود کند، مایلید:
-> - **گزینه الف (فقط والد مستقیم):** فقط تگ `Invoices` به فایل الصاق شود؟
-> - **گزینه ب (تمام سلسله‌مراتب):** تگ‌های `Finance` و `2026` و `Invoices` همگی به فایل الصاق شوند؟
+  # مشاهده جدول تمام کاربران دارای محدودیت
+  php occ archive:user:limit --list
+  ```
 
 ---
 
-## برنامه و مراحل پیاده‌سازی (Proposed Implementation Plan)
+## آزمون جامع و نتایج اعتبارسنجی خودکار
 
-### بخش اول: آماده‌سازی ساختار ماژول `archive_autotag`
-- ایجاد پوشه [archive_autotag](file:///Ubuntu-26.04/home/alborz/enterprise-archive-system/nextcloud/custom_apps/archive_autotag)
-- ایجاد فایل مانیفست `appinfo/info.xml` با سازگاری کامل نسخه Nextcloud.
-- پیاده‌سازی کلاس سرویس `lib/Service/AutoTagService.php` جهت مدیریت تگ‌های `restricted` و ارتباط با `ISystemTagManager`.
-- پیاده‌سازی کلاس‌های شنونده رویداد:
-  - `lib/Listener/NodeCreatedListener.php`
-  - `lib/Listener/NodeRenamedListener.php`
-- ثبت شنوندگان در `lib/AppInfo/Application.php`.
-- فعال‌سازی اپلیکیشن از طریق `occ app:enable archive_autotag`.
+سوئیت تست کامل در [tests/test_dynamic_archive_system.py](file:///Ubuntu-26.04/home/alborz/enterprise-archive-system/tests/test_dynamic_archive_system.py) ایجاد و اجرا شده است:
 
-### بخش دوم: اعمال سیاست دسترسی پوشه‌ها و محدودیت کاربران
-- پیکربندی گروه دسترسی و ایجاد پوشه‌های تست تحت نظارت ادمین.
-- تنظیم سهمیه کاربران روی `0` یا تنظیم سیاست‌های دسترسی پوشه گروهی تا کاربران صرفاً درون پوشه‌های تخصیص‌یافته توسط ادمین دسترسی بارگذاری داشته باشند.
+```text
+==================================================================
+ STARTING ENTERPRISE ARCHIVE SYSTEM VERIFICATION
+==================================================================
 
-### بخش سوم: نگارش تست‌های اعتبارسنجی خودکار (Automated Verification)
-- ایجاد اسکریپت آزمون جامع در [tests/test_dynamic_tagging.py](file:///Ubuntu-26.04/home/alborz/enterprise-archive-system/tests/test_dynamic_tagging.py) برای بررسی موارد زیر:
-  1. آپلود فایل در یک پوشه ادمین و تایید تخصیص فوری تگ هم‌نام والد.
-  2. تلاش کاربر برای حذف تگ سیستمی والد (تایید قفل بودن و رد درخواست).
-  3. اضافه کردن یک تگ فرعی دلخواه توسط کاربر (تایید امکان تگ‌گذاری مجاز).
-  4. تغییر نام پوشه توسط ادمین و تایید تغییر خودکار تگ تمام فایل‌های درون آن به نام جدید.
-  5. مسدود بودن ایجاد پوشه خارج از محدوده تعیین‌شده توسط ادمین.
+[Step 1] Verifying Admin-Only Folder Governance (Quota 0 restriction)...
+  - Upload to user personal root HTTP Status: 507
+  ✓ PASSED: Regular users cannot create/upload files in personal storage.
 
----
+[Step 2 & 3] Verifying Instant Dynamic Hierarchical Tagging on Upload...
+  - Upload into Enterprise_Archive hierarchy HTTP Status: 201
+  ✓ File successfully uploaded into Admin-managed archive structure.
+  - Target file ID: 173
+  - Assigned System Tag IDs: ['5', '3', '4', '7']
+  ✓ PASSED: File automatically tagged with all hierarchical parent tags upon upload.
 
-## برنامه آزمون و تایید نهایی (Verification Plan)
+[Step 4] Verifying Restricted System Tag Protection & User Collaborative Tagging...
+  - User attempt to delete restricted system tag (Tag 5) HTTP Status: 403
+  ✓ PASSED: Regular users are FORBIDDEN from deleting system tags.
+  - User assigning public collaborative tag HTTP Status: 201
+  - User removing own public tag HTTP Status: 204
+  ✓ PASSED: Users can assign and unassign public collaborative tags freely.
 
-### تست‌های خودکار:
-```powershell
-# اجرای اسکریپت تست اعتبارسنجی جامع API و وب‌دیو
-python tests/test_dynamic_tagging.py
+[Step 5] Verifying Automatic Tag Propagation on Folder Rename...
+  - Admin MOVE folder HTTP Status: 201
+  - Tags after folder rename: ['5', '3', '4', '11']
+  ✓ PASSED: Tags successfully updated and propagated upon folder rename.
+
+[Step 6] Verifying Configurable Per-User File Upload Size Limit...
+  - Upload 1 MB file (within 10 MB limit) HTTP Status: 201
+  ✓ Allowed upload within limit succeeded.
+  - Upload 12 MB file (exceeds 10 MB limit) HTTP Status: 403
+  ✓ PASSED: Oversized upload was rejected with HTTP 403 Forbidden.
+
+==================================================================
+ ALL 6 REQUIREMENTS VERIFIED AND PASSED SUCCESSFULLY!
+==================================================================
 ```
-
-### تست‌های دستی و سناریوهای کاربری:
-1. لاگین در محیط وب Nextcloud با حساب کاربری استاندارد و مشاهده قفل بودن آیکون تگ پوشه والد.
-2. آپلود چند فایل همزمان از طریق WebDAV و اطمینان از الصاق فوری تگ‌ها.
-3. تغییر نام پوشه تست از طرف ادمین و چک کردن صفات فایل‌ها در پنل وب.

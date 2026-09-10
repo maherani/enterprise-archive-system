@@ -259,9 +259,33 @@ docker compose exec app php occ archive:retag admin
 
 ---
 
-## 15. اجرای تست‌های خودکار جامع انتها-به-انتها (E2E Verification)
+## 15. تنظیم سقف حجم آپلود فایل برای هر کاربر توسط ادمین (`occ archive:user:limit`)
 
-مخزن شامل اسکریپت تست کامل `tests/test_dynamic_archive_system.py` است که هر ۵ نیازمندی حاکمیت و تگ‌گذاری را بررسی می‌کند:
+ادمین سیستم می‌تواند حداکثر حجم مجاز برای آپلود هر فایل را به تفکیک هر کاربر در جدول امن تنظیمات کاربر ذخیره کند. این محدودیت در لایه WebDAV/Storage بررسی شده و در صورت ارسال فایل بزرگتر از سقف مجاز، آپلود بلافاصله با کد خطای `HTTP 403 Forbidden` متوقف و رد می‌شود.
+
+```bash
+# تنظیم سقف حجم فایل (مثال: حداکثر 10 مگابایت برای archive_user1)
+docker compose exec app php occ archive:user:limit archive_user1 10M
+
+# نمونه‌های دیگر با واحدهای مختلف (K, M, G)
+docker compose exec app php occ archive:user:limit archive_user1 500M
+docker compose exec app php occ archive:user:limit archive_user1 2G
+
+# حذف سقف محدودیت حجم برای کاربر (نامحدودسازی)
+docker compose exec app php occ archive:user:limit archive_user1 0
+
+# استعلام سقف فعلی یک کاربر
+docker compose exec app php occ archive:user:limit archive_user1
+
+# نمایش جدول تمام کاربران دارای سقف حجم سفارشی
+docker compose exec app php occ archive:user:limit --list
+```
+
+---
+
+## 16. اجرای تست‌های خودکار جامع انتها-به-انتها (E2E Verification)
+
+مخزن شامل اسکریپت تست کامل `tests/test_dynamic_archive_system.py` است که هر ۶ نیازمندی حاکمیت و تگ‌گذاری را بررسی می‌کند:
 
 ```bash
 # فعال‌سازی محیط مجازی پایتون
@@ -279,11 +303,13 @@ python tests/test_dynamic_archive_system.py
 5. الصاق و حذف تگ عمومی توسط کاربر و تایید عملکرد موفق.
 6. تغییر نام پوشه توسط ادمین و تایید تعویض خودکار تگ تمام اسناد درون آن.
 
-نتیجه نهایی باید پیام `ALL 5 REQUIREMENTS VERIFIED AND PASSED SUCCESSFULLY!` باشد.
+نتیجه نهایی باید پیام `7. بررسی کنترل سقف حجم آپلود کاربر (موفقیت آپلود فایل ۱ مگابایتی و رد قطعی فایل ۱۲ مگابایتی با خطای `HTTP 403 Forbidden` برای کاربری با سقف ۱۰ مگابایت).
+
+نتیجه نهایی باید پیام `ALL 6 REQUIREMENTS VERIFIED AND PASSED SUCCESSFULLY!` باشد.` باشد.
 
 ---
 
-## 16. Step 7 - لاگ ممیزی امنیتی (`admin_audit`)
+## 17. Step 7 - لاگ ممیزی امنیتی (`admin_audit`)
 
 جهت ممیزی دسترسی به فایل‌ها، دانلودها، اشتراک‌گذاری‌ها و لاگین‌ها:
 
@@ -295,7 +321,7 @@ docker compose exec app php occ app:enable admin_audit
 
 ---
 
-## 17. Step 8 - فعال‌سازی امنیتی SSL/TLS و HTTPS
+## 18. Step 8 - فعال‌سازی امنیتی SSL/TLS و HTTPS
 
 در محیط Production، ترافیک پورت 80 باید به 443 هدایت شده و گواهی معتبر SSL/TLS (مانند Let's Encrypt یا گواهی سازمانی) بر روی Nginx پیکربندی شود:
 1. قرار دادن گواهی در مسیر `nginx/certs/`.
@@ -304,7 +330,7 @@ docker compose exec app php occ app:enable admin_audit
 
 ---
 
-## 18. Step 9 - پشتیبان‌گیری و بازیابی فاجعه (Backup & Disaster Recovery)
+## 19. Step 9 - پشتیبان‌گیری و بازیابی فاجعه (Backup & Disaster Recovery)
 
 نسخه پشتیبان روزانه باید شامل موارد زیر باشد:
 1. **پایگاه داده PostgreSQL:**
@@ -319,7 +345,7 @@ docker compose exec app php occ app:enable admin_audit
 
 ---
 
-## 19. چک‌لیست تحویل سامانه به تیم بهره‌برداری
+## 20. چک‌لیست تحویل سامانه به تیم بهره‌برداری
 
 - [ ] سیستم‌عامل و سرویس داکر در وضعیت پایدار است.
 - [ ] فایل `.env` پیکربندی شده و خارج از گیت است.
@@ -335,7 +361,7 @@ docker compose exec app php occ app:enable admin_audit
 
 ---
 
-## 20. نکات حیاتی و الزامات نگهداشت
+## 21. نکات حیاتی و الزامات نگهداشت
 
 - هیچ Volume، Container یا کلاستری بدون پشتیبان‌گیری قبلی حذف یا دستکاری نشود.
 - Secretها، Tokenها و رمزهای پایگاه داده هرگز نباید وارد مستندات عمومی یا مخزن گیت شوند.

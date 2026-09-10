@@ -36,13 +36,23 @@ The architecture separates the public reverse proxy from internal services:
 ```text
 enterprise-archive-system/
 ├── apps/
-│   └── archive_autotag/              # Custom native Nextcloud app for dynamic hierarchical auto-tagging
+│   └── archive_autotag/              # Custom native Nextcloud app for dynamic tagging & upload limit
 │       ├── appinfo/info.xml
 │       └── lib/
 │           ├── AppInfo/Application.php
-│           ├── Command/RetagAllCommand.php
-│           ├── Listener/             # NodeCreated, NodeWritten, NodeRenamed event listeners
-│           └── Service/AutoTagService.php
+│           ├── Command/
+│           │   ├── RetagAllCommand.php
+│           │   └── UserLimitCommand.php
+│           ├── Listener/             # NodeCreated, NodeWritten, NodeRenamed, SabrePluginInit
+│           │   ├── BeforeNodeCreatedListener.php
+│           │   ├── BeforeNodeWrittenListener.php
+│           │   ├── NodeCreatedListener.php
+│           │   ├── NodeRenamedListener.php
+│           │   ├── NodeWrittenListener.php
+│           │   └── SabrePluginInitListener.php
+│           └── Service/
+│               ├── AutoTagService.php
+│               └── UploadLimitService.php
 ├── db/                               # PostgreSQL persistent data volume
 ├── deploy/                           # Deployment scripts & automation
 ├── nextcloud/                        # Nextcloud persistent HTML & data volume
@@ -117,7 +127,11 @@ Status: **Completed**
   - **Admin Folder Governance:** User personal quota set to `0 B`, preventing regular users from creating personal storage folders/files (HTTP 507 Insufficient Storage). Users only operate within Admin-created and Admin-shared archive folders.
   - **Collaborative User Tagging:** Authorized users can freely assign and remove public collaborative tags (e.g. `Audited_OK`, `Verified_E2E`).
   - Added OCC CLI command `occ archive:retag [<user>]` for batch and retroactive scanning.
-  - Built comprehensive automated verification test suite in `tests/test_dynamic_archive_system.py` verifying all 5 requirements with 100% pass rate.
+  - **Configurable Per-User File Upload Size Limit:**
+    - Admin can set granular maximum upload size limits per user via `occ archive:user:limit <user> <limit>` (e.g. `10M`, `500M`, `1G`, or `0` for unlimited).
+    - WebDAV storage engine enforcement via `SabrePluginInitListener` hooking `beforeCreateFile` and `beforeWriteContent`. Inspects `Content-Length` before storage and terminates oversized uploads immediately with `HTTP 403 Forbidden`.
+    - Secondary filesystem stream enforcement via `BeforeNodeCreatedListener` and `NodeWrittenListener` to guarantee zero bypass even on chunked uploads.
+  - Built comprehensive automated verification test suite in `tests/test_dynamic_archive_system.py` verifying all 6 requirements with 100% pass rate.
 
 Status: **Completed**
 
