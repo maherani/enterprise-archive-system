@@ -1,6 +1,6 @@
 # Enterprise Archive System
 
-A secure, scalable, and audit-compliant document archiving system built on **Nextcloud**, **PostgreSQL**, and **Nginx**.
+A secure, scalable, and audit-compliant enterprise document archiving system built on **Nextcloud**, **PostgreSQL**, and **Nginx**.
 
 ## Architecture Overview
 
@@ -19,7 +19,8 @@ A secure, scalable, and audit-compliant document archiving system built on **Nex
         │   archive_app    │  (Nextcloud Apache)
         │   (Internal:80)  │  - WebDAV Endpoint: /remote.php/dav/files/
         └────────┬─────────┘  - LDAP & App API Authentication
-                 │
+                 │            - Custom App: archive_autotag (PSR-14 Event Engine)
+                 │            - Quota: 0 B (Admin-only Folder Governance)
                  ▼
         ┌──────────────────┐
         │    archive_db    │  (PostgreSQL 15 Alpine)
@@ -27,41 +28,48 @@ A secure, scalable, and audit-compliant document archiving system built on **Nex
         └──────────────────┘
 ```
 
-## Features
+## Core Features & Governance Capabilities
 
-- **Isolated Network**: Application and database are not exposed directly to the host network; all external access flows through Nginx.
-- **Enterprise-Scale Ingestion**: Configured for up to 10GB file uploads with unbuffered streaming for minimal memory footprint.
-- **LDAP Integration Ready**: Nextcloud LDAP backend enabled for enterprise identity management.
-- **Automated API Integration**: WebDAV file ingestion for automated workers and AI agents.
-- **Role-Based Compliance**: Compliance groups and service accounts with granular permissions.
-- **Retention & Compliance Tagging**: Nextcloud Retention and Automated Tagging apps are installed and enabled; a restricted `Archive Protected` tag has been created and manually verified on a test file.
+1. **Admin-Only Folder Governance**:
+   - Regular users cannot create random personal folders or clutter root storage (Quota set to `0 B`).
+   - Admin centrally creates and governs organizational archive structures (e.g. `/Enterprise_Archive/Finance/2026/Invoices`), sharing them with appropriate permissions (Read, Create, Edit, no root deletion).
+2. **Dynamic Hierarchical Auto-Tagging (`archive_autotag`)**:
+   - Custom native Nextcloud application listening to PSR-14 file lifecycle events (`NodeCreatedEvent`, `NodeWrittenEvent`).
+   - Recursively traverses parent folder structures and automatically applies hierarchical folder names as system tags upon file upload.
+3. **Protected System Tags & Collaborative User Tagging**:
+   - Parent folder tags are generated with `restricted` access (`userVisible=true`, `userAssignable=false`). Users can view and filter files by these tags, but cannot remove or alter them (HTTP 403 Forbidden).
+   - Authorized users can freely assign and remove additional collaborative `public` tags.
+4. **Folder Rename & Delete Propagation**:
+   - Renaming an archive folder automatically updates all contained files, detaching the old parent tag and assigning the new tag.
+5. **Configurable Per-User File Upload Size Limit**:
+   - Admin can configure granular maximum upload limits per user (e.g., `10M`, `500M`, `1G`, or `0` for unlimited) via `occ archive:user:limit`.
+   - Directly enforced at the WebDAV storage engine layer via SabreDAV hooks, rejecting oversized uploads before payload storage with `HTTP 403 Forbidden`.
+6. **Isolated Infrastructure & Enterprise Ingestion**:
+   - Application and database isolated from host network; only Nginx port 80/443 exposed.
+   - Up to 10GB streaming uploads with disabled request buffering for minimal memory consumption.
 
 ## Current Project State
 
-The project is currently at **Step 6 — Retention Rules & Automated Tagging**.
+- **Step 1 — Baseline Infrastructure**: Nextcloud + PostgreSQL + Redis (Verified)
+- **Step 2 — User Directory Integration**: OpenLDAP / Active Directory connector (Configured)
+- **Step 3 — High-Capacity Ingestion & Proxy**: Nginx reverse proxy with 10GB unbuffered uploads (Verified)
+- **Step 4 — Automated Ingestion & API Authentication**: WebDAV token authentication (Verified)
+- **Step 5 — Compliance Group & Service Accounts**: Audited role structure (Verified)
+- **Step 6 — Folder Governance, Dynamic Hierarchical Tagging & User Upload Limits**:
+  - Native custom application `archive_autotag` built, installed, and enabled.
+  - Granular per-user upload limit CLI (`occ archive:user:limit`) and SabreDAV security plugin.
+  - End-to-end automated verification test suite ([tests/test_dynamic_archive_system.py](tests/test_dynamic_archive_system.py)) with **100% pass rate** across all 6 core requirements.
 
-Completed in Step 6 so far:
-- Nextcloud 34.0.3.2 verified.
-- `files_retention` 5.0.0 installed and enabled.
-- `files_automatedtagging` 5.0.0 installed and enabled.
-- Restricted system tag `Archive Protected` created.
-- Manual application of the tag to a test file verified through the browser UI.
-
-Pending in Step 6:
-- Configure the Automated Tagging rule.
-- Configure the Retention policy.
-- Run an end-to-end retention/compliance test.
-
-See [PROJECT_STATE.md](PROJECT_STATE.md) for the detailed architecture, implementation history, tests, checkpoint, and roadmap.
+See [PROJECT_STATE.md](PROJECT_STATE.md) and [docs/DEPLOYMENT_RUNBOOK.md](docs/DEPLOYMENT_RUNBOOK.md) for full operational guides and architectural records.
 
 ## Getting Started
 
 ### 1. Prerequisites
-- Docker & Docker Compose
-- Python 3.10+ (for integration test scripts)
+- Docker Engine & Docker Compose (v2)
+- Python 3.10+ (for integration test suite)
 
 ### 2. Configuration
-Create a `.env` file based on your environment:
+Create a `.env` file in the project root:
 
 ```ini
 POSTGRES_DB=nextcloud
@@ -78,15 +86,22 @@ NEXTCLOUD_TRUSTED_DOMAINS=localhost 127.0.0.1
 docker compose up -d
 ```
 
-### 4. Test Ingestion via API
+### 4. Admin Management Commands
 
-Activate the Python environment and run the upload test:
+```bash
+# Set per-user upload limit (e.g., 10MB)
+docker compose exec app php occ archive:user:limit archive_user1 10M
+
+# List configured user limits
+docker compose exec app php occ archive:user:limit --list
+
+# Retroactively scan and re-tag existing files
+docker compose exec app php occ archive:retag
+```
+
+### 5. Run Automated E2E Verification Tests
 
 ```bash
 source venv/bin/activate
-python test_api.py
+python tests/test_dynamic_archive_system.py
 ```
-
-## Project State & Documentation
-
-See [PROJECT_STATE.md](PROJECT_STATE.md) for full architecture records, step logs, and planned roadmap items.
