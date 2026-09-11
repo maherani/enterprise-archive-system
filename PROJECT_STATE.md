@@ -199,3 +199,19 @@ Status: **Completed**
     - deploy/check_health.sh: System status reporting validating container health, user entries, group memberships, and archive directory tree.
   - Configured .gitignore to protect backups and SQL dumps from repository commits.
   - Validated 100% data persistence across container stop/start/recreate cycles with all 4 accounts (admin, api_worker, archive_user1, maherani) and full folder/tag hierarchies intact.
+
+
+### Step 8 - AI-Ready Knowledge Base & On-Premise LLM Integration Roadmap (Planned)
+- **Objective**: Transform the categorized archive into a structured, air-gapped knowledge base feeding an on-premise Large Language Model (LLM) to perform automated project progress evaluation, financial document discrepancy checking, and executive reporting.
+- **Hardware & Resource Profile**:
+  - Target CPU: 13th Gen Intel Core i7-1355U (12 vCPUs, AVX2 architecture).
+  - Target RAM: 8 GB (utilizing ~1.5 GB allocated budget for quantized model inference).
+  - Zero-GPU: 100% CPU inference without requiring dedicated graphics cards.
+- **Security & Air-Gap Compliance**:
+  - Zero Data Egress: All parsing, indexing, and LLM reasoning run completely on-premise without cloud API dependencies.
+  - Temporary network access permitted only during dependency bootstrapping and one-time GGUF model download.
+- **Architecture Highlights**:
+  - Local CPU document extraction: `pypdf`, `openpyxl`, `python-docx` (`ai_engine/`).
+  - Offline metadata and fast full-text index: `SQLite FTS5` (`ai_engine/archive_kb.sqlite`).
+  - Local LLM engine: Quantized 4-bit GGUF (`Qwen2.5-1.5B-Instruct`) running via `llama.cpp`.
+  - Comprehensive documentation codified in [docs/AI_ON_PREMISE_ARCHITECTURE.md](docs/AI_ON_PREMISE_ARCHITECTURE.md).

@@ -150,3 +150,13 @@ Automated operations scripts are available in `deploy/`:
 >
 > **WSL2 Startup Note**:
 > When booting Windows, ensure your WSL2 environment is active before accessing the browser. If containers were started prior to WSL mount synchronization, running `./deploy/check_health.sh` or `docker compose restart` immediately validates live filesystem mounts.
+
+
+## AI Knowledge Base & On-Premise LLM Integration
+
+The repository is structured to serve as an **Air-Gapped, Zero-GPU Knowledge Base** for an on-premise Large Language Model (LLM) to automatically evaluate project progress, extract financial statistics, and generate executive reports.
+
+- **Zero Data Egress**: 100% on-premise document processing, metadata indexing, and LLM inference.
+- **Zero-GPU Efficiency**: Runs quantized GGUF models (`Qwen2.5-1.5B-Instruct`) on CPU (Intel Core i7-1355U AVX2) with ~1.5 GB RAM footprint.
+- **Local Indexing**: Blazing fast search and extraction via local `SQLite FTS5`.
+- **Complete Blueprint**: Full technical specifications and phased roadmap are documented in [docs/AI_ON_PREMISE_ARCHITECTURE.md](docs/AI_ON_PREMISE_ARCHITECTURE.md).
