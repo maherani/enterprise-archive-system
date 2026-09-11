@@ -118,3 +118,35 @@ python tests/test_dynamic_archive_system.py
 python tests/test_folder_creation_restriction.py
 ```
 
+
+
+## Data Persistence & Operational Runbook
+
+### 1. Persistent Storage Architecture
+- **PostgreSQL Database**: Persisted on host filesystem in `./db` (`/var/lib/postgresql/data`).
+- **Nextcloud Data & Config**: Persisted on host filesystem in `./nextcloud` (`/var/www/html`).
+- **Safety Policy**: Automated re-installation parameters (`NEXTCLOUD_ADMIN_*`) have been decoupled from `docker-compose.yml` to prevent unintended database overwrites.
+
+### 2. Backup & Restore Utilities
+Automated operations scripts are available in `deploy/`:
+- **Create Database Backup**:
+  ```bash
+  ./deploy/backup_db.sh
+  ```
+  Exports full timestamped SQL dumps to `deploy/backups/db_backup_<timestamp>.sql` and updates `latest_db_backup.sql`.
+- **Restore Database**:
+  ```bash
+  ./deploy/restore_db.sh [path/to/backup.sql]
+  ```
+- **System Health & Integrity Check**:
+  ```bash
+  ./deploy/check_health.sh
+  ```
+  Verifies running containers, database connectivity, user list, group hierarchy, and archive folders.
+
+> [!CAUTION]
+> **Never run `docker compose down -v`!**
+> The `-v` flag deletes all volumes. Always use `docker compose stop` or `docker compose down` (without `-v`) to preserve database and file archives.
+>
+> **WSL2 Startup Note**:
+> When booting Windows, ensure your WSL2 environment is active before accessing the browser. If containers were started prior to WSL mount synchronization, running `./deploy/check_health.sh` or `docker compose restart` immediately validates live filesystem mounts.

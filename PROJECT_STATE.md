@@ -183,3 +183,19 @@ Status: **Completed**
 11. Prefer inspection before modification.
 12. Never remove existing data or functionality without first verifying its purpose and impact.
 
+
+
+### Step 7 - Database Persistence Hardening & WSL2 Operational Reliability (Verified)
+- **Root Cause Analysis**:
+  - Investigated reported data loss upon container startup.
+  - Identified race condition between Docker Desktop auto-start on Windows boot and WSL2 distro mount availability when using restart: always.
+  - Identified that presence of NEXTCLOUD_ADMIN_USER and NEXTCLOUD_ADMIN_PASSWORD in docker-compose.yml environment could trigger automated re-install if mount latency occurred.
+  - Observed user execution of docker compose down -v in shell history which clears volumes.
+- **Architectural Hardening**:
+  - Updated docker-compose.yml: switched restart policy to unless-stopped and stripped runtime admin bootstrap variables to prevent automatic installer execution.
+  - Developed and verified operational maintenance suite in deploy/:
+    - deploy/backup_db.sh: Automated full PostgreSQL dump creation with latest_db_backup.sql tracking.
+    - deploy/restore_db.sh: Database reset and snapshot restoration with connection termination and file cache rescan.
+    - deploy/check_health.sh: System status reporting validating container health, user entries, group memberships, and archive directory tree.
+  - Configured .gitignore to protect backups and SQL dumps from repository commits.
+  - Validated 100% data persistence across container stop/start/recreate cycles with all 4 accounts (admin, api_worker, archive_user1, maherani) and full folder/tag hierarchies intact.
