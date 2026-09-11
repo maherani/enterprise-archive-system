@@ -47,6 +47,10 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
 6. **Isolated Infrastructure & Enterprise Ingestion**:
    - Application and database isolated from host network; only Nginx port 80/443 exposed.
    - Up to 10GB streaming uploads with disabled request buffering for minimal memory consumption.
+7. **Admin-Only Folder Creation & File Upload Decoupling**:
+   - Nextcloud native permissions bundle file uploading and folder creation under one permission. The `archive_autotag` (v1.2.0) module decouples these capabilities by intercepting WebDAV `MKCOL` requests and filesystem `mkdir` hooks.
+   - Non-admin users are strictly blocked from polluting the archive tree with unauthorized folders/subfolders (HTTP 403 Forbidden), while document uploads into existing folders remain completely permitted.
+   - Admin policy management CLI: `occ archive:folder:policy [status|enable|disable]`.
 
 ## Current Project State
 
@@ -97,11 +101,20 @@ docker compose exec app php occ archive:user:limit --list
 
 # Retroactively scan and re-tag existing files
 docker compose exec app php occ archive:retag
+
+# Query or toggle folder creation policy (status, enable, disable)
+docker compose exec app php occ archive:folder:policy
 ```
 
 ### 5. Run Automated E2E Verification Tests
 
 ```bash
 source venv/bin/activate
+
+# Test 1: Full governance, dynamic hierarchical tagging, and user upload limits
 python tests/test_dynamic_archive_system.py
+
+# Test 2: Admin-only folder creation and document upload decoupling
+python tests/test_folder_creation_restriction.py
 ```
+

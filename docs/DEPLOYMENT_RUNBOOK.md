@@ -309,7 +309,7 @@ python tests/test_dynamic_archive_system.py
 
 ---
 
-## 17. Step 7 - لاگ ممیزی امنیتی (`admin_audit`)
+## 18. Step 7 - لاگ ممیزی امنیتی (`admin_audit`)
 
 جهت ممیزی دسترسی به فایل‌ها، دانلودها، اشتراک‌گذاری‌ها و لاگین‌ها:
 
@@ -321,7 +321,7 @@ docker compose exec app php occ app:enable admin_audit
 
 ---
 
-## 18. Step 8 - فعال‌سازی امنیتی SSL/TLS و HTTPS
+## 19. Step 8 - فعال‌سازی امنیتی SSL/TLS و HTTPS
 
 در محیط Production، ترافیک پورت 80 باید به 443 هدایت شده و گواهی معتبر SSL/TLS (مانند Let's Encrypt یا گواهی سازمانی) بر روی Nginx پیکربندی شود:
 1. قرار دادن گواهی در مسیر `nginx/certs/`.
@@ -330,7 +330,7 @@ docker compose exec app php occ app:enable admin_audit
 
 ---
 
-## 19. Step 9 - پشتیبان‌گیری و بازیابی فاجعه (Backup & Disaster Recovery)
+## 20. Step 9 - پشتیبان‌گیری و بازیابی فاجعه (Backup & Disaster Recovery)
 
 نسخه پشتیبان روزانه باید شامل موارد زیر باشد:
 1. **پایگاه داده PostgreSQL:**
@@ -366,3 +366,4 @@ docker compose exec app php occ app:enable admin_audit
 - هیچ Volume، Container یا کلاستری بدون پشتیبان‌گیری قبلی حذف یا دستکاری نشود.
 - Secretها، Tokenها و رمزهای پایگاه داده هرگز نباید وارد مستندات عمومی یا مخزن گیت شوند.
 - هرگونه به‌روزرسانی کدها ابتدا روی محیط تست اعتبارسنجی شده و سپس با ثبت لاگ در `PROJECT_STATE.md` اعمال گردد.
+

@@ -147,3 +147,33 @@
  ALL 6 REQUIREMENTS VERIFIED AND PASSED SUCCESSFULLY!
 ==================================================================
 ```
+
+### ????? ?????????? ?????? ???? ???? ? ????? ????? ???? (`tests/test_folder_creation_restriction.py`):
+
+```text
+==================================================================
+ TESTING ENTERPRISE FOLDER CREATION RESTRICTION POLICY
+==================================================================
+
+[Step 1] Verifying that regular user CAN upload files into existing folders...
+  - User PUT file HTTP Status: 201
+  ? PASSED: Regular user successfully uploaded document into existing folder.
+
+[Step 2] Verifying that regular user CANNOT create a new subfolder...
+  - User MKCOL folder HTTP Status: 403
+  - Server response message: Creating new folders is restricted to administrators only. You may only upload documents into existing folders.
+  ? PASSED: Regular user folder creation was rejected with HTTP 403 Forbidden.
+
+[Step 3] Verifying that regular user cannot create folder at parent level...
+  - User MKCOL parent-level folder HTTP Status: 403
+  ? PASSED: User cannot bypass restriction at any hierarchy level.
+
+[Step 4] Verifying that Administrator CAN create folders...
+  - Admin MKCOL folder HTTP Status: 201
+  ? PASSED: Administrator successfully created new archive folder.
+
+==================================================================
+ ALL FOLDER CREATION RESTRICTION TESTS PASSED SUCCESSFULLY!
+==================================================================
+```
+
