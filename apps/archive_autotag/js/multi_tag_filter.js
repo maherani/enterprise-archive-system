@@ -1,47 +1,25 @@
 /**
  * Enterprise Archive Multi-Tag Filter Frontend
  * Interactive Tag Intersection for Nextcloud Files App
+ * Hub 10 / Nextcloud 34 Vue Compatible
  */
 (function () {
     'use strict';
-
-    if (window.ArchiveMultiTagFilterInitialized) {
-        return;
-    }
-    window.ArchiveMultiTagFilterInitialized = true;
 
     var state = {
         allTags: [],
         selectedTagIds: new Set(),
         filterSearchTerm: '',
-        isLoading: false,
+        isLoadingTags: false,
+        isLoadingFiles: false,
         files: [],
     };
 
-    function init() {
-        // Observe and mount when Files app DOM is ready
-        var checkInterval = setInterval(function () {
-            var targetParent = document.querySelector('#app-content-files') ||
-                               document.querySelector('#app-content') ||
-                               document.querySelector('#content');
-            if (targetParent) {
-                clearInterval(checkInterval);
-                loadTagsAndRender(targetParent);
-            }
-        }, 300);
-
-        // Also re-verify presence on SPA navigation
-        window.addEventListener('popstate', function () {
-            setTimeout(function () {
-                var targetParent = document.querySelector('#app-content-files') ||
-                                   document.querySelector('#app-content') ||
-                                   document.querySelector('#content');
-                if (targetParent && !document.querySelector('#archive-tag-filter-bar')) {
-                    mountFilterBar(targetParent);
-                }
-            }, 500);
-        });
-    }
+    // Global reference
+    window.EnterpriseArchiveTagFilter = {
+        state: state,
+        reload: fetchTags,
+    };
 
     function getApiUrl(endpoint) {
         if (window.OC && window.OC.generateUrl) {
@@ -58,7 +36,10 @@
         return tag ? tag.getAttribute('content') : '';
     }
 
-    function loadTagsAndRender(targetParent) {
+    function fetchTags() {
+        if (state.isLoadingTags) return;
+        state.isLoadingTags = true;
+
         var url = getApiUrl('/api/tags');
         fetch(url, {
             headers: {
@@ -68,23 +49,78 @@
             credentials: 'same-origin'
         })
         .then(function (res) {
-            if (!res.ok) {
-                throw new Error('HTTP ' + res.status);
-            }
+            if (!res.ok) throw new Error('HTTP ' + res.status);
             return res.json();
         })
         .then(function (data) {
+            state.isLoadingTags = false;
             if (data && data.status === 'success' && Array.isArray(data.tags)) {
                 state.allTags = data.tags;
-                mountFilterBar(targetParent);
+                ensureMounted();
             }
         })
         .catch(function (err) {
-            console.warn('[ArchiveMultiTagFilter] Tag loading notice:', err);
+            state.isLoadingTags = false;
+            console.warn('[ArchiveMultiTagFilter] Could not load tags:', err);
         });
     }
 
-    function mountFilterBar(targetParent) {
+    function findMountTarget() {
+        // Look specifically for Vue components in Files view
+        var target = document.querySelector('.files-list__before');
+        if (target) return { parent: target, insertBefore: null };
+
+        var filesList = document.querySelector('.files-list');
+        if (filesList && filesList.parentNode) {
+            return { parent: filesList.parentNode, insertBefore: filesList };
+        }
+
+        var header = document.querySelector('.files-list__header');
+        if (header && header.parentNode) {
+            return { parent: header.parentNode, insertBefore: header.nextSibling };
+        }
+
+        var mainContent = document.querySelector('main.app-content') ||
+                          document.querySelector('#app-content-vue') ||
+                          document.querySelector('.app-content');
+        if (mainContent) {
+            return { parent: mainContent, insertBefore: mainContent.firstChild };
+        }
+
+        return null;
+    }
+
+    function ensureMounted() {
+        // Verify we are on Files view
+        var isFilesApp = window.location.pathname.indexOf('/apps/files') !== -1 ||
+                         window.location.hash.indexOf('files') !== -1 ||
+                         document.querySelector('.app-files') !== null;
+
+        if (!isFilesApp) {
+            return;
+        }
+
+        // Fetch tags if not loaded yet
+        if (state.allTags.length === 0 && !state.isLoadingTags) {
+            fetchTags();
+            return;
+        }
+
+        var existingBar = document.querySelector('#archive-tag-filter-bar');
+        if (existingBar && document.body.contains(existingBar)) {
+            // Already mounted properly in the active DOM tree
+            return;
+        }
+
+        var mountInfo = findMountTarget();
+        if (!mountInfo || !mountInfo.parent) {
+            return;
+        }
+
+        mountFilterBar(mountInfo);
+    }
+
+    function mountFilterBar(mountInfo) {
         var existing = document.querySelector('#archive-tag-filter-bar');
         if (existing) {
             existing.remove();
@@ -94,14 +130,18 @@
         container.id = 'archive-tag-filter-bar';
         container.className = 'archive-tag-filter-container';
 
-        // Insert at the top of Files view
-        if (targetParent.firstChild) {
-            targetParent.insertBefore(container, targetParent.firstChild);
+        if (mountInfo.insertBefore) {
+            mountInfo.parent.insertBefore(container, mountInfo.insertBefore);
         } else {
-            targetParent.appendChild(container);
+            mountInfo.parent.appendChild(container);
         }
 
         renderFilterBar();
+
+        // If filters were previously active, re-trigger results view
+        if (state.selectedTagIds.size > 0) {
+            onFilterChange();
+        }
     }
 
     function renderFilterBar() {
@@ -169,7 +209,8 @@
         // Tag chips click
         var chips = container.querySelectorAll('.archive-tag-chip');
         chips.forEach(function (chip) {
-            chip.addEventListener('click', function () {
+            chip.addEventListener('click', function (e) {
+                e.preventDefault();
                 var tagId = parseInt(this.getAttribute('data-tag-id'), 10);
                 if (state.selectedTagIds.has(tagId)) {
                     state.selectedTagIds.delete(tagId);
@@ -185,6 +226,7 @@
         var removeButtons = container.querySelectorAll('.archive-active-tag-remove');
         removeButtons.forEach(function (btn) {
             btn.addEventListener('click', function (e) {
+                e.preventDefault();
                 e.stopPropagation();
                 var tagId = parseInt(this.getAttribute('data-remove-id'), 10);
                 state.selectedTagIds.delete(tagId);
@@ -196,7 +238,8 @@
         // Clear all
         var clearBtn = container.querySelector('#archive-clear-all-btn');
         if (clearBtn) {
-            clearBtn.addEventListener('click', function () {
+            clearBtn.addEventListener('click', function (e) {
+                e.preventDefault();
                 state.selectedTagIds.clear();
                 renderFilterBar();
                 onFilterChange();
@@ -223,9 +266,9 @@
                                '<span class="chip-count">' + t.count + '</span>' +
                                '</div>';
                     }).join('');
-                    // Re-bind chip clicks
                     chipsWrapper.querySelectorAll('.archive-tag-chip').forEach(function (c) {
-                        c.addEventListener('click', function () {
+                        c.addEventListener('click', function (e) {
+                            e.preventDefault();
                             var tid = parseInt(this.getAttribute('data-tag-id'), 10);
                             if (state.selectedTagIds.has(tid)) {
                                 state.selectedTagIds.delete(tid);
@@ -256,25 +299,30 @@
     }
 
     function toggleStandardFileList(show) {
-        var standardList = document.querySelector('.files-filestable') ||
-                           document.querySelector('#fileList') ||
-                           document.querySelector('#app-content-vue');
-        if (standardList) {
-            standardList.style.display = show ? '' : 'none';
-        }
+        var listElements = document.querySelectorAll('.files-list, .files-filestable, #fileList, #app-content-vue table');
+        listElements.forEach(function (el) {
+            el.style.display = show ? '' : 'none';
+        });
     }
 
     function fetchFilteredFiles() {
         var tagIds = Array.from(state.selectedTagIds).join(',');
         var url = getApiUrl('/api/filter?tag_ids=' + encodeURIComponent(tagIds));
 
-        var parent = document.querySelector('#archive-tag-filter-bar').parentNode;
+        var filterBar = document.querySelector('#archive-tag-filter-bar');
+        if (!filterBar) return;
+
+        var parent = filterBar.parentNode;
         var existingResults = document.querySelector('#archive-tag-results-container');
         if (!existingResults) {
             existingResults = document.createElement('div');
             existingResults.id = 'archive-tag-results-container';
             existingResults.className = 'archive-tag-results-container';
-            parent.appendChild(existingResults);
+            if (filterBar.nextSibling) {
+                parent.insertBefore(existingResults, filterBar.nextSibling);
+            } else {
+                parent.appendChild(existingResults);
+            }
         }
 
         existingResults.innerHTML = '<div class="archive-empty-results"><div>⏳ در حال انطباق برچسب‌ها و استخراج اسناد...</div></div>';
@@ -366,10 +414,32 @@
             .replace(/'/g, '&#039;');
     }
 
-    // Initialize when ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
+    // Startup and continuous watcher
+    fetchTags();
+
+    // 1. Check periodically so hydration/navigation never loses the bar
+    setInterval(ensureMounted, 400);
+
+    // 2. Observer on #content for rapid mounting on Vue render
+    var observer = new MutationObserver(function () {
+        ensureMounted();
+    });
+
+    function startObserver() {
+        var content = document.querySelector('#content') || document.body;
+        if (content) {
+            observer.observe(content, { childList: true, subtree: true });
+        } else {
+            setTimeout(startObserver, 200);
+        }
     }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startObserver);
+    } else {
+        startObserver();
+    }
+
+    window.addEventListener('popstate', ensureMounted);
+    window.addEventListener('hashchange', ensureMounted);
 })();

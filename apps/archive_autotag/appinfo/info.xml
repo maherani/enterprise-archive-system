@@ -4,7 +4,7 @@
 	<name>Archive Auto Tagger &amp; Governance</name>
 	<summary>Automatic hierarchical parent folder tagging, per-user upload limit, and folder creation restriction for enterprise archive</summary>
 	<description>Automatically tags files with their hierarchical parent folder names as restricted system tags upon upload, updates tags upon folder rename, enforces per-user upload file size limits, and restricts folder hierarchy creation to administrators.</description>
-	<version>1.2.0</version>
+	<version>1.3.0</version>
 	<licence>agpl</licence>
 	<author>Enterprise Archive System</author>
 	<namespace>ArchiveAutoTag</namespace>
