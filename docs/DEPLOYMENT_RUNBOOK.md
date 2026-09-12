@@ -459,3 +459,9 @@ docker compose exec app php occ app:enable admin_audit
 - Secretها، Tokenها و رمزهای پایگاه داده هرگز نباید وارد مستندات عمومی یا مخزن گیت شوند.
 - هرگونه به‌روزرسانی کدها ابتدا روی محیط تست اعتبارسنجی شده و سپس با ثبت لاگ در `PROJECT_STATE.md` اعمال گردد.
 
+
+### 11. آزمایش و اعتبارسنجی فیلتر چندتگی اسناد (Multi-Tag Filter)
+برای تست عملکرد منطق اشتراک چند تگ (`AND`)، تفکیک دسترسی و بازخورد کنترلر:
+```bash
+python3 tests/test_multi_tag_filter.py
+```

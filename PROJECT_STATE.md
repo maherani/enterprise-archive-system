@@ -232,3 +232,29 @@ Status: **Completed**
     4. Group Admin deletion rejection (403 Forbidden).
     5. Regular user total management prohibition (rejection).
   - All 5 test cases verified with 100% success rate.
+
+
+### Step 10 - Native Multi-Tag Intersection Filtering in Files Web UI (Method 1) (Verified)
+- **Problem & Objective**:
+  - Archive documents possess multiple hierarchical system tags (e.g. `افتا`, `الزامات امنیتی`, `Enterprise_Archive`). Users required an interactive UI directly inside the Nextcloud Files app to select two or more tags simultaneously, narrowing results strictly to documents possessing all selected tags (logical `AND` intersection).
+- **Implementation & Architecture**:
+  - **Backend REST API (`apps/archive_autotag`)**:
+    - `appinfo/routes.php`: Registered REST routes `GET /api/tags` and `GET /api/filter`.
+    - `TagFilterController.php`:
+      - `listVisibleTags()`: Returns active system tags with real-time file counts.
+      - `filterByTags()`: Resolves tag names and IDs, executes optimized SQL intersection query (`WHERE systemtagid IN (...) GROUP BY objectid HAVING COUNT(DISTINCT systemtagid) = N`), and strictly validates user read permissions through `$userFolder->getById($fileId)`.
+  - **Dynamic Asset Injection**:
+    - `LoadAdditionalScriptsListener.php`: Subscribes to `OCA\Files\Event\LoadAdditionalScriptsEvent` and automatically registers `multi_tag_filter.js` and `multi_tag_filter.css` in the Files view.
+    - Registered in `Application.php`.
+  - **Interactive User Interface (`js/` & `css/`)**:
+    - Modern, responsive RTL-first multi-tag toolbar embedded directly at the top of the Files app.
+    - Real-time tag search input, clickable tag badges with document count indicators, multi-select toggling, active filter summary, "Clear All" reset button, and an integrated document results table with direct navigation and download links.
+  - **Automated Verification**:
+    - Built comprehensive test suite [`tests/test_multi_tag_filter.py`](tests/test_multi_tag_filter.py) validating:
+      1. Visible tag listing with usage counts.
+      2. Single-tag filtering.
+      3. Multi-tag logical `AND` intersection (e.g. `افتا + الزامات امنیتی` strictly returning matching `1.md`).
+      4. Querying by comma-separated numeric tag IDs.
+      5. Disjoint/non-overlapping tag combination returning zero false positives.
+      6. User ACL isolation and web/download URL scoping.
+    - 100% pass rate achieved across all test scenarios.

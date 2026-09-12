@@ -184,3 +184,14 @@ The repository is structured to serve as an **Air-Gapped, Zero-GPU Knowledge Bas
 - **Zero-GPU Efficiency**: Runs quantized GGUF models (`Qwen2.5-1.5B-Instruct`) on CPU (Intel Core i7-1355U AVX2) with ~1.5 GB RAM footprint.
 - **Local Indexing**: Blazing fast search and extraction via local `SQLite FTS5`.
 - **Complete Blueprint**: Full technical specifications and phased roadmap are documented in [docs/AI_ON_PREMISE_ARCHITECTURE.md](docs/AI_ON_PREMISE_ARCHITECTURE.md).
+
+### فیلتر پیشرفته چندتگی اسناد (Multi-Tag Intersection Filter)
+سامانه دارای نوار ابزار تعاملی فیلتر همپوشانی تگ‌ها درون برنامه **فایل‌ها (Files)** است.
+- کاربران می‌توانند چندین برچسب را به طور همزمان انتخاب کنند (مثلاً `افتا` و `الزامات امنیتی`).
+- نتایج بر اساس منطق اشتراک ریاضی (`AND`) فیلتر شده و تنها اسنادی که **تمام** برچسب‌های انتخابی را دارا هستند نمایش داده می‌شوند.
+- تفکیک دسترسی (ACL) به صورت کامل رعایت شده و کاربران فقط اسناد پوشه‌های مجاز را مشاهده می‌کنند.
+
+اجرای آزمون‌های خودکار فیلتر چندتگی:
+```bash
+python3 tests/test_multi_tag_filter.py
+```

@@ -6,11 +6,13 @@ namespace OCA\ArchiveAutoTag\AppInfo;
 use OCA\ArchiveAutoTag\Listener\BeforeNodeCreatedListener;
 use OCA\ArchiveAutoTag\Listener\BeforeNodeWrittenListener;
 use OCA\ArchiveAutoTag\Listener\BeforeUserDeletedListener;
+use OCA\ArchiveAutoTag\Listener\LoadAdditionalScriptsListener;
 use OCA\ArchiveAutoTag\Listener\NodeCreatedListener;
 use OCA\ArchiveAutoTag\Listener\NodeRenamedListener;
 use OCA\ArchiveAutoTag\Listener\NodeWrittenListener;
 use OCA\ArchiveAutoTag\Service\FolderPolicyService;
 use OCA\ArchiveAutoTag\Service\UploadLimitService;
+use OCA\Files\Event\LoadAdditionalScriptsEvent;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IBootContext;
@@ -50,6 +52,9 @@ class Application extends App implements IBootstrap {
 
         // Enforce admin-only user deletion (prevent group admins from deleting accounts)
         $context->registerEventListener(BeforeUserDeletedEvent::class, BeforeUserDeletedListener::class);
+
+        // Native Multi-Tag Intersection Filter in Nextcloud Files Web UI
+        $context->registerEventListener(LoadAdditionalScriptsEvent::class, LoadAdditionalScriptsListener::class);
     }
 
     public function boot(IBootContext $context): void {
