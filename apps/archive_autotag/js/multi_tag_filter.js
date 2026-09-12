@@ -15,24 +15,24 @@
         files: [],
     };
 
-    // Global reference
+    // Global reference for diagnostics & testing
     window.EnterpriseArchiveTagFilter = {
         state: state,
         reload: fetchTags,
+        render: renderFilterBar,
     };
 
-    function getApiUrl(endpoint) {
-        if (window.OC && window.OC.generateUrl) {
-            return window.OC.generateUrl('/apps/archive_autotag' + endpoint);
-        }
-        return '/index.php/apps/archive_autotag' + endpoint;
+    function getApiUrl(path) {
+        // Direct relative paths avoid any OC.generateUrl query encoding differences
+        return '/index.php/apps/archive_autotag' + path;
     }
 
     function getCsrfToken() {
         if (window.OC && window.OC.requestToken) {
             return window.OC.requestToken;
         }
-        var tag = document.querySelector('head > meta[name="csrf-token"]');
+        var tag = document.querySelector('head > meta[name="csrf-token"]') ||
+                  document.querySelector('meta[name="csrf-token"]');
         return tag ? tag.getAttribute('content') : '';
     }
 
@@ -56,7 +56,8 @@
             state.isLoadingTags = false;
             if (data && data.status === 'success' && Array.isArray(data.tags)) {
                 state.allTags = data.tags;
-                ensureMounted();
+                // Re-render immediately so chips populate the bar!
+                renderFilterBar();
             }
         })
         .catch(function (err) {
@@ -66,14 +67,13 @@
     }
 
     function findMountTarget() {
-        // Look specifically for Vue components in Files view
-        var target = document.querySelector('.files-list__before');
-        if (target) return { parent: target, insertBefore: null };
-
         var filesList = document.querySelector('.files-list');
         if (filesList && filesList.parentNode) {
             return { parent: filesList.parentNode, insertBefore: filesList };
         }
+
+        var target = document.querySelector('.files-list__before');
+        if (target) return { parent: target, insertBefore: null };
 
         var header = document.querySelector('.files-list__header');
         if (header && header.parentNode) {
@@ -91,7 +91,6 @@
     }
 
     function ensureMounted() {
-        // Verify we are on Files view
         var isFilesApp = window.location.pathname.indexOf('/apps/files') !== -1 ||
                          window.location.hash.indexOf('files') !== -1 ||
                          document.querySelector('.app-files') !== null;
@@ -100,15 +99,12 @@
             return;
         }
 
-        // Fetch tags if not loaded yet
         if (state.allTags.length === 0 && !state.isLoadingTags) {
             fetchTags();
-            return;
         }
 
         var existingBar = document.querySelector('#archive-tag-filter-bar');
         if (existingBar && document.body.contains(existingBar)) {
-            // Already mounted properly in the active DOM tree
             return;
         }
 
@@ -138,7 +134,6 @@
 
         renderFilterBar();
 
-        // If filters were previously active, re-trigger results view
         if (state.selectedTagIds.size > 0) {
             onFilterChange();
         }
@@ -153,15 +148,22 @@
             return t.name.toLowerCase().indexOf(state.filterSearchTerm.toLowerCase()) !== -1;
         });
 
-        var chipsHtml = visibleTags.map(function (t) {
-            var isSelected = state.selectedTagIds.has(t.id);
-            var activeClass = isSelected ? 'is-active' : '';
-            var checkIcon = isSelected ? '✓ ' : '';
-            return '<div class="archive-tag-chip ' + activeClass + '" data-tag-id="' + t.id + '">' +
-                   '<span>' + checkIcon + escapeHtml(t.name) + '</span>' +
-                   '<span class="chip-count">' + t.count + '</span>' +
-                   '</div>';
-        }).join('');
+        var chipsHtml = '';
+        if (state.isLoadingTags && state.allTags.length === 0) {
+            chipsHtml = '<div style="color: #888; font-size: 12px; padding: 4px;">⏳ در حال بارگذاری برچسب‌های سازمانی...</div>';
+        } else if (visibleTags.length === 0) {
+            chipsHtml = '<div style="color: #888; font-size: 12px; padding: 4px;">برچسبی یافت نشد.</div>';
+        } else {
+            chipsHtml = visibleTags.map(function (t) {
+                var isSelected = state.selectedTagIds.has(t.id);
+                var activeClass = isSelected ? 'is-active' : '';
+                var checkIcon = isSelected ? '✓ ' : '';
+                return '<div class="archive-tag-chip ' + activeClass + '" data-tag-id="' + t.id + '">' +
+                       '<span>' + checkIcon + escapeHtml(t.name) + '</span>' +
+                       '<span class="chip-count">' + t.count + '</span>' +
+                       '</div>';
+            }).join('');
+        }
 
         var activeBarHtml = '';
         if (state.selectedTagIds.size > 0) {
@@ -211,6 +213,7 @@
         chips.forEach(function (chip) {
             chip.addEventListener('click', function (e) {
                 e.preventDefault();
+                e.stopPropagation();
                 var tagId = parseInt(this.getAttribute('data-tag-id'), 10);
                 if (state.selectedTagIds.has(tagId)) {
                     state.selectedTagIds.delete(tagId);
@@ -240,6 +243,7 @@
         if (clearBtn) {
             clearBtn.addEventListener('click', function (e) {
                 e.preventDefault();
+                e.stopPropagation();
                 state.selectedTagIds.clear();
                 renderFilterBar();
                 onFilterChange();
@@ -266,9 +270,11 @@
                                '<span class="chip-count">' + t.count + '</span>' +
                                '</div>';
                     }).join('');
+
                     chipsWrapper.querySelectorAll('.archive-tag-chip').forEach(function (c) {
                         c.addEventListener('click', function (e) {
                             e.preventDefault();
+                            e.stopPropagation();
                             var tid = parseInt(this.getAttribute('data-tag-id'), 10);
                             if (state.selectedTagIds.has(tid)) {
                                 state.selectedTagIds.delete(tid);
@@ -284,6 +290,18 @@
         }
     }
 
+    function toggleStandardFileList(show) {
+        var selectors = [
+            '.files-list',
+            '.files-filestable',
+            '#fileList'
+        ];
+        var listElements = document.querySelectorAll(selectors.join(', '));
+        listElements.forEach(function (el) {
+            el.style.display = show ? '' : 'none';
+        });
+    }
+
     function onFilterChange() {
         var resultsContainer = document.querySelector('#archive-tag-results-container');
         if (state.selectedTagIds.size === 0) {
@@ -296,13 +314,6 @@
 
         toggleStandardFileList(false);
         fetchFilteredFiles();
-    }
-
-    function toggleStandardFileList(show) {
-        var listElements = document.querySelectorAll('.files-list, .files-filestable, #fileList, #app-content-vue table');
-        listElements.forEach(function (el) {
-            el.style.display = show ? '' : 'none';
-        });
     }
 
     function fetchFilteredFiles() {
@@ -325,6 +336,7 @@
             }
         }
 
+        existingResults.style.display = 'block';
         existingResults.innerHTML = '<div class="archive-empty-results"><div>⏳ در حال انطباق برچسب‌ها و استخراج اسناد...</div></div>';
 
         fetch(url, {
@@ -334,7 +346,10 @@
             },
             credentials: 'same-origin'
         })
-        .then(function (res) { return res.json(); })
+        .then(function (res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+        })
         .then(function (data) {
             renderResults(data);
         })
@@ -389,6 +404,13 @@
                 '<div class="archive-results-count">تعداد اسناد منطبق: ' + data.total + ' سند</div>' +
             '</div>' +
             '<table class="archive-results-table">' +
+                '<colgroup>' +
+                    '<col style="width: 24%;">' +
+                    '<col style="width: 28%;">' +
+                    '<col style="width: 10%;">' +
+                    '<col style="width: 20%;">' +
+                    '<col style="width: 18%;">' +
+                '</colgroup>' +
                 '<thead>' +
                     '<tr>' +
                         '<th>نام سند</th>' +
