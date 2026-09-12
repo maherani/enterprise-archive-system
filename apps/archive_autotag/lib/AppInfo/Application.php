@@ -5,6 +5,7 @@ namespace OCA\ArchiveAutoTag\AppInfo;
 
 use OCA\ArchiveAutoTag\Listener\BeforeNodeCreatedListener;
 use OCA\ArchiveAutoTag\Listener\BeforeNodeWrittenListener;
+use OCA\ArchiveAutoTag\Listener\BeforeUserDeletedListener;
 use OCA\ArchiveAutoTag\Listener\NodeCreatedListener;
 use OCA\ArchiveAutoTag\Listener\NodeRenamedListener;
 use OCA\ArchiveAutoTag\Listener\NodeWrittenListener;
@@ -21,6 +22,7 @@ use OCP\Files\Events\Node\NodeRenamedEvent;
 use OCP\Files\Events\Node\NodeWrittenEvent;
 use OCP\Files\ForbiddenException;
 use OCP\IUserSession;
+use OCP\User\Events\BeforeUserDeletedEvent;
 use OCP\Util;
 
 class Application extends App implements IBootstrap {
@@ -45,6 +47,9 @@ class Application extends App implements IBootstrap {
         $context->registerEventListener(NodeCreatedEvent::class, NodeCreatedListener::class);
         $context->registerEventListener(NodeWrittenEvent::class, NodeWrittenListener::class);
         $context->registerEventListener(NodeRenamedEvent::class, NodeRenamedListener::class);
+
+        // Enforce admin-only user deletion (prevent group admins from deleting accounts)
+        $context->registerEventListener(BeforeUserDeletedEvent::class, BeforeUserDeletedListener::class);
     }
 
     public function boot(IBootContext $context): void {

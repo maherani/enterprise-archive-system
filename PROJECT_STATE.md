@@ -215,3 +215,19 @@ Status: **Completed**
   - Offline metadata and fast full-text index: `SQLite FTS5` (`ai_engine/archive_kb.sqlite`).
   - Local LLM engine: Quantized 4-bit GGUF (`Qwen2.5-1.5B-Instruct`) running via `llama.cpp`.
   - Comprehensive documentation codified in [docs/AI_ON_PREMISE_ARCHITECTURE.md](docs/AI_ON_PREMISE_ARCHITECTURE.md).
+
+
+### Step 9 - Strict User Account Governance & Role Boundary Enforcement (Verified)
+- **Problem & Root Cause**:
+  - Addressed vulnerability where non-system-admin accounts on external environments could acquire unauthorized deletion or modification privileges.
+- **Architectural Hardening**:
+  - Registered `BeforeUserDeletedListener` in `apps/archive_autotag`: Intercepts `BeforeUserDeletedEvent` and blocks account deletion with `403 Forbidden` if initiated by anyone other than a full System Administrator (`admin` group).
+  - Maintained Nextcloud native subadmin isolation: Group Administrators are restricted strictly to modifying users within their assigned group and cannot access or modify users from other groups.
+  - Implemented `deploy/audit_user_roles.sh`: Operational audit tool to identify user memberships, detect any unauthorized `admin` accounts, and provide quick remediation commands across environments.
+  - Built comprehensive automated test suite `tests/test_user_governance.py` validating:
+    1. System Admin full authority (modify + delete).
+    2. Group Admin authority within assigned group.
+    3. Group Admin cross-group modification isolation (rejection).
+    4. Group Admin deletion rejection (403 Forbidden).
+    5. Regular user total management prohibition (rejection).
+  - All 5 test cases verified with 100% success rate.
