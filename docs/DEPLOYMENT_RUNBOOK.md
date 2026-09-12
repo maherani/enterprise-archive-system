@@ -182,6 +182,20 @@ docker compose exec app php occ user:setting <username> files quota 0
 
 بدین ترتیب کاربران صرفاً درون پوشه‌های هدایت‌شده توسط ادمین امکان آپلود دارند.
 
+### ۴. تنظیم دسته‌ای سهمیه دیسک اعضای یک گروه (`deploy/set-group-quota.sh`):
+جهت اعمال سریع سهمیه دیسک شخصی (مانند `0 B` یا سهمیه اختصاصی) برای تمام اعضای یک گروه سازمانی (مانند `SOC` یا `Compliance_Unit`)، اسکریپت خودکار زیر در مسیر `deploy/` توسعه داده شده است:
+```bash
+# تنظیم سهمیه صفر برای تمامی اعضای گروه SOC
+./deploy/set-group-quota.sh SOC "0 B"
+
+# تنظیم سهمیه صفر برای اعضای گروه Compliance_Unit
+./deploy/set-group-quota.sh Compliance_Unit "0 B"
+
+# تنظیم سهمیه سفارشی (مثلاً ۵ گیگابایت) برای یک گروه دیگر
+./deploy/set-group-quota.sh Finance "5 GB"
+```
+این اسکریپت لیست اعضای گروه را از طریق خروجی JSON فرمان Nextcloud OCC دریافت کرده و سهمیه دیسک تک‌تک اعضا را به صورت خودکار اعمال می‌نماید.
+
 ---
 
 ## 11. استقرار و فعال‌سازی ماژول تگ‌گذاری داینامیک (`archive_autotag`)
@@ -309,6 +323,50 @@ python tests/test_dynamic_archive_system.py
 
 ---
 
+
+---
+
+## 17. مدیریت حاکمیت حساب‌های کاربری و مرزبندی نقش‌ها (User Account Governance)
+
+بر اساس سیاست‌های امنیتی آرشیو سازمانی، سطوح دسترسی روی حساب‌های کاربری به‌صورت سخت‌گیرانه مرزبندی و قفل شده است:
+
+### ۱. مرزبندی نقش‌ها و ماتریس دسترسی:
+| نقش کاربری | ایجاد کاربر | ویرایش اعضای گروه خود | ویرایش کاربران سایر گروه‌ها | حذف کاربر |
+| :--- | :---: | :---: | :---: | :---: |
+| **ادمین کل سیستم (`admin`)** |  مجاز |  مجاز |  مجاز |  مجاز |
+| **مدیر گروه (`Group Admin / Subadmin`)** |  مجاز (در گروه خود) |  مجاز | ❌ مسدود (۴۰۳/۹۹۸) | ❌ **مسدود قطعی (۴۰۳ Forbidden)** |
+| **کاربر عادی استاندارد** | ❌ مسدود | ❌ مسدود | ❌ مسدود | ❌ مسدود |
+
+> [!IMPORTANT]
+> **قفل‌گذاری حذف کاربر برای ادمین کل:**
+> لیسنر بومی `BeforeUserDeletedListener` در ماژول `archive_autotag` رویداد حذف کاربر را رهگیری کرده و چنانچه کاربری غیر از ادمین کل (مانند مدیر گروه) اقدام به حذف اکانت نماید، بلافاصله خطای `403 Forbidden` با پیام زیر برمی‌گرداند:
+> `"User deletion is strictly restricted to system administrators. Group administrators may only modify group members."`
+
+### ۲. پایش و پاک‌سازی نقش‌ها با اسکریپت (`deploy/audit_user_roles.sh`):
+جهت ممیزی فوری تمام کاربران، شناسایی کاربرانی که تصادفاً دسترسی ادمین پیدا کرده‌اند و رفع سریع آن:
+```bash
+./deploy/audit_user_roles.sh
+```
+* **سلب دسترسی ادمین از کاربر عادی:**
+  ```bash
+  docker compose exec app php occ group:removeuser admin <username>
+  ```
+* **تعیین کاربر به‌عنوان مدیر یک گروه مشخص (Subadmin):**
+  ```bash
+  docker exec archive_db psql -U nextcloud_user -d nextcloud -c     "INSERT INTO oc_group_admin (gid, uid) VALUES ('<group_name>', '<username>') ON CONFLICT DO NOTHING;"
+  ```
+* **لغو نقش مدیر گروه:**
+  ```bash
+  docker exec archive_db psql -U nextcloud_user -d nextcloud -c     "DELETE FROM oc_group_admin WHERE gid = '<group_name>' AND uid = '<username>';"
+  ```
+
+### ۳. آزمون خودکار اعتبارسنجی حاکمیت کاربران (`tests/test_user_governance.py`):
+برای اطمینان از اعمال کامل مرزبندی‌های نقشی، سوئیت تست خودکار پایتون زیر اجرا می‌شود:
+```bash
+python3 tests/test_user_governance.py
+```
+این آزمون ۵ سناریوی کلیدی (اختیارات ادمین، ویرایش مجاز مدیر گروه، ایزولاسیون بین‌گروهی، ممنوعیت حذف برای مدیر گروه و عدم دسترسی کاربر عادی) را به صورت ایزوله تست و با موفقیت ۱۰۰٪ اعتبارسنجی می‌کند.
+
 ## 18. Step 7 - لاگ ممیزی امنیتی (`admin_audit`)
 
 جهت ممیزی دسترسی به فایل‌ها، دانلودها، اشتراک‌گذاری‌ها و لاگین‌ها:
@@ -366,6 +424,18 @@ docker compose exec app php occ app:enable admin_audit
 > **مستند تفصیلی:** جزئیات کامل تحلیل ریشه‌ای و معماری ذخیره‌سازی در مستند [docs/DATA_PERSISTENCE_AND_RELIABILITY.md](DATA_PERSISTENCE_AND_RELIABILITY.md) مدون شده است.
 
 ---
+
+### ۲.۴. تنظیم دسته‌ای سهمیه کاربران یک گروه (`deploy/set-group-quota.sh`)
+اعمال سهمیه دیسک شخصی (مثل `0 B`) برای کلیه کاربران عضو یک گروه:
+```bash
+./deploy/set-group-quota.sh SOC "0 B"
+```
+
+### ۲.۵. ممیزی و پالایش نقش‌ها و اعتبارات کاربری (`deploy/audit_user_roles.sh`)
+شناسایی ادمین‌ها، مدیران گروه، کاربران عادی و رفع دسترسی‌های ادمین ناخواسته:
+```bash
+./deploy/audit_user_roles.sh
+```
 
 ## 21. چک‌لیست تحویل سامانه به تیم بهره‌برداری
 

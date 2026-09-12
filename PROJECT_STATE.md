@@ -223,6 +223,7 @@ Status: **Completed**
 - **Architectural Hardening**:
   - Registered `BeforeUserDeletedListener` in `apps/archive_autotag`: Intercepts `BeforeUserDeletedEvent` and blocks account deletion with `403 Forbidden` if initiated by anyone other than a full System Administrator (`admin` group).
   - Maintained Nextcloud native subadmin isolation: Group Administrators are restricted strictly to modifying users within their assigned group and cannot access or modify users from other groups.
+  - Implemented `deploy/set-group-quota.sh`: Automation script to query group members via OCC JSON output and batch-configure personal storage quotas (e.g. `0 B` or custom limits) across all members of a group.
   - Implemented `deploy/audit_user_roles.sh`: Operational audit tool to identify user memberships, detect any unauthorized `admin` accounts, and provide quick remediation commands across environments.
   - Built comprehensive automated test suite `tests/test_user_governance.py` validating:
     1. System Admin full authority (modify + delete).

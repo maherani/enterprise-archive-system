@@ -51,6 +51,11 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
    - Nextcloud native permissions bundle file uploading and folder creation under one permission. The `archive_autotag` (v1.2.0) module decouples these capabilities by intercepting WebDAV `MKCOL` requests and filesystem `mkdir` hooks.
    - Non-admin users are strictly blocked from polluting the archive tree with unauthorized folders/subfolders (HTTP 403 Forbidden), while document uploads into existing folders remain completely permitted.
    - Admin policy management CLI: `occ archive:folder:policy [status|enable|disable]`.
+8. **Strict User Account Governance & Admin-Only Deletion Policy**:
+   - Rigid security boundaries: Full System Administrators (`admin`) retain sole authority to delete accounts or administer global system settings.
+   - Group Administrators (`Subadmins`) are strictly restricted to modifying members of their assigned group (display name, password, quota) and are prohibited from deleting accounts (HTTP 403 Forbidden via `BeforeUserDeletedListener`).
+   - Regular users possess zero account management privileges.
+   - Includes `deploy/audit_user_roles.sh` for role auditing and `deploy/set-group-quota.sh` for automated batch quota configuration.
 
 ## Current Project State
 
@@ -99,6 +104,12 @@ docker compose exec app php occ archive:user:limit archive_user1 10M
 # List configured user limits
 docker compose exec app php occ archive:user:limit --list
 
+# Batch-set personal quota (e.g. 0 B) for all members of a group
+./deploy/set-group-quota.sh SOC "0 B"
+
+# Audit user account roles and identify accidental admin privileges
+./deploy/audit_user_roles.sh
+
 # Retroactively scan and re-tag existing files
 docker compose exec app php occ archive:retag
 
@@ -116,6 +127,9 @@ python tests/test_dynamic_archive_system.py
 
 # Test 2: Admin-only folder creation and document upload decoupling
 python tests/test_folder_creation_restriction.py
+
+# Test 3: Strict user account governance and role boundaries
+python tests/test_user_governance.py
 ```
 
 
@@ -143,6 +157,16 @@ Automated operations scripts are available in `deploy/`:
   ./deploy/check_health.sh
   ```
   Verifies running containers, database connectivity, user list, group hierarchy, and archive folders.
+- **Batch Group Quota Provisioning**:
+  ```bash
+  ./deploy/set-group-quota.sh <group> <quota>
+  ```
+  Applies storage quotas across all members of an organizational group (e.g. `0 B`).
+- **User Role Audit & Remediation**:
+  ```bash
+  ./deploy/audit_user_roles.sh
+  ```
+  Audits user accounts, flags unintentional admin privileges, and provides one-click remediation.
 
 > [!CAUTION]
 > **Never run `docker compose down -v`!**
