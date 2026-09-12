@@ -1,31 +1,35 @@
-# Enterprise Archive System
+﻿# Enterprise Archive System
 
 A secure, scalable, and audit-compliant enterprise document archiving system built on **Nextcloud**, **PostgreSQL**, and **Nginx**.
 
 ## Architecture Overview
 
 ```text
-[ External Clients / AI Agents / API ]
-                 │
-             HTTP :80
-                 ▼
-        ┌──────────────────┐
-        │  archive_proxy   │  (Nginx Alpine - Reverse Proxy)
-        │  (Port 80:80)    │  - Large file upload (10GB)
-        └────────┬─────────┘  - Request buffering disabled
-                 │  (archive_net bridge)
-                 ▼
-        ┌──────────────────┐
-        │   archive_app    │  (Nextcloud Apache)
-        │   (Internal:80)  │  - WebDAV Endpoint: /remote.php/dav/files/
-        └────────┬─────────┘  - LDAP & App API Authentication
-                 │            - Custom App: archive_autotag (PSR-14 Event Engine)
-                 │            - Quota: 0 B (Admin-only Folder Governance)
-                 ▼
-        ┌──────────────────┐
-        │    archive_db    │  (PostgreSQL 15 Alpine)
-        │  (Internal:5432) │  - Database: nextcloud
-        └──────────────────┘
+[ External Clients / AI Agents / Web Browser / WebDAV API ]
+                             │
+                         HTTP :80 (or 443 SSL)
+                             ▼
+                    ┌──────────────────┐
+                    │  archive_proxy   │  (Nginx Alpine - Reverse Proxy)
+                    │  (Port 80:80)    │  - Large file upload (10GB)
+                    └────────┬─────────┘  - Request buffering disabled
+                             │  (archive_net bridge)
+                             ▼
+                    ┌──────────────────┐
+                    │   archive_app    │  (Nextcloud 34 Apache)
+                    │   (Internal:80)  │  - WebDAV Endpoint: /remote.php/dav/files/
+                    └────────┬─────────┘  - LDAP & Token Authentication
+                             │            - Custom App: archive_autotag v1.3.4
+                             │            - Dynamic Hierarchical Auto-Tagging
+                             │            - Native Multi-Tag Intersection Search (AND)
+                             │            - Granular Per-User File Upload Size Limit
+                             │            - Admin-Only Folder Policy Enforcement
+                             │            - Strict Account Governance (Admin-only deletion)
+                             ▼
+                    ┌──────────────────┐
+                    │    archive_db    │  (PostgreSQL 15 Alpine)
+                    │  (Internal:5432) │  - Database: nextcloud
+                    └──────────────────┘
 ```
 
 ## Core Features & Governance Capabilities
@@ -48,7 +52,7 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
    - Application and database isolated from host network; only Nginx port 80/443 exposed.
    - Up to 10GB streaming uploads with disabled request buffering for minimal memory consumption.
 7. **Admin-Only Folder Creation & File Upload Decoupling**:
-   - Nextcloud native permissions bundle file uploading and folder creation under one permission. The `archive_autotag` (v1.2.0) module decouples these capabilities by intercepting WebDAV `MKCOL` requests and filesystem `mkdir` hooks.
+   - Nextcloud native permissions bundle file uploading and folder creation under one permission. The `archive_autotag` module decouples these capabilities by intercepting WebDAV `MKCOL` requests and filesystem `mkdir` hooks.
    - Non-admin users are strictly blocked from polluting the archive tree with unauthorized folders/subfolders (HTTP 403 Forbidden), while document uploads into existing folders remain completely permitted.
    - Admin policy management CLI: `occ archive:folder:policy [status|enable|disable]`.
 8. **Strict User Account Governance & Admin-Only Deletion Policy**:
@@ -56,6 +60,14 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
    - Group Administrators (`Subadmins`) are strictly restricted to modifying members of their assigned group (display name, password, quota) and are prohibited from deleting accounts (HTTP 403 Forbidden via `BeforeUserDeletedListener`).
    - Regular users possess zero account management privileges.
    - Includes `deploy/audit_user_roles.sh` for role auditing and `deploy/set-group-quota.sh` for automated batch quota configuration.
+9. **Native Multi-Tag Intersection Filter (`archive_autotag v1.3.4`)**:
+   - Interactive, Persian RTL-aware filter toolbar embedded directly into the Nextcloud Files Web UI.
+   - Allows users to select multiple tags simultaneously (e.g. `افتا` AND `الزامات امنیتی`), narrowing documents strictly by logical mathematical intersection.
+   - Displays real-time matching document counts, full archive paths, human-readable file sizes, direct folder navigation, and instant downloads with strict ACL isolation.
+10. **Zero-to-Production Automated Bare Server Deployment (`deploy/deploy_from_scratch.sh`)**:
+    - Complete turnkey deployment script enabling immediate, single-command setup on clean Ubuntu 22.04 / 24.04 LTS servers.
+
+---
 
 ## Current Project State
 
@@ -64,38 +76,49 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
 - **Step 3 — High-Capacity Ingestion & Proxy**: Nginx reverse proxy with 10GB unbuffered uploads (Verified)
 - **Step 4 — Automated Ingestion & API Authentication**: WebDAV token authentication (Verified)
 - **Step 5 — Compliance Group & Service Accounts**: Audited role structure (Verified)
-- **Step 6 — Folder Governance, Dynamic Hierarchical Tagging & User Upload Limits**:
-  - Native custom application `archive_autotag` built, installed, and enabled.
-  - Granular per-user upload limit CLI (`occ archive:user:limit`) and SabreDAV security plugin.
-  - End-to-end automated verification test suite ([tests/test_dynamic_archive_system.py](tests/test_dynamic_archive_system.py)) with **100% pass rate** across all 6 core requirements.
+- **Step 6 — Folder Governance, Dynamic Hierarchical Tagging & User Upload Limits**: Verified with 100% pass rate.
+- **Step 7 — Audit Logging & Health Monitoring**: `admin_audit` enabled and verified.
+- **Step 8 — Data Persistence, Automated Backup & Recovery**: Resilient volumes, `backup_db.sh`, `restore_db.sh`, `check_health.sh`.
+- **Step 9 — Strict User Account Governance**: Admin-only user deletion and group admin isolation verified.
+- **Step 10 — Multi-Tag Intersection Filter**: Web UI integration and REST API verified via automated E2E tests and live browser CDP runs.
+- **Step 11 — Bare-Metal Deployment Automation**: `deploy/deploy_from_scratch.sh`, `.env.example`, and updated runbook.
 
 See [PROJECT_STATE.md](PROJECT_STATE.md) and [docs/DEPLOYMENT_RUNBOOK.md](docs/DEPLOYMENT_RUNBOOK.md) for full operational guides and architectural records.
 
+---
+
 ## Getting Started
 
-### 1. Prerequisites
-- Docker Engine & Docker Compose (v2)
-- Python 3.10+ (for integration test suite)
-
-### 2. Configuration
-Create a `.env` file in the project root:
-
-```ini
-POSTGRES_DB=nextcloud
-POSTGRES_USER=nextcloud_user
-POSTGRES_PASSWORD=YourSecurePassword
-NEXTCLOUD_ADMIN_USER=admin
-NEXTCLOUD_ADMIN_PASSWORD=YourAdminPassword
-NEXTCLOUD_TRUSTED_DOMAINS=localhost 127.0.0.1
-```
-
-### 3. Launch Services
+### 1. Bare Server Rapid Deployment (Recommended)
+On a clean Ubuntu Server 22.04 or 24.04 LTS:
 
 ```bash
-docker compose up -d
+# Clone the repository
+git clone https://github.com/maherani/enterprise-archive-system.git
+cd enterprise-archive-system
+
+# Create .env from template and configure passwords
+cp .env.example .env
+nano .env
+
+# Run automated zero-to-production installer
+./deploy/deploy_from_scratch.sh
 ```
 
-### 4. Admin Management Commands
+### 2. Manual Launch Services
+
+```bash
+# Copy and configure environment variables
+cp .env.example .env
+
+# Launch containers
+docker compose up -d
+
+# Verify container health
+./deploy/check_health.sh
+```
+
+### 3. Admin Management Commands
 
 ```bash
 # Set per-user upload limit (e.g., 10MB)
@@ -117,81 +140,31 @@ docker compose exec app php occ archive:retag
 docker compose exec app php occ archive:folder:policy
 ```
 
-### 5. Run Automated E2E Verification Tests
+### 4. Run Automated E2E Verification Tests
 
 ```bash
+python3 -m venv venv
 source venv/bin/activate
+pip install -r requirements.txt
 
-# Test 1: Full governance, dynamic hierarchical tagging, and user upload limits
-python tests/test_dynamic_archive_system.py
+# Test 1: Full governance, dynamic hierarchical tagging, and upload limits
+python3 tests/test_dynamic_archive_system.py
 
-# Test 2: Admin-only folder creation and document upload decoupling
-python tests/test_folder_creation_restriction.py
+# Test 2: Strict user account governance and role boundaries
+python3 tests/test_user_governance.py
 
-# Test 3: Strict user account governance and role boundaries
-python tests/test_user_governance.py
-```
-
-
-
-## Data Persistence & Operational Runbook
-
-### 1. Persistent Storage Architecture
-- **PostgreSQL Database**: Persisted on host filesystem in `./db` (`/var/lib/postgresql/data`).
-- **Nextcloud Data & Config**: Persisted on host filesystem in `./nextcloud` (`/var/www/html`).
-- **Safety Policy**: Automated re-installation parameters (`NEXTCLOUD_ADMIN_*`) have been decoupled from `docker-compose.yml` to prevent unintended database overwrites.
-
-### 2. Backup & Restore Utilities
-Automated operations scripts are available in `deploy/`:
-- **Create Database Backup**:
-  ```bash
-  ./deploy/backup_db.sh
-  ```
-  Exports full timestamped SQL dumps to `deploy/backups/db_backup_<timestamp>.sql` and updates `latest_db_backup.sql`.
-- **Restore Database**:
-  ```bash
-  ./deploy/restore_db.sh [path/to/backup.sql]
-  ```
-- **System Health & Integrity Check**:
-  ```bash
-  ./deploy/check_health.sh
-  ```
-  Verifies running containers, database connectivity, user list, group hierarchy, and archive folders.
-- **Batch Group Quota Provisioning**:
-  ```bash
-  ./deploy/set-group-quota.sh <group> <quota>
-  ```
-  Applies storage quotas across all members of an organizational group (e.g. `0 B`).
-- **User Role Audit & Remediation**:
-  ```bash
-  ./deploy/audit_user_roles.sh
-  ```
-  Audits user accounts, flags unintentional admin privileges, and provides one-click remediation.
-
-> [!CAUTION]
-> **Never run `docker compose down -v`!**
-> The `-v` flag deletes all volumes. Always use `docker compose stop` or `docker compose down` (without `-v`) to preserve database and file archives.
->
-> **WSL2 Startup Note**:
-> When booting Windows, ensure your WSL2 environment is active before accessing the browser. If containers were started prior to WSL mount synchronization, running `./deploy/check_health.sh` or `docker compose restart` immediately validates live filesystem mounts.
-
-
-## AI Knowledge Base & On-Premise LLM Integration
-
-The repository is structured to serve as an **Air-Gapped, Zero-GPU Knowledge Base** for an on-premise Large Language Model (LLM) to automatically evaluate project progress, extract financial statistics, and generate executive reports.
-
-- **Zero Data Egress**: 100% on-premise document processing, metadata indexing, and LLM inference.
-- **Zero-GPU Efficiency**: Runs quantized GGUF models (`Qwen2.5-1.5B-Instruct`) on CPU (Intel Core i7-1355U AVX2) with ~1.5 GB RAM footprint.
-- **Local Indexing**: Blazing fast search and extraction via local `SQLite FTS5`.
-- **Complete Blueprint**: Full technical specifications and phased roadmap are documented in [docs/AI_ON_PREMISE_ARCHITECTURE.md](docs/AI_ON_PREMISE_ARCHITECTURE.md).
-
-### فیلتر پیشرفته چندتگی اسناد (Multi-Tag Intersection Filter)
-سامانه دارای نوار ابزار تعاملی فیلتر همپوشانی تگ‌ها درون برنامه **فایل‌ها (Files)** است.
-- کاربران می‌توانند چندین برچسب را به طور همزمان انتخاب کنند (مثلاً `افتا` و `الزامات امنیتی`).
-- نتایج بر اساس منطق اشتراک ریاضی (`AND`) فیلتر شده و تنها اسنادی که **تمام** برچسب‌های انتخابی را دارا هستند نمایش داده می‌شوند.
-- تفکیک دسترسی (ACL) به صورت کامل رعایت شده و کاربران فقط اسناد پوشه‌های مجاز را مشاهده می‌کنند.
-
-اجرای آزمون‌های خودکار فیلتر چندتگی:
-```bash
+# Test 3: Multi-tag intersection filtering (AND logic) and ACL isolation
 python3 tests/test_multi_tag_filter.py
 ```
+
+---
+
+## Data Persistence & Operational Utilities
+
+Automated operations scripts are available in `deploy/`:
+- **Automated Bare Server Installer**: `./deploy/deploy_from_scratch.sh`
+- **Database Backup**: `./deploy/backup_db.sh`
+- **Disaster Recovery Restore**: `./deploy/restore_db.sh [backup.sql]`
+- **System Health & Integrity Check**: `./deploy/check_health.sh`
+- **Batch Group Quota Provisioning**: `./deploy/set-group-quota.sh <group> <quota>`
+- **User Role Audit & Remediation**: `./deploy/audit_user_roles.sh`

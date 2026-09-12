@@ -1,51 +1,74 @@
-# Enterprise Archive System - Deployment Runbook
+﻿# Enterprise Archive System - Deployment Runbook & Bare-Metal Setup Guide
 
-این سند راهنمای اجرایی نصب، پیکربندی و راه‌اندازی سامانه آرشیو سازمانی برای کارشناس زیرساخت و DevOps است. مبنای آن وضعیت جاری Repository پروژه و ویژگی‌های پیاده‌سازی‌شده مدیریت متمرکز پوشه‌ها و تگ‌گذاری داینامیک است.
+این سند راهنمای جامع و مرجع عملیاتی نصب، پیکربندی، استقرار از صفر (روی سرور خام) و نگهداری سامانه آرشیو اسناد سازمانی است. تمامی گام‌ها بر اساس آخرین وضعیت مخزن گیت (`main`)، ماژول بومی `archive_autotag v1.3.4`، فیلتر پیشرفته چندتگی و مکانیزم‌های حاکمیت داده تدوین شده‌اند.
 
 ---
 
-## 1. معماری
+## ۱. معماری کلی سیستم
 
 ```text
-[ External Clients / AI Agents / WebDAV API ]
-                      |
-                  HTTP :80
-                      v
-             +------------------+
-             |  archive_proxy   |  Nginx Alpine (Reverse Proxy)
-             |    Port 80:80    |  - client_max_body_size 10G
-             +--------+---------+  - request_buffering off
-                      | (archive_net bridge)
-                      v
-             +------------------+
-             |   archive_app    |  Nextcloud Apache
-             |   Internal :80   |  - WebDAV Endpoint: /remote.php/dav/files/
-             +--------+---------+  - Custom App: archive_autotag (PSR-14 Event Engine)
-                      |            - User Quota: 0 B (Admin Folder Governance)
-                      v
-             +------------------+
-             |    archive_db    |  PostgreSQL 15 Alpine
-             |   Internal :5432 |  - Database: nextcloud
-             +------------------+
+[ External Clients / AI Agents / WebDAV API / Web Browser ]
+                            │
+                        HTTP :80 (یا 443 SSL)
+                            ▼
+                   ┌──────────────────┐
+                   │  archive_proxy   │  Nginx Alpine (Reverse Proxy)
+                   │    Port 80:80    │  - client_max_body_size 10G
+                   └────────┬─────────┘  - request_buffering off
+                            │ (archive_net bridge)
+                            ▼
+                   ┌──────────────────┐
+                   │   archive_app    │  Nextcloud 34 Apache
+                   │   Internal :80   │  - WebDAV Endpoint: /remote.php/dav/files/
+                   └────────┬─────────┘  - Custom App: archive_autotag v1.3.4
+                            │            - Dynamic Hierarchical Auto-Tagging
+                            │            - Multi-Tag Intersection Filter (AND)
+                            │            - Granular Per-User Upload Limit
+                            │            - Admin-Only Folder Creation Policy
+                            │            - Strict Account Governance (Admin-only deletion)
+                            ▼
+                   ┌──────────────────┐
+                   │    archive_db    │  PostgreSQL 15 Alpine
+                   │   Internal :5432 │  - Database: nextcloud
+                   └──────────────────┘
 ```
 
-دسترسی خارجی فقط از طریق Nginx انجام می‌شود؛ سرویس‌های PostgreSQL و پورت داخلی Nextcloud به هیچ وجه نباید مستقیماً روی شبکه عمومی منتشر شوند.
+> [!IMPORTANT]
+> **جداسازی کامل شبکه (Network Isolation):**
+> دسترسی خارجی به سامانه منحصراً از طریق Nginx انجام می‌شود. پورت پایگاه‌داده PostgreSQL (5432) و پورت داخلی Nextcloud به هیچ وجه نباید مستقیماً در شبکه عمومی منتشر شوند.
 
 ---
 
-## 2. پیش‌نیازها
+## ۲. استقرار از صفر روی یک سرور خام (Bare Server Deployment)
 
-- سیستم‌عامل Ubuntu Server 22.04 یا 24.04 LTS
-- دسترسی `sudo` و اتصال پایدار شبکه جهت دریافت پکیج‌ها و ایمیج‌های داکر
-- نصب Docker Engine و Docker Compose Plugin (v2)
-- فضای دیسک کافی متناسب با ظرفیت آرشیو اسناد سازمانی و پایگاه داده PostgreSQL
-- پورت 80 آزاد (در فاز Production، پورت 443 و گواهی SSL/TLS نیز الزامی است)
-- تنظیم صحیح ساعت سیستم و NTP سرور
+این بخش برای کارشناس زیرساخت یا DevOps طراحی شده است که یک سرور خام (مثلاً Ubuntu Server 22.04 یا 24.04 LTS تازه نصب شده) در اختیار دارد.
 
----
+### گام ۰: آماده‌سازی اولیه سیستم‌عامل خام
+با کاربر دارای دسترسی `sudo` به سرور SSH بزنید:
 
-## 3. دریافت پروژه از مخزن گیت
+```bash
+# به‌روزرسانی مخازن لینوکس و نصب ابزارهای پایه
+sudo apt-get update && sudo apt-get upgrade -y
+sudo apt-get install -y curl git jq ca-certificates gnupg ufw
 
+# نصب رسمی Docker Engine و Docker Compose Plugin
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+
+# فعال‌سازی سرویس داکر
+sudo systemctl enable --now docker
+
+# اعمال عضویت در گروه داکر (یا خروج و ورود مجدد به SSH)
+newgrp docker
+```
+
+بررسی صحت نصب:
+```bash
+docker --version
+docker compose version
+```
+
+### گام ۱: دریافت پروژه از مخزن گیت
 ```bash
 cd ~
 git clone https://github.com/maherani/enterprise-archive-system.git
@@ -53,415 +76,223 @@ cd ~/enterprise-archive-system
 git status
 ```
 
-شاخه اصلی `main` و Commit معتبر پروژه باید کنترل شود و Working Tree در وضعیت `clean` باشد.
-
----
-
-## 4. ایجاد و تنظیم فایل متغیرهای محیطی (`.env`)
+### گام ۲: ساخت فایل متغیرهای محیطی (`.env`)
+پروژه شامل فایل الگوی استاندارد `.env.example` است:
 
 ```bash
+cp .env.example .env
 nano .env
 ```
 
-نمونه پیکربندی استاندارد:
+مقادیر امنیتی زیر را با رمزهای عبور قوی تنظیم فرمایید:
 
 ```env
 # Database Configuration
 POSTGRES_DB=nextcloud
 POSTGRES_USER=nextcloud_user
-POSTGRES_PASSWORD=<STRONG_DB_PASSWORD>
+POSTGRES_PASSWORD=YourStrongDatabasePassword_Secure123!
 
-# Nextcloud Admin Configuration
+# Nextcloud Primary Administrator Configuration
 NEXTCLOUD_ADMIN_USER=admin
-NEXTCLOUD_ADMIN_PASSWORD=<STRONG_ADMIN_PASSWORD>
-NEXTCLOUD_TRUSTED_DOMAINS=localhost 127.0.0.1 <SERVER_IP_OR_FQDN>
+NEXTCLOUD_ADMIN_PASSWORD=YourStrongAdminPassword_Secure123!
+
+# Nextcloud Trusted Domains (آدرس IP سرور یا دامنه سازمانی را اضافه فرمایید)
+NEXTCLOUD_TRUSTED_DOMAINS=localhost 127.0.0.1 192.168.1.100 archive.organization.local
 ```
 
 > [!CAUTION]
-> رمزهای عبور واقعی باید توسط مسئول امنیت/بهره‌برداری تعیین شوند. فایل `.env` حاوی اطلاعات محرمانه است و هرگز نباید وارد Git، تیکت‌ها، پیام‌رسان‌ها یا اسکرین‌شات‌ها شود.
-
-کنترل وضعیت گیت:
-
-```bash
-git status
-```
-
-باید فایل `.env` توسط `.gitignore` نادیده گرفته شده و وضعیت مخزن clean بماند.
+> فایل `.env` حاوی کلمات عبور حیاتی است. این فایل به صورت پیش‌فرض در `.gitignore` قرار دارد و هرگز نباید در گیت کامیت شود.
 
 ---
 
-## 5. راه‌اندازی کانتینرها با Docker Compose
+### گام ۳: روش‌های استقرار
+
+#### 🚀 روش اول (توصیه‌شده): استقرار تمام‌خودکار با یک دستور
+اسکریپت `deploy/deploy_from_scratch.sh` تمامی مراحل راه‌اندازی، انتظار برای سلامت پایگاه‌داده، نصب بدون نیاز به مداخله (Headless) نکست‌کلود، کپی و فعال‌سازی ماژول بومی `archive_autotag v1.3.4`، تنظیم پراکسی معتمد و بررسی سلامت را خودکار انجام می‌دهد:
 
 ```bash
-docker compose up -d
-docker compose ps
+./deploy/deploy_from_scratch.sh
 ```
 
-سرویس‌های زیر باید در وضعیت Healthy / Up باشند:
-- `archive_db` (PostgreSQL 15)
-- `archive_app` (Nextcloud Apache)
-- `archive_proxy` (Nginx Alpine)
-
-> [!WARNING]
-> هرگز برای رفع خطاهای موقت از دستور `docker compose down -v` یا حذف دستی دایرکتوری‌های `db/` و `nextcloud/` استفاده نکنید زیرا داده‌ها و متادیتا پاک خواهند شد.
+خروجی نهایی اسکریپت تاییدیه اجرای موفق و سلامت ۱۰۰٪ سیستم به همراه اطلاعات دسترسی را نمایش می‌دهد.
 
 ---
 
-## 6. اعتبارسنجی Nginx و سرویس وب
+#### 🛠️ روش دوم: استقرار دستی گام‌به‌گام (Manual Step-by-Step)
+در صورت نیاز به اجرای دستی فرآیند توسط ادمین سیستم:
 
-```bash
-curl -I http://localhost
-```
+1. **اجرای کانتینرها:**
+   ```bash
+   docker compose up -d
+   docker compose ps
+   ```
 
-پاسخ `HTTP 200` یا ریدایرکت `HTTP 302` نشان‌دهنده در دسترس بودن سرویس است. همچنین از طریق مرورگر، آدرس `http://<SERVER_IP_OR_FQDN>` را باز کرده و صفحه ورود Nextcloud را بررسی نمایید.
+2. **بررسی آمادگی پایگاه‌داده:**
+   ```bash
+   docker exec archive_db pg_isready -U nextcloud_user -d nextcloud
+   ```
 
----
+3. **نصب هسته Nextcloud (در صورت عدم نصب خودکار):**
+   ```bash
+   docker exec -u www-data archive_app php occ maintenance:install \
+       --database "pgsql" \
+       --database-name "nextcloud" \
+       --database-user "nextcloud_user" \
+       --database-pass "<POSTGRES_PASSWORD>" \
+       --database-host "db" \
+       --admin-user "admin" \
+       --admin-pass "<NEXTCLOUD_ADMIN_PASSWORD>"
+   ```
 
-## 7. بررسی وضعیت هسته Nextcloud
+4. **تنظیم دامنه‌ها و پراکسی معتمد:**
+   ```bash
+   docker exec -u www-data archive_app php occ config:system:set trusted_domains 1 --value="localhost"
+   docker exec -u www-data archive_app php occ config:system:set trusted_domains 2 --value="127.0.0.1"
+   docker exec -u www-data archive_app php occ config:system:set trusted_domains 3 --value="<SERVER_IP>"
+   docker exec -u www-data archive_app php occ config:system:set trusted_proxies 0 --value="172.16.0.0/12"
+   docker exec -u www-data archive_app php occ config:system:set default_phone_region --value="IR"
+   ```
 
-```bash
-docker compose exec app php occ status
-```
+5. **استقرار ماژول بومی `archive_autotag`:**
+   ```bash
+   docker exec archive_app mkdir -p /var/www/html/custom_apps/archive_autotag
+   docker cp apps/archive_autotag/. archive_app:/var/www/html/custom_apps/archive_autotag/
+   docker exec archive_app chown -R www-data:www-data /var/www/html/custom_apps/archive_autotag
+   docker exec -u www-data archive_app php occ app:enable archive_autotag
+   docker exec -u www-data archive_app php occ upgrade
+   ```
 
-خروجی مورد انتظار:
-- `installed: true`
-- `version: 34.0.3.2`
-- `maintenance: false`
+6. **فعال‌سازی سیاست حاکمیت ساختار پوشه‌ها:**
+   ```bash
+   docker exec -u www-data archive_app php occ archive:folder:policy enable
+   ```
 
----
-
-## 8. بررسی مسیرهای نصب برنامه‌ها (`apps_paths`)
-
-```bash
-docker compose exec app php occ config:system:get apps_paths
-```
-
-مسیرهای استاندارد پیکربندی‌شده:
-```text
-0: /var/www/html/apps (Read-only)
-1: /var/www/html/custom_apps (Writable)
-```
-
-دایرکتوری `custom_apps` جهت استقرار ماژول‌های بومی و اپلیکیشن‌های سفارشی استفاده می‌شود.
-
----
-
-## 9. یکپارچه‌سازی با سامانه دایرکتوری سازمانی (LDAP / Active Directory)
-
-در محیط‌های سازمانی متصل به اکتیودایرکتوری یا OpenLDAP:
-
-```bash
-docker compose exec app php occ app:enable user_ldap
-```
-
-سپس مقادیر Base DN، Bind DN، پورت (389 یا 636) و فیلترهای ورود و گروه‌ها طبق شناسنامه هویتی سازمان تنظیم و تست اتصال انجام گیرد.
-
----
-
-## 10. ساختار حاکمیت پوشه‌ها توسط ادمین (Admin-Only Folder Governance)
-
-بر اساس خط‌مشی امنیت داده‌های آرشیو، کاربران عادی نباید بتوانند پوشه‌های دلخواه در ریشه شخصی ایجاد کنند یا ساختار آرشیو را تغییر دهند:
-
-### ۱. محدودسازی سهمیه دیسک شخصی کاربران به صفر:
-برای کاربران استاندارد آرشیو (مانند `archive_user1` یا کل گروه کاربران):
-```bash
-docker compose exec app php occ user:setting <username> files quota 0
-```
-با این تنظیم، تلاش کاربر برای آپلود یا ساخت پوشه در فضای شخصی با خطای `HTTP 507 (Insufficient Storage)` مسدود می‌شود.
-
-### ۲. ساخت پوشه‌های سازمانی توسط ادمین:
-پوشه‌های اصلی آرشیو منحصراً توسط ادمین در وب یا از طریق خط فرمان ایجاد می‌شوند:
-- `/Enterprise_Archive/Finance/2026/Invoices`
-- `/Enterprise_Archive/Legal/Contracts`
-- `/Enterprise_Archive/Technical/Blueprints`
-
-### ۳. اشتراک‌گذاری پوشه‌ها با گروه‌ها با دسترسی‌های کنترل‌شده:
-ادمین پوشه ریشه `/Enterprise_Archive` را با گروه دسترسی مربوطه (مثلاً `Compliance_Unit`) به اشتراک می‌گذارد:
-- مجوزهای مجاز: **مشاهده (Read)، ایجاد فایل (Create)، ویرایش (Update)**
-- مجوزهای غیرمجاز: **حذف پوشه ریشه (Delete Root) و اشتراک مجدد (Reshare)**
-
-بدین ترتیب کاربران صرفاً درون پوشه‌های هدایت‌شده توسط ادمین امکان آپلود دارند.
-
-### ۴. تنظیم دسته‌ای سهمیه دیسک اعضای یک گروه (`deploy/set-group-quota.sh`):
-جهت اعمال سریع سهمیه دیسک شخصی (مانند `0 B` یا سهمیه اختصاصی) برای تمام اعضای یک گروه سازمانی (مانند `SOC` یا `Compliance_Unit`)، اسکریپت خودکار زیر در مسیر `deploy/` توسعه داده شده است:
-```bash
-# تنظیم سهمیه صفر برای تمامی اعضای گروه SOC
-./deploy/set-group-quota.sh SOC "0 B"
-
-# تنظیم سهمیه صفر برای اعضای گروه Compliance_Unit
-./deploy/set-group-quota.sh Compliance_Unit "0 B"
-
-# تنظیم سهمیه سفارشی (مثلاً ۵ گیگابایت) برای یک گروه دیگر
-./deploy/set-group-quota.sh Finance "5 GB"
-```
-این اسکریپت لیست اعضای گروه را از طریق خروجی JSON فرمان Nextcloud OCC دریافت کرده و سهمیه دیسک تک‌تک اعضا را به صورت خودکار اعمال می‌نماید.
+7. **بررسی سلامت نهایی سامانه:**
+   ```bash
+   ./deploy/check_health.sh
+   ```
 
 ---
 
-## 11. استقرار و فعال‌سازی ماژول تگ‌گذاری داینامیک (`archive_autotag`)
+## ۳. حاکمیت پوشه‌ها و محدودسازی دسترسی کاربران (Folder Governance)
 
-پروژه شامل یک اپلیکیشن بومی سبک و بدون وابستگی خارجی به نام `archive_autotag` است که در مسیر `apps/archive_autotag` مخزن گیت قرار دارد.
+بر اساس سیاست‌های امنیتی آرشیو سازمانی:
+1. **سهمیه فضای شخصی صفر (`0 B`):**
+   کاربران عادی مجاز به آپلود پراکنده در ریشه شخصی نیستند:
+   ```bash
+   docker exec -u www-data archive_app php occ user:setting <username> files quota 0
+   ```
+2. **ساخت دایرکتوری‌های سازمانی توسط ادمین:**
+   ساختار بایگانی منحصراً در ریشه `/Enterprise_Archive` توسط ادمین مدیریت می‌شود:
+   ```bash
+   docker exec -u www-data archive_app php occ files:mkdir "/admin/files/Enterprise_Archive"
+   ```
+3. **تنظیم دسته‌ای سهمیه اعضای گروه (`deploy/set-group-quota.sh`):**
+   ```bash
+   # صفر کردن سهمیه دیسک برای تمام کاربران گروه SOC
+   ./deploy/set-group-quota.sh SOC "0 B"
 
-### ۱. کپی سورس ماژول به دایرکتوری `custom_apps`:
-در صورتی که برنامه هنوز در کانتینر مستقر نشده باشد:
-```bash
-docker compose exec app mkdir -p custom_apps/archive_autotag
-docker cp apps/archive_autotag/. archive_app:/var/www/html/custom_apps/archive_autotag/
-docker compose exec app chown -R www-data:www-data /var/www/html/custom_apps/archive_autotag
-```
-
-### ۲. فعال‌سازی اپلیکیشن در Nextcloud:
-```bash
-docker compose exec app php occ app:enable archive_autotag
-```
-
-خروجی تایید:
-```text
-archive_autotag 1.0.0 enabled
-```
-
----
-
-## 12. نحوه کارکرد تگ‌گذاری داینامیک و سلسله‌مراتبی (Hierarchical Auto-Tagging)
-
-ماژول `archive_autotag` با استفاده از شنوندگان رویدادهای هسته Nextcloud (PSR-14 Event Dispatcher) به صورت آنی و خودکار عمل می‌کند:
-
-1. **رویداد آپلود فایل (`NodeCreatedEvent` و `NodeWrittenEvent`):**
-   - به محض بارگذاری یک فایل توسط کاربر یا سیستم از طریق Web UI یا WebDAV API، سلسله‌مراتب کامل پوشه‌های والد استخراج می‌شود.
-   - مثال: برای فایل در مسیر `/Enterprise_Archive/Finance/2026/Invoices/doc.pdf`، تگ‌های `Enterprise_Archive`، `Finance`، `2026` و `Invoices` به صورت داینامیک ایجاد و به فایل الصاق می‌شوند.
-2. **محافظت از تگ‌های سیستمی (`Restricted Tags`):**
-   - تمامی تگ‌های والد به صورت سیستمی و با ویژگی **Restricted** (`userAssignable=false` و `userVisible=true`) ساخته می‌شوند.
-   - کاربران عادی این تگ‌ها را می‌بینند و می‌توانند اسناد را بر اساس آن‌ها فیلتر کنند، اما دکمه حذف ندارند و هرگونه تلاش مستقیم از طریق API با خطای `HTTP 403 Forbidden` متوقف می‌شود.
-3. **تگ‌گذاری مشارکتی توسط کاربران مجاز:**
-   - کاربران مجاز می‌توانند علاوه بر تگ‌های والد، تگ‌های عمومی دلخواه (`public`) را به فایل‌ها اضافه یا از آن‌ها حذف نمایند.
-4. **انتشار تغییرات تغییر نام پوشه (`NodeRenamedEvent`):**
-   - هرگاه ادمین نام یک پوشه را تغییر دهد (مثلاً از `Invoices` به `Invoices_Archive`)، تگ قبلی به صورت خودکار از تمام اسناد فرزند حذف و تگ جدید به آن‌ها الصاق می‌گردد.
+   # اعمال سهمیه برای گروه Compliance_Unit
+   ./deploy/set-group-quota.sh Compliance_Unit "0 B"
+   ```
 
 ---
 
-## 13. مدیریت سطوح دسترسی تگ‌ها توسط ادمین (CLI)
+## ۴. مدیریت حاکمیت حساب‌های کاربری و مرزبندی نقش‌ها (User Governance)
 
-ادمین سیستم می‌تواند تگ‌ها را با هر سه سطح دسترسی استاندارد مدیریت کند:
-
-```bash
-# ایجاد تگ عمومی (قابل مشاهده و ویرایش توسط تمام کاربران)
-docker compose exec app php occ tag:add "Public_Tag_Name" public
-
-# ایجاد تگ حفاظت‌شده سیستمی (قابل مشاهده، اما غیرقابل حذف توسط کاربران عادی)
-docker compose exec app php occ tag:add "System_Protected_Tag" restricted
-
-# ایجاد تگ مخفی (نامرئی برای کاربران عادی)
-docker compose exec app php occ tag:add "Internal_Audit_Tag" invisible
-
-# لیست تمامی تگ‌های موجود در سیستم
-docker compose exec app php occ tag:list
-```
-
----
-
-## 14. دستور خط فرمان اسکن و تگ‌گذاری دسته‌ای (`occ archive:retag`)
-
-برای فایل‌ها یا پوشه‌هایی که قبل از نصب ماژول آپلود شده‌اند، از دستور اختصاصی زیر برای بازخوانی سلسله‌مراتب و تگ‌گذاری دسته‌ای استفاده کنید:
-
-```bash
-# تگ‌گذاری مجدد برای تمامی کاربران سیستم
-docker compose exec app php occ archive:retag
-
-# تگ‌گذاری مجدد فقط برای یک حساب کاربری خاص
-docker compose exec app php occ archive:retag admin
-```
-
----
-
-## 15. تنظیم سقف حجم آپلود فایل برای هر کاربر توسط ادمین (`occ archive:user:limit`)
-
-ادمین سیستم می‌تواند حداکثر حجم مجاز برای آپلود هر فایل را به تفکیک هر کاربر در جدول امن تنظیمات کاربر ذخیره کند. این محدودیت در لایه WebDAV/Storage بررسی شده و در صورت ارسال فایل بزرگتر از سقف مجاز، آپلود بلافاصله با کد خطای `HTTP 403 Forbidden` متوقف و رد می‌شود.
-
-```bash
-# تنظیم سقف حجم فایل (مثال: حداکثر 10 مگابایت برای archive_user1)
-docker compose exec app php occ archive:user:limit archive_user1 10M
-
-# نمونه‌های دیگر با واحدهای مختلف (K, M, G)
-docker compose exec app php occ archive:user:limit archive_user1 500M
-docker compose exec app php occ archive:user:limit archive_user1 2G
-
-# حذف سقف محدودیت حجم برای کاربر (نامحدودسازی)
-docker compose exec app php occ archive:user:limit archive_user1 0
-
-# استعلام سقف فعلی یک کاربر
-docker compose exec app php occ archive:user:limit archive_user1
-
-# نمایش جدول تمام کاربران دارای سقف حجم سفارشی
-docker compose exec app php occ archive:user:limit --list
-```
-
----
-
-## 16. اجرای تست‌های خودکار جامع انتها-به-انتها (E2E Verification)
-
-مخزن شامل اسکریپت تست کامل `tests/test_dynamic_archive_system.py` است که هر ۶ نیازمندی حاکمیت و تگ‌گذاری را بررسی می‌کند:
-
-```bash
-# فعال‌سازی محیط مجازی پایتون
-source venv/bin/activate
-
-# اجرای سوئیت آزمون
-python tests/test_dynamic_archive_system.py
-```
-
-گام‌های اعتبارسنجی اسکریپت:
-1. بررسی مسدود بودن آپلود کاربر در فضای شخصی (`HTTP 507/403`).
-2. آپلود سند در ساختار سلسله‌مراتبی ادمین و بررسی دریافت پاسخ موفق (`HTTP 201/204`).
-3. بازخوانی تگ‌های فایل و تایید الصاق خودکار تمام تگ‌های سلسله‌مراتب پوشه‌های والد.
-4. تلاش کاربر برای حذف تگ والد و تایید دریافت خطای `HTTP 403 Forbidden`.
-5. الصاق و حذف تگ عمومی توسط کاربر و تایید عملکرد موفق.
-6. تغییر نام پوشه توسط ادمین و تایید تعویض خودکار تگ تمام اسناد درون آن.
-
-نتیجه نهایی باید پیام `7. بررسی کنترل سقف حجم آپلود کاربر (موفقیت آپلود فایل ۱ مگابایتی و رد قطعی فایل ۱۲ مگابایتی با خطای `HTTP 403 Forbidden` برای کاربری با سقف ۱۰ مگابایت).
-
-نتیجه نهایی باید پیام `ALL 6 REQUIREMENTS VERIFIED AND PASSED SUCCESSFULLY!` باشد.` باشد.
-
----
-
-
----
-
-## 17. مدیریت حاکمیت حساب‌های کاربری و مرزبندی نقش‌ها (User Account Governance)
-
-بر اساس سیاست‌های امنیتی آرشیو سازمانی، سطوح دسترسی روی حساب‌های کاربری به‌صورت سخت‌گیرانه مرزبندی و قفل شده است:
-
-### ۱. مرزبندی نقش‌ها و ماتریس دسترسی:
-| نقش کاربری | ایجاد کاربر | ویرایش اعضای گروه خود | ویرایش کاربران سایر گروه‌ها | حذف کاربر |
+| سطح کاربری | ایجاد حساب | ویرایش اعضای گروه خود | ویرایش اعضای سایر گروه‌ها | حذف حساب کاربری |
 | :--- | :---: | :---: | :---: | :---: |
-| **ادمین کل سیستم (`admin`)** |  مجاز |  مجاز |  مجاز |  مجاز |
-| **مدیر گروه (`Group Admin / Subadmin`)** |  مجاز (در گروه خود) |  مجاز | ❌ مسدود (۴۰۳/۹۹۸) | ❌ **مسدود قطعی (۴۰۳ Forbidden)** |
-| **کاربر عادی استاندارد** | ❌ مسدود | ❌ مسدود | ❌ مسدود | ❌ مسدود |
+| **ادمین ارشد سامانه (`admin`)** | ✔️ مجاز | ✔️ مجاز | ✔️ مجاز | ✔️ **منحصراً مجاز** |
+| **مدیر گروه (`Subadmin`)** | ✔️ در گروه خود | ✔️ در گروه خود | ❌ مسدود (۴۰۳) | ❌ **مسدود قطعی (۴۰۳ Forbidden)** |
+| **کاربر عادی** | ❌ مسدود | ❌ مسدود | ❌ مسدود | ❌ مسدود |
 
-> [!IMPORTANT]
-> **قفل‌گذاری حذف کاربر برای ادمین کل:**
-> لیسنر بومی `BeforeUserDeletedListener` در ماژول `archive_autotag` رویداد حذف کاربر را رهگیری کرده و چنانچه کاربری غیر از ادمین کل (مانند مدیر گروه) اقدام به حذف اکانت نماید، بلافاصله خطای `403 Forbidden` با پیام زیر برمی‌گرداند:
-> `"User deletion is strictly restricted to system administrators. Group administrators may only modify group members."`
-
-### ۲. پایش و پاک‌سازی نقش‌ها با اسکریپت (`deploy/audit_user_roles.sh`):
-جهت ممیزی فوری تمام کاربران، شناسایی کاربرانی که تصادفاً دسترسی ادمین پیدا کرده‌اند و رفع سریع آن:
+### ممیزی فوری نقش‌ها با اسکریپت (`deploy/audit_user_roles.sh`):
 ```bash
 ./deploy/audit_user_roles.sh
 ```
-* **سلب دسترسی ادمین از کاربر عادی:**
+
+- سلب دسترسی ادمین از یک کاربر عادی:
   ```bash
-  docker compose exec app php occ group:removeuser admin <username>
+  docker exec -u www-data archive_app php occ group:removeuser admin <username>
   ```
-* **تعیین کاربر به‌عنوان مدیر یک گروه مشخص (Subadmin):**
+- تعیین یک کاربر به عنوان مدیر گروه (Group Admin):
   ```bash
-  docker exec archive_db psql -U nextcloud_user -d nextcloud -c     "INSERT INTO oc_group_admin (gid, uid) VALUES ('<group_name>', '<username>') ON CONFLICT DO NOTHING;"
+  docker exec archive_db psql -U nextcloud_user -d nextcloud -c \
+    "INSERT INTO oc_group_admin (gid, uid) VALUES ('<group_name>', '<username>') ON CONFLICT DO NOTHING;"
   ```
-* **لغو نقش مدیر گروه:**
-  ```bash
-  docker exec archive_db psql -U nextcloud_user -d nextcloud -c     "DELETE FROM oc_group_admin WHERE gid = '<group_name>' AND uid = '<username>';"
-  ```
-
-### ۳. آزمون خودکار اعتبارسنجی حاکمیت کاربران (`tests/test_user_governance.py`):
-برای اطمینان از اعمال کامل مرزبندی‌های نقشی، سوئیت تست خودکار پایتون زیر اجرا می‌شود:
-```bash
-python3 tests/test_user_governance.py
-```
-این آزمون ۵ سناریوی کلیدی (اختیارات ادمین، ویرایش مجاز مدیر گروه، ایزولاسیون بین‌گروهی، ممنوعیت حذف برای مدیر گروه و عدم دسترسی کاربر عادی) را به صورت ایزوله تست و با موفقیت ۱۰۰٪ اعتبارسنجی می‌کند.
-
-## 18. Step 7 - لاگ ممیزی امنیتی (`admin_audit`)
-
-جهت ممیزی دسترسی به فایل‌ها، دانلودها، اشتراک‌گذاری‌ها و لاگین‌ها:
-
-```bash
-docker compose exec app php occ app:enable admin_audit
-```
-
-رویدادهای حساس ممیزی در مسیر `/var/www/html/data/audit.log` (یا لاگ سیستم) ثبت می‌شوند.
 
 ---
 
-## 19. Step 8 - فعال‌سازی امنیتی SSL/TLS و HTTPS
+## ۵. تگ‌گذاری خودکار داینامیک و فیلتر همپوشانی چندتگی (`archive_autotag v1.3.4`)
 
-در محیط Production، ترافیک پورت 80 باید به 443 هدایت شده و گواهی معتبر SSL/TLS (مانند Let's Encrypt یا گواهی سازمانی) بر روی Nginx پیکربندی شود:
-1. قرار دادن گواهی در مسیر `nginx/certs/`.
-2. تنظیم بلوک `server` روی پورت `443 ssl` در `nginx/default.conf`.
-3. تنظیم پارامترهای `overwriteprotocol => 'https'` و `trusted_proxies` در Nextcloud.
+### ۱. الصاق خودکار تگ‌های سیستمی:
+هنگام آپلود هر سند، تمامی پوشه‌های والد به صورت تگ‌های سیستمیِ محافظت‌شده (`restricted`) استخراج و الصاق می‌شوند.
+
+### ۲. فیلتر همپوشانی چند برچسب (Multi-Tag Intersection):
+- در وب‌پنل فایل‌ها، نوار **🏷️ فیلتر پیشرفته برچسب‌های اسناد** تعبیه شده است.
+- کاربران با انتخاب همزمان چندین تگ (مثلاً `افتا` + `الزامات امنیتی`)، اسناد را با منطق اشتراک ریاضی (`AND`) فیلتر می‌کنند.
+- نمایش اطلاعات مسیر، حجم، تگ‌های مرتبط، دکمه «📂 مشاهده در پوشه» و دکمه «⬇️ دانلود».
+- کنترل دقیق سطح دسترسی (کاربر فقط اسناد مجاز را می‌بیند).
+
+### ۳. مدیریت برچسب‌ها و تگ‌گذاری مجدد از طریق CLI:
+```bash
+# اسکن و تگ‌گذاری مجدد تمامی فایل‌ها
+docker exec -u www-data archive_app php occ archive:retag
+
+# مدیریت وضعیت خط‌مشی پوشه‌سازی
+docker exec -u www-data archive_app php occ archive:folder:policy status
+
+# تنظیم سقف حجم فایل آپلودی برای هر کاربر (مثلاً حداکثر 20MB)
+docker exec -u www-data archive_app php occ archive:user:limit archive_user1 20M
+```
 
 ---
 
-## 20. Step 9 - پایداری داده‌ها، پشتیبان‌گیری خودکار و بازیابی بحران (`deploy/`)
+## ۶. پایداری داده‌ها، پشتیبان‌گیری و بازیابی بحران (`deploy/`)
 
-جهت سهولت و پایداری قطعی اطلاعات سامانه، اسکریپت‌های عملیاتی در دایرکتوری `deploy/` تعبیه شده است:
-
-### ۲.۱. پشتیبان‌گیری سریع از پایگاه داده (`deploy/backup_db.sh`)
-تهیه نسخه پشتیبان با فرمت SQL و برچسب زمانی در مسیر `deploy/backups/`:
+### پشتیبان‌گیری آنی (`deploy/backup_db.sh`):
 ```bash
 ./deploy/backup_db.sh
 ```
-این اسکریپت همچنین یک کپی در `deploy/backups/latest_db_backup.sql` نگهداری می‌کند.
+فایل پشتیبان به همراه برچسب زمانی در `deploy/backups/db_backup_YYYYMMDD_HHMMSS.sql` ذخیره می‌شود.
 
-### ۲.۲. بازگردانی پایگاه داده در شرایط بحران (`deploy/restore_db.sh`)
-برای بازگردانی آنی پایگاه داده از آخرین نسخه یا فایل مشخص:
+### بازیابی دیتابیس در شرایط بحران (`deploy/restore_db.sh`):
 ```bash
-# بازگردانی از آخرین بکاپ موجود
+# بازیابی از آخرین فایل بکاپ
 ./deploy/restore_db.sh
 
-# یا بازگردانی از یک فایل مشخص
+# بازیابی از فایل مشخص
 ./deploy/restore_db.sh deploy/backups/db_backup_20260911_184332.sql
 ```
-این اسکریپت نشست‌های باز را خاتمه داده، دیتابیس را بازسازی کرده، داده‌ها را ایمپورت کرده و قفل‌های معلق فایل را ریست می‌نماید.
 
-### ۲.۳. ارزیابی جامع سلامت و بررسی پایداری (`deploy/check_health.sh`)
-جهت مانیتورینگ وضعیت کانتینرها، شمارش کاربران دیتابیس، تطابق اعضا و یکپارچگی ساختار آرشیو:
+### پایش جامع سلامت سامانه (`deploy/check_health.sh`):
 ```bash
 ./deploy/check_health.sh
 ```
 
 > [!CAUTION]
-> **ممنوعیت استفاده از دستور `docker compose down -v`:**
-> هرگز از سوییچ `-v` استفاده نکنید، زیرا این سوییچ باعث حذف دیسک‌ها و داده‌های سامانه می‌شود. همیشه از `docker compose stop` یا `docker compose down` (بدون `-v`) استفاده نمایید.
-
-> [!NOTE]
-> **مستند تفصیلی:** جزئیات کامل تحلیل ریشه‌ای و معماری ذخیره‌سازی در مستند [docs/DATA_PERSISTENCE_AND_RELIABILITY.md](DATA_PERSISTENCE_AND_RELIABILITY.md) مدون شده است.
+> هرگز از دستور `docker compose down -v` استفاده نکنید. سوییچ `-v` باعث حذف کامل والیوم‌ها و دیتای پایگاه‌داده می‌گردد.
 
 ---
 
-### ۲.۴. تنظیم دسته‌ای سهمیه کاربران یک گروه (`deploy/set-group-quota.sh`)
-اعمال سهمیه دیسک شخصی (مثل `0 B`) برای کلیه کاربران عضو یک گروه:
+## ۷. آزمون‌های خودکار جامع (Automated Test Suites)
+
+مخزن پروژه شامل ۳ سوئیت آزمون جامع پایتون برای صحه‌گذاری فنی تمامی قابلیت‌ها است:
+
 ```bash
-./deploy/set-group-quota.sh SOC "0 B"
-```
+# فعال‌سازی محیط تست
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 
-### ۲.۵. ممیزی و پالایش نقش‌ها و اعتبارات کاربری (`deploy/audit_user_roles.sh`)
-شناسایی ادمین‌ها، مدیران گروه، کاربران عادی و رفع دسترسی‌های ادمین ناخواسته:
-```bash
-./deploy/audit_user_roles.sh
-```
+# ۱. آزمون جامع تگ‌گذاری سلسله‌مراتبی، سقف حجم و سیاست پوشه‌ها
+python3 tests/test_dynamic_archive_system.py
 
-## 21. چک‌لیست تحویل سامانه به تیم بهره‌برداری
+# ۲. آزمون مرزبندی حاکمیت حساب‌های کاربری و ایزولاسیون مدیر گروه
+python3 tests/test_user_governance.py
 
-- [ ] سیستم‌عامل و سرویس داکر در وضعیت پایدار است.
-- [ ] فایل `.env` پیکربندی شده و خارج از گیت است.
-- [ ] کانتینرهای `archive_db`، `archive_app` و `archive_proxy` بدون خطا در حال اجرا هستند.
-- [ ] تنطیمات Nginx برای فایل‌های حجیم (`client_max_body_size 10G` و `request_buffering off`) فعال است.
-- [ ] ماژول بومی `archive_autotag` نصب و فعال است (`occ app:list`).
-- [ ] سهمیه دیسک کاربران عادی روی `0 B` تنظیم شده است.
-- [ ] ساختار پوشه‌های آرشیو توسط ادمین ساخته شده و با مجوزهای لازم به اشتراک گذاشته شده است.
-- [ ] آزمون تست خودکار انتها-به-انتها (`tests/test_dynamic_archive_system.py`) با موفقیت ۱۰۰٪ پاس شده است.
-- [ ] خطای 403 در صورت تلاش کاربر برای حذف تگ والد تایید شده است.
-- [ ] انتشار خودکار تغییر نام پوشه به تگ فایل‌ها تست و تایید شده است.
-- [ ] فرآیند پشتیبان‌گیری دوره‌ای و مستندات بازیابی مستقر شده است.
-
----
-
-## 22. نکات حیاتی و الزامات نگهداشت
-
-- هیچ Volume، Container یا کلاستری بدون پشتیبان‌گیری قبلی حذف یا دستکاری نشود.
-- Secretها، Tokenها و رمزهای پایگاه داده هرگز نباید وارد مستندات عمومی یا مخزن گیت شوند.
-- هرگونه به‌روزرسانی کدها ابتدا روی محیط تست اعتبارسنجی شده و سپس با ثبت لاگ در `PROJECT_STATE.md` اعمال گردد.
-
-
-### 11. آزمایش و اعتبارسنجی فیلتر چندتگی اسناد (Multi-Tag Filter)
-برای تست عملکرد منطق اشتراک چند تگ (`AND`)، تفکیک دسترسی و بازخورد کنترلر:
-```bash
+# ۳. آزمون فیلتر همپوشانی چندتگی اسناد (Multi-Tag Intersection) و ACL
 python3 tests/test_multi_tag_filter.py
 ```
+
+تمامی آزمون‌ها باید با موفقیت ۱۰۰٪ پاس شوند.
