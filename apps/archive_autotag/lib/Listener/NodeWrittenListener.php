@@ -1,25 +1,26 @@
 <?php
+
 declare(strict_types=1);
 
 namespace OCA\ArchiveAutoTag\Listener;
 
 use OCA\ArchiveAutoTag\Service\AutoTagService;
+use OCA\ArchiveAutoTag\Service\FileOwnershipService;
 use OCA\ArchiveAutoTag\Service\UploadLimitService;
 use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
 use OCP\Files\Events\Node\NodeWrittenEvent;
+use OCP\Files\File;
 use OCP\Files\ForbiddenException;
+use OCP\IUserSession;
 
 class NodeWrittenListener implements IEventListener {
-    private AutoTagService $autoTagService;
-    private UploadLimitService $uploadLimitService;
-
     public function __construct(
-        AutoTagService $autoTagService,
-        UploadLimitService $uploadLimitService
+        private AutoTagService $autoTagService,
+        private UploadLimitService $uploadLimitService,
+        private FileOwnershipService $fileOwnershipService,
+        private IUserSession $userSession,
     ) {
-        $this->autoTagService = $autoTagService;
-        $this->uploadLimitService = $uploadLimitService;
     }
 
     public function handle(Event $event): void {
@@ -40,6 +41,12 @@ class NodeWrittenListener implements IEventListener {
                 // Ignore deletion error
             }
             throw $e;
+        }
+
+        if ($node instanceof File) {
+            $user = $this->userSession->getUser();
+            $ownerUid = $user !== null ? $user->getUID() : 'admin';
+            $this->fileOwnershipService->setFileOwner((int)$node->getId(), $ownerUid);
         }
 
         $this->autoTagService->tagNodeHierarchy($node);

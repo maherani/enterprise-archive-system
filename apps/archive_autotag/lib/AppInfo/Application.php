@@ -10,9 +10,12 @@ use OCA\ArchiveAutoTag\Listener\LoadAdditionalScriptsListener;
 use OCA\ArchiveAutoTag\Listener\NodeCreatedListener;
 use OCA\ArchiveAutoTag\Listener\NodeRenamedListener;
 use OCA\ArchiveAutoTag\Listener\NodeWrittenListener;
+use OCA\ArchiveAutoTag\Service\FileOwnershipService;
 use OCA\ArchiveAutoTag\Service\FolderPolicyService;
 use OCA\ArchiveAutoTag\Service\UploadLimitService;
+use OCA\ArchiveAutoTag\Storage\ArchiveFileIsolationWrapper;
 use OCA\Files\Event\LoadAdditionalScriptsEvent;
+use OC\Files\Filesystem;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IBootContext;
@@ -23,6 +26,8 @@ use OCP\Files\Events\Node\NodeCreatedEvent;
 use OCP\Files\Events\Node\NodeRenamedEvent;
 use OCP\Files\Events\Node\NodeWrittenEvent;
 use OCP\Files\ForbiddenException;
+use OCP\Files\Storage\IStorage;
+use OCP\IGroupManager;
 use OCP\IUserSession;
 use OCP\User\Events\BeforeUserDeletedEvent;
 use OCP\Util;
@@ -45,7 +50,7 @@ class Application extends App implements IBootstrap {
             \OCA\ArchiveAutoTag\Listener\SabrePluginInitListener::class
         );
 
-        // Hierarchical dynamic tagging and post-write size check
+        // Hierarchical dynamic tagging, ownership registration, and post-write size check
         $context->registerEventListener(NodeCreatedEvent::class, NodeCreatedListener::class);
         $context->registerEventListener(NodeWrittenEvent::class, NodeWrittenListener::class);
         $context->registerEventListener(NodeRenamedEvent::class, NodeRenamedListener::class);
@@ -62,6 +67,24 @@ class Application extends App implements IBootstrap {
         Util::connectHook('OC_Filesystem', 'write', self::class, 'preWriteHook');
         Util::connectHook('OC_Filesystem', 'create', self::class, 'preWriteHook');
         Util::connectHook('OC_Filesystem', 'mkdir', self::class, 'preMkdirHook');
+
+        // Register Archive File Isolation Storage Wrapper
+        Filesystem::addStorageWrapper(
+            'archive_file_isolation',
+            function (string $mountPoint, IStorage $storage) {
+                $container = \OC::$server;
+                $fileOwnershipService = $container->get(FileOwnershipService::class);
+                $userSession = $container->get(IUserSession::class);
+                $groupManager = $container->get(IGroupManager::class);
+                return new ArchiveFileIsolationWrapper(
+                    ['storage' => $storage, 'mountPoint' => $mountPoint],
+                    $fileOwnershipService,
+                    $userSession,
+                    $groupManager,
+                );
+            },
+            10
+        );
     }
 
     /**

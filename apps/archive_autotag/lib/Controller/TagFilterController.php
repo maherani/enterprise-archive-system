@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace OCA\ArchiveAutoTag\Controller;
 
+use OCA\ArchiveAutoTag\Service\FileOwnershipService;
+use OCA\ArchiveAutoTag\Service\TagOwnershipService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -27,6 +29,8 @@ class TagFilterController extends Controller {
         private ISystemTagObjectMapper $tagMapper,
         private IDBConnection $db,
         private IRootFolder $rootFolder,
+        private TagOwnershipService $tagOwnershipService,
+        private FileOwnershipService $fileOwnershipService,
     ) {
         parent::__construct($appName, $request);
     }
@@ -43,6 +47,7 @@ class TagFilterController extends Controller {
         }
 
         try {
+            $visibleTagIds = $this->tagOwnershipService->getVisibleTagIds($user->getUID());
             $tags = $this->tagManager->getAllTags(true);
 
             // Fetch file count per tag
@@ -60,6 +65,9 @@ class TagFilterController extends Controller {
             $tagList = [];
             foreach ($tags as $tag) {
                 $tagId = (int)$tag->getId();
+                if (!in_array($tagId, $visibleTagIds, true)) {
+                    continue;
+                }
                 $tagList[] = [
                     'id' => $tagId,
                     'name' => $tag->getName(),
@@ -101,6 +109,7 @@ class TagFilterController extends Controller {
             return new DataResponse(['status' => 'error', 'message' => 'Authentication required'], Http::STATUS_UNAUTHORIZED);
         }
 
+        $uid = $user->getUID();
         $rawInput = trim((string)(
             $tags
             ?? $tag_ids
@@ -132,11 +141,16 @@ class TagFilterController extends Controller {
 
         // Map names and IDs to tag objects
         $allTags = $this->tagManager->getAllTags(true);
+        $visibleTagIds = $this->tagOwnershipService->getVisibleTagIds($uid);
         $tagMapByName = [];
         $tagMapById = [];
         foreach ($allTags as $t) {
+            $tId = (int)$t->getId();
+            if (!in_array($tId, $visibleTagIds, true)) {
+                continue;
+            }
             $tagMapByName[mb_strtolower($t->getName(), 'UTF-8')] = $t;
-            $tagMapById[(int)$t->getId()] = $t;
+            $tagMapById[$tId] = $t;
         }
 
         $resolvedTagIds = [];
@@ -154,7 +168,7 @@ class TagFilterController extends Controller {
             }
 
             if ($matchedTag === null) {
-                // Requested tag does not exist -> intersection is empty
+                // Requested tag does not exist or not visible -> intersection is empty
                 return new DataResponse([
                     'status' => 'success',
                     'files' => [],
@@ -198,7 +212,7 @@ class TagFilterController extends Controller {
         }
 
         // Fetch user folder and enforce ACL check
-        $userFolder = $this->rootFolder->getUserFolder($user->getUID());
+        $userFolder = $this->rootFolder->getUserFolder($uid);
         $userFolderPath = $userFolder->getPath();
 
         // Get all tag IDs for candidate files in bulk
@@ -206,6 +220,11 @@ class TagFilterController extends Controller {
 
         $filesResult = [];
         foreach ($candidateFileIds as $fileId) {
+            // Strict file isolation: user can only access files they uploaded or admin granted
+            if (!$this->fileOwnershipService->canUserAccessFile($fileId, $uid)) {
+                continue;
+            }
+
             $nodes = $userFolder->getById($fileId);
             if (empty($nodes)) {
                 // User does not have read access to this file
@@ -226,12 +245,12 @@ class TagFilterController extends Controller {
                 $parentDir = '';
             }
 
-            // Build tags list for this file
+            // Build tags list for this file (only include tags visible to user)
             $fileTagIds = $tagMappings[$fileId] ?? [];
             $fileTags = [];
             foreach ($fileTagIds as $tid) {
                 $tidInt = (int)$tid;
-                if (isset($tagMapById[$tidInt])) {
+                if (isset($tagMapById[$tidInt]) && $this->tagOwnershipService->canUserSeeTag($tidInt, $uid)) {
                     $fileTags[] = [
                         'id' => $tidInt,
                         'name' => $tagMapById[$tidInt]->getName(),
