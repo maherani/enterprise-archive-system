@@ -7,6 +7,7 @@ namespace OCA\ArchiveAutoTag\Service;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IGroupManager;
+use OCP\IUserManager;
 use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
 
@@ -16,6 +17,7 @@ class FileOwnershipService {
         private IUserSession $userSession,
         private IGroupManager $groupManager,
         private LoggerInterface $logger,
+        private ?IUserManager $userManager = null,
     ) {
     }
 
@@ -55,6 +57,41 @@ class FileOwnershipService {
         return $row ? (string)$row['owner_uid'] : null;
     }
 
+    public function getAncestorFolderIds(int $fileId): array {
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('storage', 'path')
+           ->from('filecache')
+           ->where($qb->expr()->eq('fileid', $qb->createNamedParameter($fileId)));
+        $row = $qb->executeQuery()->fetchAssociative();
+        if (!$row || empty($row['path'])) {
+            return [];
+        }
+
+        $parts = explode('/', (string)$row['path']);
+        array_pop($parts); // Remove the file name itself
+        $ancestorPaths = [];
+        while (!empty($parts)) {
+            $ancestorPaths[] = implode('/', $parts);
+            array_pop($parts);
+        }
+
+        if (empty($ancestorPaths)) {
+            return [];
+        }
+
+        $aqb = $this->db->getQueryBuilder();
+        $aqb->select('fileid')
+            ->from('filecache')
+            ->where($aqb->expr()->eq('storage', $aqb->createNamedParameter((int)$row['storage'])))
+            ->andWhere($aqb->expr()->in('path', $aqb->createNamedParameter($ancestorPaths, IQueryBuilder::PARAM_STR_ARRAY)));
+        $res = $aqb->executeQuery();
+        $ancestorIds = [];
+        while ($aRow = $res->fetchAssociative()) {
+            $ancestorIds[] = (int)$aRow['fileid'];
+        }
+        return $ancestorIds;
+    }
+
     public function canUserAccessFile(int $fileId, ?string $userId = null): bool {
         if ($userId === null) {
             $user = $this->userSession->getUser();
@@ -91,13 +128,35 @@ class FileOwnershipService {
             }
         }
 
+        // 3. User is the uploader / owner of the file
         if ($owner !== null && $owner === $userId) {
             return true;
         }
 
-        // 3. Check explicit admin grants in archive_file_grants
+        // Fetch user groups
         $currentUser = $this->userSession->getUser();
-        $userGroups = $currentUser !== null ? $this->groupManager->getUserGroupIds($currentUser) : [];
+        $userGroups = ($currentUser !== null && $currentUser->getUID() === $userId)
+            ? $this->groupManager->getUserGroupIds($currentUser)
+            : [];
+        if (empty($userGroups)) {
+            $userManager = $this->userManager ?? \OC::$server->getUserManager();
+            if ($userManager !== null) {
+                $uObj = $userManager->get($userId);
+                if ($uObj !== null) {
+                    $userGroups = $this->groupManager->getUserGroupIds($uObj);
+                }
+            }
+        }
+
+        // 4. Check explicit admin grants in archive_file_grants
+        // - Direct grant on this specific file always applies
+        // - Grant on an ancestor folder applies if the file was created by admin / system
+        $ancestorIds = $this->getAncestorFolderIds($fileId);
+        $eligibleGrantFileIds = [$fileId];
+        if ($owner === 'admin' || $owner === 'system' || $owner === null) {
+            $eligibleGrantFileIds = array_merge($eligibleGrantFileIds, $ancestorIds);
+        }
+
         $qb = $this->db->getQueryBuilder();
         $orConditions = [
             $qb->expr()->andX(
@@ -114,18 +173,27 @@ class FileOwnershipService {
 
         $qb->select('id')
            ->from('archive_file_grants')
-           ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId)))
+           ->where($qb->expr()->in('file_id', $qb->createNamedParameter($eligibleGrantFileIds, IQueryBuilder::PARAM_INT_ARRAY)))
            ->andWhere($qb->expr()->orX(...$orConditions));
         $grant = $qb->executeQuery()->fetchAssociative();
         if ($grant) {
             return true;
         }
 
-        // 4. Check native Nextcloud shares where admin shared this specific file
+        // 5. Check native Nextcloud shares in oc_share where admin shared the resource
+        // - Direct share on the file applies to everyone
+        // - Share on parent/ancestor folders applies to admin-created files
+        $eligibleShareSourceIds = [(string)$fileId];
+        if ($owner === 'admin' || $owner === 'system' || $owner === null) {
+            foreach ($ancestorIds as $aid) {
+                $eligibleShareSourceIds[] = (string)$aid;
+            }
+        }
+
         $qbShare = $this->db->getQueryBuilder();
         $shareOrConditions = [
             $qbShare->expr()->andX(
-                $qbShare->expr()->eq('share_type', $qbShare->createNamedParameter(0)),
+                $qbShare->expr()->in('share_type', $qbShare->createNamedParameter([0, 2], IQueryBuilder::PARAM_INT_ARRAY)),
                 $qbShare->expr()->eq('share_with', $qbShare->createNamedParameter($userId))
             )
         ];
@@ -138,7 +206,7 @@ class FileOwnershipService {
 
         $qbShare->select('id')
                 ->from('share')
-                ->where($qbShare->expr()->eq('item_source', $qbShare->createNamedParameter($fileId)))
+                ->where($qbShare->expr()->in('item_source', $qbShare->createNamedParameter($eligibleShareSourceIds, IQueryBuilder::PARAM_STR_ARRAY)))
                 ->andWhere($qbShare->expr()->eq('uid_owner', $qbShare->createNamedParameter('admin')))
                 ->andWhere($qbShare->expr()->orX(...$shareOrConditions));
         $share = $qbShare->executeQuery()->fetchAssociative();

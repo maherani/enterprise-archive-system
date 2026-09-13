@@ -31,7 +31,7 @@ def run_tests():
     print("==================================================================")
 
     filename = "isolation_test_doc_99.pdf"
-    folder_rel = "Enterprise_Archive/Finance/2026/Invoices_Archive"
+    folder_rel = "Enterprise_Archive/jj"
     file_content = b"%PDF-1.4 Strictly Confidential User A Document 99\n"
 
     url_user_a = f"{NEXTCLOUD_URL}/remote.php/dav/files/{USER_A}/{folder_rel}/{filename}"
