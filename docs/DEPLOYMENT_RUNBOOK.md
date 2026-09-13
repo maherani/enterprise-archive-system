@@ -1,6 +1,6 @@
 ﻿# Enterprise Archive System - Deployment Runbook & Bare-Metal Setup Guide
 
-این سند راهنمای جامع و مرجع عملیاتی نصب، پیکربندی، استقرار از صفر (روی سرور خام) و نگهداری سامانه آرشیو اسناد سازمانی است. تمامی گام‌ها بر اساس آخرین وضعیت مخزن گیت (`main`)، ماژول بومی `archive_autotag v1.3.4`، فیلتر پیشرفته چندتگی و مکانیزم‌های حاکمیت داده تدوین شده‌اند.
+این سند راهنمای جامع و مرجع عملیاتی نصب، پیکربندی، استقرار از صفر (روی سرور خام) و نگهداری سامانه آرشیو اسناد سازمانی است. تمامی گام‌ها بر اساس آخرین وضعیت مخزن گیت (`main`)، ماژول بومی `archive_autotag v1.5.0`، فیلتر پیشرفته چندتگی و مکانیزم‌های حاکمیت داده تدوین شده‌اند.
 
 ---
 
@@ -20,7 +20,7 @@
                    ┌──────────────────┐
                    │   archive_app    │  Nextcloud 34 Apache
                    │   Internal :80   │  - WebDAV Endpoint: /remote.php/dav/files/
-                   └────────┬─────────┘  - Custom App: archive_autotag v1.3.4
+                   └────────┬─────────┘  - Custom App: archive_autotag v1.5.0
                             │            - Dynamic Hierarchical Auto-Tagging
                             │            - Multi-Tag Intersection Filter (AND)
                             │            - Granular Per-User Upload Limit
@@ -108,7 +108,7 @@ NEXTCLOUD_TRUSTED_DOMAINS=localhost 127.0.0.1 192.168.1.100 archive.organization
 ### گام ۳: روش‌های استقرار
 
 #### 🚀 روش اول (توصیه‌شده): استقرار تمام‌خودکار با یک دستور
-اسکریپت `deploy/deploy_from_scratch.sh` تمامی مراحل راه‌اندازی، انتظار برای سلامت پایگاه‌داده، نصب بدون نیاز به مداخله (Headless) نکست‌کلود، کپی و فعال‌سازی ماژول بومی `archive_autotag v1.3.4`، تنظیم پراکسی معتمد و بررسی سلامت را خودکار انجام می‌دهد:
+اسکریپت `deploy/deploy_from_scratch.sh` تمامی مراحل راه‌اندازی، انتظار برای سلامت پایگاه‌داده، نصب بدون نیاز به مداخله (Headless) نکست‌کلود، کپی و فعال‌سازی ماژول بومی `archive_autotag v1.5.0`، تنظیم پراکسی معتمد و بررسی سلامت را خودکار انجام می‌دهد:
 
 ```bash
 ./deploy/deploy_from_scratch.sh
@@ -223,7 +223,7 @@ NEXTCLOUD_TRUSTED_DOMAINS=localhost 127.0.0.1 192.168.1.100 archive.organization
 
 ---
 
-## ۵. تگ‌گذاری خودکار داینامیک و فیلتر همپوشانی چندتگی (`archive_autotag v1.3.4`)
+## ۵. تگ‌گذاری خودکار داینامیک و فیلتر همپوشانی چندتگی (`archive_autotag v1.5.0`)
 
 ### ۱. الصاق خودکار تگ‌های سیستمی:
 هنگام آپلود هر سند، تمامی پوشه‌های والد به صورت تگ‌های سیستمیِ محافظت‌شده (`restricted`) استخراج و الصاق می‌شوند.
