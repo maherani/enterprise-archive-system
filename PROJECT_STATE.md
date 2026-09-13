@@ -20,7 +20,7 @@ This document serves as the persistent memory and operational reference for the 
                 +------------------+
                 |   archive_app    ?  (Nextcloud 34 Apache)
                 |   (Internal:80)  ?  - WebDAV Endpoint: /remote.php/dav/files/
-                +--------+---------+  - Custom App: archive_autotag v1.4.0
+                +--------+---------+  - Custom App: archive_autotag v1.5.0
                          |            - PSR-14 Hierarchical Event Engine
                          |            - SabreDAV Upload Limit & Folder Protection
                          |            - Native Multi-Tag Intersection Filter (AND)
@@ -58,6 +58,7 @@ enterprise-archive-system/
 ?           ?   ??? FolderPolicyCommand.php    # occ archive:folder:policy
 ?           ?   ??? RetagAllCommand.php        # occ archive:retag
 ?           ?   ??? TagGovernanceCommand.php   # occ archive:tag:gov
+?           ?   ??? TagReconcileCommand.php    # occ archive:tag:reconcile / sync
 ?           ?   ??? UserLimitCommand.php       # occ archive:user:limit
 ?           ??? Controller/
 ?           ?   ??? TagFilterController.php    # Tag query & multi-tag intersection API with ACL
@@ -67,7 +68,8 @@ enterprise-archive-system/
 ?           ?   ??? BeforeUserDeletedListener.php # Blocks non-admin user deletion
 ?           ?   ??? LoadAdditionalScriptsListener.php # Injects multi-tag UI assets
 ?           ?   ??? NodeCreatedListener.php    # Sets file ownership and tags
-?           ?   ??? NodeRenamedListener.php    # Propagates tag changes on rename
+?           ?   ??? NodeRenamedListener.php
+?           ?   ??? NodeDeletedListener.php    # OCP\Files\Events\Node\NodeDeletedEvent    # Propagates tag changes on rename
 ?           ?   ??? NodeWrittenListener.php    # Sets file ownership, limits & tags
 ?           ?   ??? SabrePluginInitListener.php # SabreDAV ACL & isolation hooks
 ?           ??? Migration/
@@ -243,3 +245,11 @@ Status: **Completed**
 - Repository: `maherani/enterprise-archive-system`
 - Branch: `main`
 - Current Checkpoint: **Steps 1 through 12 fully completed, verified, and synchronized.**
+
+### 5. Dynamic Folder-Driven Tag Lifecycle & Reconciliation (`tests/test_tag_lifecycle_reconciliation.py`)
+- **Step 1**: Folder creation triggers automatic tag registration & hierarchy tagging.
+- **Step 2**: File upload into folder receives ancestor tags automatically.
+- **Step 3**: Folder rename in-place updates tag name and updates descendant files, purging old tag.
+- **Step 4**: Folder deletion automatically reconciles tags and purges surplus/orphaned tag.
+- **Step 5**: CLI command `occ archive:tag:reconcile` executes cleanly with full audit table.
+- **Result**: 100% Passed.

@@ -2,9 +2,9 @@
 <info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
 	<id>archive_autotag</id>
 	<name>Archive Auto Tagger &amp; Governance</name>
-	<summary>Automatic hierarchical parent folder tagging, per-user upload limit, folder creation restriction, and strict document/tag isolation for enterprise archive</summary>
-	<description>Automatically tags files with their hierarchical parent folder names as restricted system tags upon upload, updates tags upon folder rename, enforces per-user upload file size limits, restricts folder hierarchy creation to administrators, and strictly enforces per-user document and tag visibility isolation with full administrative governance.</description>
-	<version>1.4.0</version>
+	<summary>Automatic hierarchical parent folder tagging, per-user upload limit, folder creation restriction, strict document/tag isolation, and dynamic folder-driven tag reconciliation</summary>
+	<description>Automatically tags files with their hierarchical parent folder names as restricted system tags upon upload, updates tags upon folder rename, prunes surplus orphaned tags on folder delete, enforces per-user upload file size limits, restricts folder hierarchy creation to administrators, strictly enforces per-user document and tag visibility isolation, and provides automated tag lifecycle reconciliation.</description>
+	<version>1.5.0</version>
 	<licence>agpl</licence>
 	<author>Enterprise Archive System</author>
 	<namespace>ArchiveAutoTag</namespace>
@@ -19,5 +19,6 @@
 		<command>OCA\ArchiveAutoTag\Command\FolderPolicyCommand</command>
 		<command>OCA\ArchiveAutoTag\Command\FileGrantCommand</command>
 		<command>OCA\ArchiveAutoTag\Command\TagGovernanceCommand</command>
+		<command>OCA\ArchiveAutoTag\Command\TagReconcileCommand</command>
 	</commands>
 </info>

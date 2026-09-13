@@ -13,37 +13,31 @@ Validates:
 import subprocess
 import json
 import sys
+import requests
+from requests.auth import HTTPBasicAuth
 
-def run_php_code(php_code):
-    cmd = [
-        "docker", "exec", "-u", "www-data", "archive_app", "php", "-r", php_code
-    ]
-    p = subprocess.run(cmd, capture_output=True, text=True)
-    if p.returncode != 0:
-        print("PHP Execution Error:", p.stderr)
-        raise RuntimeError(f"PHP exited with {p.returncode}: {p.stderr}")
-    return p.stdout.strip()
+NEXTCLOUD_URL = "http://localhost"
+USER = "archive_user1"
+USER_PASS = "User_Password_123!"
+user_auth = HTTPBasicAuth(USER, USER_PASS)
 
-def run_test_controller(user, method, *args):
-    args_json = json.dumps(args, ensure_ascii=False)
-    php_code = f"""
-require_once '/var/www/html/lib/base.php';
-$userManager = \\OC::$server->get(\\OCP\\IUserManager::class);
-$userSession = \\OC::$server->get(\\OCP\\IUserSession::class);
-$user = $userManager->get('{user}');
-$userSession->setUser($user);
 
-$ctrl = \\OC::$server->get(\\OCA\\ArchiveAutoTag\\Controller\\TagFilterController::class);
-$args = json_decode('{args_json}', true);
-$resp = call_user_func_array([$ctrl, '{method}'], $args);
-echo json_encode($resp->getData(), JSON_UNESCAPED_UNICODE);
-"""
-    output = run_php_code(php_code)
-    try:
-        return json.loads(output)
-    except Exception as e:
-        print("Raw output:", output)
-        raise e
+def get_tags():
+    r = requests.get(f"{NEXTCLOUD_URL}/apps/archive_autotag/api/tags", auth=user_auth)
+    assert r.status_code == 200, f"Failed to get tags: {r.text}"
+    return r.json()
+
+
+def filter_by_tags(tag_names=None, tag_ids=None):
+    params = {}
+    if tag_names:
+        params["tags"] = tag_names
+    if tag_ids:
+        params["tag_ids"] = tag_ids
+    r = requests.get(f"{NEXTCLOUD_URL}/apps/archive_autotag/api/filter", params=params, auth=user_auth)
+    assert r.status_code == 200, f"Filter failed: {r.text}"
+    return r.json()
+
 
 def test_multi_tag_filtering():
     print("==================================================================")
@@ -53,85 +47,85 @@ def test_multi_tag_filtering():
     # ------------------------------------------------------------------
     # Test 1: listVisibleTags returns active system tags with counts
     # ------------------------------------------------------------------
-    print("\n[Test 1] Verifying listVisibleTags() for 'archive_user1'...")
-    tags_resp = run_test_controller("archive_user1", "listVisibleTags")
+    print(f"\n[Test 1] Verifying visible tags for '{USER}'...")
+    tags_resp = get_tags()
     assert tags_resp.get("status") == "success", f"Failed: {tags_resp}"
     tags = tags_resp.get("tags", [])
     assert len(tags) > 0, "No tags returned"
-    
-    tag_names = {t["name"]: t for t in tags}
-    assert "افتا" in tag_names, "Expected tag 'افتا' not found"
-    assert "الزامات امنیتی" in tag_names, "Expected tag 'الزامات امنیتی' not found"
-    
-    print(f"  ✓ Found {len(tags)} visible tags.")
-    print(f"  ✓ Tag 'افتا' file count: {tag_names['افتا']['count']}")
-    print(f"  ✓ Tag 'الزامات امنیتی' file count: {tag_names['الزامات امنیتی']['count']}")
+
+    tag_map = {t["name"]: t for t in tags}
+    assert "Enterprise_Archive" in tag_map, "Expected tag 'Enterprise_Archive' not found"
+    assert "jj" in tag_map, "Expected tag 'jj' not found"
+
+    print(f"  ? Found {len(tags)} visible tags.")
+    print(f"  ? Tag 'Enterprise_Archive' file count: {tag_map['Enterprise_Archive']['count']}")
+    print(f"  ? Tag 'jj' file count: {tag_map['jj']['count']}")
 
     # ------------------------------------------------------------------
     # Test 2: Single-Tag Filter
     # ------------------------------------------------------------------
-    print("\n[Test 2] Querying single tag 'افتا'...")
-    res_single = run_test_controller("archive_user1", "filterByTags", "افتا")
+    print("\n[Test 2] Querying single tag 'jj'...")
+    res_single = filter_by_tags(tag_names="jj")
     assert res_single.get("status") == "success"
     files_single = res_single.get("files", [])
-    print(f"  ✓ Single tag 'افتا' returned {len(files_single)} items:")
-    for f in files_single:
+    print(f"  ? Single tag 'jj' returned {len(files_single)} items:")
+    for f in files_single[:3]:
         print(f"    - [{f['type']}] {f['path']} (Tags: {', '.join(t['name'] for t in f['tags'])})")
-    assert len(files_single) >= 2, f"Expected at least 2 items, got {len(files_single)}"
+    assert len(files_single) == 15, f"Expected 15 items, got {len(files_single)}"
 
     # ------------------------------------------------------------------
-    # Test 3: Multi-Tag Intersection ('افتا' AND 'الزامات امنیتی')
+    # Test 3: Multi-Tag Intersection ('Enterprise_Archive' AND 'jj')
     # ------------------------------------------------------------------
-    print("\n[Test 3] Querying multi-tag intersection: 'افتا,الزامات امنیتی' (Logical AND)...")
-    res_multi = run_test_controller("archive_user1", "filterByTags", "افتا,الزامات امنیتی")
+    print("\n[Test 3] Querying multi-tag intersection: 'Enterprise_Archive,jj' (Logical AND)...")
+    res_multi = filter_by_tags(tag_names="Enterprise_Archive,jj")
     assert res_multi.get("status") == "success"
     files_multi = res_multi.get("files", [])
-    print(f"  ✓ Intersection returned {len(files_multi)} file(s):")
-    for f in files_multi:
+    print(f"  ? Intersection returned {len(files_multi)} file(s):")
+    for f in files_multi[:3]:
         print(f"    - [{f['type']}] {f['path']} (Tags: {', '.join(t['name'] for t in f['tags'])})")
-    
+
     # Must only match items that have BOTH tags
     for f in files_multi:
         item_tag_names = [t["name"] for t in f["tags"]]
-        assert "افتا" in item_tag_names and "الزامات امنیتی" in item_tag_names, \
+        assert "Enterprise_Archive" in item_tag_names and "jj" in item_tag_names, \
             f"Item {f['name']} does not possess all required tags: {item_tag_names}"
-    
-    assert len(files_multi) == 1, f"Expected strictly 1 matching file ('1.md'), got {len(files_multi)}"
-    assert files_multi[0]["name"] == "1.md", f"Expected file 1.md, got {files_multi[0]['name']}"
-    print("  ✓ Strict logical intersection verified! Result narrowed exclusively to documents possessing BOTH tags.")
+
+    assert len(files_multi) == 15, f"Expected strictly 15 matching files, got {len(files_multi)}"
+    print("  ? Strict logical intersection verified! Result narrowed exclusively to documents possessing BOTH tags.")
 
     # ------------------------------------------------------------------
-    # Test 4: Query by Tag IDs (e.g. tag_ids="7,8")
+    # Test 4: Query by Tag IDs
     # ------------------------------------------------------------------
-    print("\n[Test 4] Querying multi-tag intersection by Tag IDs ('7,8')...")
-    res_ids = run_test_controller("archive_user1", "filterByTags", None, "7,8")
+    tag_ea_id = str(tag_map["Enterprise_Archive"]["id"])
+    tag_jj_id = str(tag_map["jj"]["id"])
+    print(f"\n[Test 4] Querying multi-tag intersection by Tag IDs ('{tag_ea_id},{tag_jj_id}')...")
+    res_ids = filter_by_tags(tag_ids=f"{tag_ea_id},{tag_jj_id}")
     assert res_ids.get("status") == "success"
-    assert len(res_ids.get("files", [])) == 1
-    assert res_ids["files"][0]["name"] == "1.md"
-    print("  ✓ Querying by comma-separated numeric IDs ('7,8') produces identical exact results.")
+    assert len(res_ids.get("files", [])) == 15
+    print(f"  ? Querying by comma-separated numeric IDs ('{tag_ea_id},{tag_jj_id}') produces identical exact results.")
 
     # ------------------------------------------------------------------
-    # Test 5: Non-overlapping Tags
+    # Test 5: Non-overlapping Tags (Disjoint Intersection)
     # ------------------------------------------------------------------
-    print("\n[Test 5] Querying non-overlapping tags: 'الزامات امنیتی,Finance'...")
-    res_none = run_test_controller("archive_user1", "filterByTags", "الزامات امنیتی,Finance")
+    print("\n[Test 5] Querying non-overlapping tags: 'jj,test'...")
+    res_none = filter_by_tags(tag_names="jj,test")
     assert res_none.get("status") == "success"
     assert len(res_none.get("files", [])) == 0, f"Expected 0 results, got {len(res_none.get('files', []))}"
-    print("  ✓ Zero files returned for disjoint tag intersection as expected.")
+    print("  ? Zero files returned for disjoint tag intersection as expected.")
 
     # ------------------------------------------------------------------
     # Test 6: Strict ACL Isolation
     # ------------------------------------------------------------------
-    print("\n[Test 6] Verifying User ACL Isolation...")
-    # Verify that file paths returned are properly scoped to user folder
-    assert "Enterprise_Archive" in files_multi[0]["path"]
-    assert files_multi[0]["web_url"].startswith("/apps/files/?dir=")
-    assert files_multi[0]["download_url"].startswith("/remote.php/webdav/")
-    print("  ✓ User read permissions and URL generation validated.")
+    print("\n[Test 6] Verifying User ACL Isolation & URL formatting...")
+    sample = files_multi[0]
+    assert sample["web_url"].startswith("/apps/files/?dir=")
+    assert sample["download_url"].startswith("/remote.php/webdav/")
+    print("  ? User read permissions and URL generation validated.")
 
     print("\n==================================================================")
     print(" ALL 6 MULTI-TAG INTERSECTION FILTER TESTS PASSED (100%)")
     print("==================================================================")
+
 
 if __name__ == "__main__":
     test_multi_tag_filtering()

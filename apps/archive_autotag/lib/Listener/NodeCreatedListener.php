@@ -10,6 +10,7 @@ use OCP\EventDispatcher\Event;
 use OCP\EventDispatcher\IEventListener;
 use OCP\Files\Events\Node\NodeCreatedEvent;
 use OCP\Files\File;
+use OCP\Files\Folder;
 use OCP\IUserSession;
 
 class NodeCreatedListener implements IEventListener {
@@ -31,8 +32,9 @@ class NodeCreatedListener implements IEventListener {
             $user = $this->userSession->getUser();
             $ownerUid = $user !== null ? $user->getUID() : 'admin';
             $this->fileOwnershipService->setFileOwner((int)$node->getId(), $ownerUid);
+            $this->autoTagService->tagNodeHierarchy($node);
+        } elseif ($node instanceof Folder) {
+            $this->autoTagService->handleFolderCreated($node);
         }
-
-        $this->autoTagService->tagNodeHierarchy($node);
     }
 }

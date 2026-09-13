@@ -55,6 +55,16 @@ class TagOwnershipService {
         return $row ? (string)$row['owner_uid'] : null;
     }
 
+    public function deleteTagOwner(int $tagId): void {
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->delete('archive_tag_ownership')
+               ->where($qb->expr()->eq('tag_id', $qb->createNamedParameter($tagId)));
+            $qb->executeStatement();
+        } catch (\Throwable $t) {
+        }
+    }
+
     public function canUserSeeTag(int $tagId, ?string $userId = null): bool {
         if ($userId === null) {
             $user = $this->userSession->getUser();

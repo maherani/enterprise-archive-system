@@ -19,7 +19,7 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
                     ?   archive_app    ?  (Nextcloud 34 Apache)
                     ?   (Internal:80)  ?  - WebDAV Endpoint: /remote.php/dav/files/
                     ????????????????????  - LDAP & Token Authentication
-                             ?            - Custom App: archive_autotag v1.4.0
+                             ?            - Custom App: archive_autotag v1.5.0
                              ?            - Dynamic Hierarchical Auto-Tagging
                              ?            - Native Multi-Tag Intersection Search (AND)
                              ?            - Granular Per-User File Upload Size Limit
@@ -65,7 +65,7 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
    - Group Administrators (`Subadmins`) are strictly restricted to modifying members of their assigned group (display name, password, quota) and are prohibited from deleting accounts (HTTP 403 Forbidden via `BeforeUserDeletedListener`).
    - Regular users possess zero account management privileges.
    - Includes `deploy/audit_user_roles.sh` for role auditing and `deploy/set-group-quota.sh` for automated batch quota configuration.
-9. **Native Multi-Tag Intersection Filter (`archive_autotag v1.4.0`)**:
+9. **Native Multi-Tag Intersection Filter (`archive_autotag v1.5.0`)**:
    - Interactive, Persian RTL-aware filter toolbar embedded directly into the Nextcloud Files Web UI.
    - Allows users to select multiple tags simultaneously (e.g. `????` AND `??????? ??????`), narrowing documents strictly by logical mathematical intersection.
    - Displays real-time matching document counts, full archive paths, human-readable file sizes, direct folder navigation, and instant downloads with strict ACL isolation.
@@ -144,6 +144,10 @@ docker compose exec app php occ archive:file:grant grant <file_id> <group_name> 
 docker compose exec app php occ archive:file:grant revoke <file_id> <username>
 docker compose exec app php occ archive:file:grant list <file_id>
 
+# Synchronize, audit, and reconcile tags (remove surplus/orphan tags and dead mappings)
+docker compose exec app php occ archive:tag:reconcile
+docker compose exec app php occ archive:tag:gov reconcile
+
 # Manage tag governance (List, Delete)
 docker compose exec app php occ archive:tag:gov list
 docker compose exec app php occ archive:tag:gov delete <tag_id>
@@ -185,6 +189,10 @@ python3 tests/test_user_governance.py
 
 # Test 4: Multi-tag intersection filtering (AND logic) and ACL isolation
 python3 tests/test_multi_tag_filter.py
+
+# Test 5: Dynamic Folder-Driven Tag Lifecycle & Automatic Reconciliation
+python3 tests/test_tag_lifecycle_reconciliation.py
+
 ```
 
 ---

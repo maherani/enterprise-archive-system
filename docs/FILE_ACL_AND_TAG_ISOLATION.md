@@ -170,3 +170,33 @@ python3 tests/test_archive_acl_and_tag_isolation.py
 5. **System Tag Visibility**: System tags (e.g., `Enterprise_Archive`) remain globally visible to all users.
 6. **Admin Tag Authority**: Admin deletes User A's private tag (`HTTP 204`).
 7. **Admin File Authority**: Admin deletes User A's file (`HTTP 204`).
+
+---
+
+## 5. Dynamic Folder-Driven Tag Lifecycle & Automatic Reconciliation
+
+Since the enterprise archive system tags are driven by folder hierarchy, the tagging engine automatically keeps tag state strictly in sync with folder creation, renaming, and deletion:
+
+### 1. Folder Creation
+- When an admin creates a folder (e.g., `Enterprise_Archive/Contracts`), a restricted system tag (`Contracts`) is automatically created (`userVisible=true`, `userAssignable=false`) and registered with ownership `system`.
+- Hierarchical ancestor tags (`Enterprise_Archive`) are assigned to the new folder node.
+
+### 2. Folder Rename
+- When a folder is renamed (e.g., `Invoices_Archive` -> `Invoices_Verified`):
+  - If the old tag name was uniquely used by this folder, the system tag is renamed in-place.
+  - If the new tag already exists or the old name was shared, descendant files are retagged with the new tag and unassigned from the old tag.
+  - Automatic reconciliation runs to ensure no obsolete tags linger.
+
+### 3. Folder Deletion & Trashbin
+- When a folder is deleted or moved to trashbin:
+  - Stale object mappings in `oc_systemtag_object_mapping` pointing to deleted or trashbin files (`files_trashbin`) are pruned.
+  - The system evaluates all tags: any tag with **0 active folders** and **0 active files** is recognized as a surplus/orphan tag and permanently deleted from `oc_systemtag` and `oc_archive_tag_ownership`.
+
+### 4. Admin Reconciliation Commands
+```bash
+# Full tag audit and reconciliation (CLI)
+docker exec -u www-data archive_app php occ archive:tag:reconcile
+
+# Tag governance sync action
+docker exec -u www-data archive_app php occ archive:tag:gov reconcile
+```

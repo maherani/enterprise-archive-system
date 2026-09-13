@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace OCA\ArchiveAutoTag\Command;
 
+use OCA\ArchiveAutoTag\Service\AutoTagService;
 use OCA\ArchiveAutoTag\Service\TagOwnershipService;
 use OCP\IDBConnection;
 use OCP\SystemTag\ISystemTagManager;
@@ -18,14 +19,15 @@ class TagGovernanceCommand extends Command {
         private TagOwnershipService $tagOwnershipService,
         private ISystemTagManager $tagManager,
         private IDBConnection $db,
+        private AutoTagService $autoTagService,
     ) {
         parent::__construct();
     }
 
     protected function configure(): void {
         $this->setName('archive:tag:gov')
-            ->setDescription('Administrator tag governance: list, inspect, set owner, and delete tags')
-            ->addArgument('action', InputArgument::REQUIRED, 'Action: list, delete, set-owner')
+            ->setDescription('Administrator tag governance: list, inspect, set owner, delete, and reconcile tags')
+            ->addArgument('action', InputArgument::REQUIRED, 'Action: list, delete, set-owner, reconcile')
             ->addArgument('tag', InputArgument::OPTIONAL, 'Tag ID or Tag Name (required for delete and set-owner)')
             ->addArgument('owner', InputArgument::OPTIONAL, 'Owner ID: system, admin, or username (for set-owner)');
     }
@@ -90,8 +92,18 @@ class TagGovernanceCommand extends Command {
                 $output->writeln("<info>Successfully updated owner of tag ID {$tagId} to '<comment>{$ownerArg}</comment>'.</info>");
                 return Command::SUCCESS;
 
+            case 'reconcile':
+            case 'sync':
+                $output->writeln("<info>Reconciling enterprise archive tags...</info>");
+                $report = $this->autoTagService->reconcileAllTags();
+                $output->writeln("  - Stale mappings cleaned: <comment>{$report['stale_mappings_cleaned']}</comment>");
+                $output->writeln("  - Active folder tags: <info>" . count($report['active_folder_tags']) . "</info>");
+                $output->writeln("  - Surplus tags deleted: <comment>" . count($report['surplus_tags_deleted']) . "</comment>");
+                $output->writeln("  - Tags retained: <info>" . count($report['tags_retained']) . "</info>");
+                return Command::SUCCESS;
+
             default:
-                $output->writeln("<error>Unknown action: {$action}. Use list, delete, or set-owner.</error>");
+                $output->writeln("<error>Unknown action: {$action}. Use list, delete, set-owner, or reconcile.</error>");
                 return Command::FAILURE;
         }
     }

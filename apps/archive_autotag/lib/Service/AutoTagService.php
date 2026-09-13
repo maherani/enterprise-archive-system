@@ -6,6 +6,7 @@ namespace OCA\ArchiveAutoTag\Service;
 use OCP\Files\Folder;
 use OCP\Files\Node;
 use OCP\Files\File;
+use OCP\IDBConnection;
 use OCP\IUserManager;
 use OCP\SystemTag\ISystemTag;
 use OCP\SystemTag\ISystemTagManager;
@@ -13,21 +14,14 @@ use OCP\SystemTag\ISystemTagObjectMapper;
 use Psr\Log\LoggerInterface;
 
 class AutoTagService {
-    private ISystemTagManager $tagManager;
-    private ISystemTagObjectMapper $tagMapper;
-    private IUserManager $userManager;
-    private LoggerInterface $logger;
-
     public function __construct(
-        ISystemTagManager $tagManager,
-        ISystemTagObjectMapper $tagMapper,
-        IUserManager $userManager,
-        LoggerInterface $logger
+        private ISystemTagManager $tagManager,
+        private ISystemTagObjectMapper $tagMapper,
+        private IUserManager $userManager,
+        private IDBConnection $db,
+        private TagOwnershipService $tagOwnershipService,
+        private LoggerInterface $logger,
     ) {
-        $this->tagManager = $tagManager;
-        $this->tagMapper = $tagMapper;
-        $this->userManager = $userManager;
-        $this->logger = $logger;
     }
 
     /**
@@ -49,6 +43,7 @@ class AutoTagService {
 
         // Create restricted tag: userVisible=true, userAssignable=false
         $tag = $this->tagManager->createTag($name, true, false);
+        $this->tagOwnershipService->setTagOwner((int)$tag->getId(), 'system');
         $this->logger->info("archive_autotag: Created restricted system tag '{$name}' (ID: {$tag->getId()})");
         return $tag;
     }
@@ -141,8 +136,33 @@ class AutoTagService {
     }
 
     /**
+     * When a folder is created: ensure tag exists, tag hierarchy, and reconcile.
+     */
+    public function handleFolderCreated(Node $folder): void {
+        try {
+            $name = $folder->getName();
+            if ($name === '' || $name === 'files' || str_starts_with($name, 'appdata_') || $name === 'cache') {
+                return;
+            }
+
+            // Create restricted tag for this new folder
+            $this->getOrCreateRestrictedTag($name);
+
+            // Tag folder with ancestor hierarchy
+            $this->tagNodeHierarchy($folder);
+
+            // Reconcile all tags
+            $this->reconcileAllTags();
+        } catch (\Throwable $e) {
+            $this->logger->error("archive_autotag: Error handling folder created: " . $e->getMessage());
+        }
+    }
+
+    /**
      * Propagate folder rename to all descendant files and subfolders:
-     * Removes the old folder name tag and assigns the new folder name tag.
+     * - In-place tag rename if old tag was uniquely used by this folder.
+     * - Otherwise, replace old tag with new tag across descendants.
+     * - Reconcile all tags and prune any obsolete tags.
      */
     public function handleFolderRenamed(Folder $targetFolder, string $oldName, string $newName): void {
         try {
@@ -151,13 +171,36 @@ class AutoTagService {
             }
 
             $oldTag = $this->findTagByName($oldName);
-            $newTag = $this->getOrCreateRestrictedTag($newName);
+            $newTag = $this->findTagByName($newName);
 
-            $oldTagId = $oldTag ? (string)$oldTag->getId() : null;
-            $newTagId = (string)$newTag->getId();
+            // Check how many active folders in the filesystem still use $oldName
+            $sqlCountOld = "
+                SELECT COUNT(fileid)
+                FROM oc_filecache
+                WHERE mimetype = 2
+                  AND path LIKE 'files/%'
+                  AND path NOT LIKE 'files_trashbin%'
+                  AND name = ?
+            ";
+            $countOldName = (int)$this->db->executeQuery($sqlCountOld, [$oldName])->fetchOne();
 
-            $this->logger->info("archive_autotag: Propagating rename from '{$oldName}' to '{$newName}' inside folder '{$targetFolder->getName()}'");
-            $this->propagateRenameRecursive($targetFolder, $oldTagId, $newTagId);
+            // If no other folder has oldName and new tag does not exist yet: rename tag in-place!
+            if ($countOldName === 0 && $oldTag !== null && $newTag === null) {
+                $this->tagManager->updateTag((string)$oldTag->getId(), $newName, true, false, null);
+                $this->logger->info("archive_autotag: In-place renamed tag ID {$oldTag->getId()} from '{$oldName}' to '{$newName}'");
+                $newTagId = (string)$oldTag->getId();
+                $oldTagId = null; // No unassign needed since tag itself was renamed
+            } else {
+                if ($newTag === null) {
+                    $newTag = $this->getOrCreateRestrictedTag($newName);
+                }
+                $oldTagId = $oldTag ? (string)$oldTag->getId() : null;
+                $newTagId = (string)$newTag->getId();
+                $this->propagateRenameRecursive($targetFolder, $oldTagId, $newTagId);
+            }
+
+            // Always run full reconciliation after rename
+            $this->reconcileAllTags();
         } catch (\Throwable $e) {
             $this->logger->error("archive_autotag: Error handling folder rename: " . $e->getMessage());
         }
@@ -176,7 +219,6 @@ class AutoTagService {
                 try {
                     $this->tagMapper->unassignTags($objectId, 'files', [$oldTagId]);
                 } catch (\Throwable $t) {
-                    // Ignore if tag wasn't previously mapped
                 }
             }
 
@@ -184,13 +226,195 @@ class AutoTagService {
             try {
                 $this->tagMapper->assignTags($objectId, 'files', [$newTagId]);
             } catch (\Throwable $t) {
-                // Ignore if already mapped
             }
 
             // 3. Recurse into subfolders
             if ($node instanceof Folder) {
                 $this->propagateRenameRecursive($node, $oldTagId, $newTagId);
             }
+        }
+    }
+
+    /**
+     * When a folder is deleted: run full tag reconciliation and prune surplus tags.
+     */
+    public function handleFolderDeleted(Node $node): void {
+        try {
+            $this->logger->info("archive_autotag: Folder deleted: {$node->getName()}. Running tag reconciliation...");
+            $this->reconcileAllTags();
+        } catch (\Throwable $e) {
+            $this->logger->error("archive_autotag: Error handling folder deleted: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Remove dead/stale mappings in oc_systemtag_object_mapping
+     * (e.g. files in trashbin or files deleted from oc_filecache).
+     */
+    public function cleanupStaleMappings(): int {
+        try {
+            // Delete mappings for trashbin files
+            $sqlTrash = "
+                DELETE FROM oc_systemtag_object_mapping
+                WHERE objecttype = 'files'
+                  AND objectid IN (
+                      SELECT fileid::text FROM oc_filecache WHERE path LIKE 'files_trashbin%'
+                  )
+            ";
+            $trashCount = (int)$this->db->executeStatement($sqlTrash);
+
+            // Delete mappings for files completely deleted from oc_filecache
+            $sqlDeleted = "
+                DELETE FROM oc_systemtag_object_mapping
+                WHERE objecttype = 'files'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM oc_filecache f WHERE f.fileid::text = oc_systemtag_object_mapping.objectid
+                  )
+            ";
+            $delCount = (int)$this->db->executeStatement($sqlDeleted);
+
+            $total = $trashCount + $delCount;
+            if ($total > 0) {
+                $this->logger->info("archive_autotag: Cleaned up {$total} stale tag mappings ({$trashCount} trashbin, {$delCount} deleted).");
+            }
+            return $total;
+        } catch (\Throwable $e) {
+            $this->logger->error("archive_autotag: Error cleaning stale mappings: " . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Scan active folders in oc_filecache and extract all valid category/folder names.
+     */
+    public function getActiveFolderCategoryNames(): array {
+        try {
+            $sql = "
+                SELECT path, name
+                FROM oc_filecache
+                WHERE mimetype = 2
+                  AND path LIKE 'files/%'
+                  AND path NOT LIKE 'files_trashbin%'
+                  AND path NOT LIKE 'files_versions%'
+                  AND path NOT LIKE '%/cache/%'
+                  AND path NOT LIKE '%/appdata_%'
+            ";
+            $rows = $this->db->executeQuery($sql)->fetchAllAssociative();
+            $categoryNames = [];
+
+            foreach ($rows as $row) {
+                $path = trim((string)$row['path'], '/');
+                $segments = explode('/', $path);
+                foreach ($segments as $segment) {
+                    $segment = trim($segment);
+                    if ($segment === '' || $segment === 'files' || str_starts_with($segment, 'appdata_') || $segment === 'cache') {
+                        continue;
+                    }
+                    if ($this->userManager->userExists($segment)) {
+                        continue;
+                    }
+                    $categoryNames[mb_strtolower($segment)] = $segment;
+                }
+            }
+            return $categoryNames;
+        } catch (\Throwable $e) {
+            $this->logger->error("archive_autotag: Error querying active folders: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Comprehensive Tag Review and Reconciliation Engine:
+     * 1. Prunes dead/trash mappings from oc_systemtag_object_mapping.
+     * 2. Detects all active archive folders and registers/ensures their system tags.
+     * 3. Retags any untagged active files.
+     * 4. Detects and deletes surplus/orphaned tags (tags with 0 active folders and 0 active files).
+     */
+    public function reconcileAllTags(): array {
+        $report = [
+            'stale_mappings_cleaned' => 0,
+            'surplus_tags_deleted' => [],
+            'active_folder_tags' => [],
+            'tags_retained' => [],
+        ];
+
+        try {
+            // Step 1: Clean stale mappings
+            $report['stale_mappings_cleaned'] = $this->cleanupStaleMappings();
+
+            // Step 2: Get active folder category names
+            $activeFolderNames = $this->getActiveFolderCategoryNames();
+            $report['active_folder_tags'] = array_values($activeFolderNames);
+
+            // Step 3: Ensure restricted system tags exist for all active folders
+            foreach ($activeFolderNames as $folderName) {
+                try {
+                    $tag = $this->getOrCreateRestrictedTag($folderName);
+                    $this->tagOwnershipService->setTagOwner((int)$tag->getId(), 'system');
+                } catch (\Throwable $t) {
+                }
+            }
+
+            // Step 4: Evaluate all tags for surplus/orphan status
+            $allTags = $this->tagManager->getAllTags();
+            $tagsToDelete = [];
+
+            $sqlCheckMappings = "
+                SELECT COUNT(m.objectid)
+                FROM oc_systemtag_object_mapping m
+                JOIN oc_filecache f ON m.objectid = f.fileid::text
+                WHERE m.systemtagid = ? AND m.objecttype = 'files'
+                  AND f.path LIKE 'files/%'
+                  AND f.path NOT LIKE 'files_trashbin%'
+            ";
+
+            foreach ($allTags as $tag) {
+                $tagId = (int)$tag->getId();
+                $tagName = $tag->getName();
+                $lowerName = mb_strtolower(trim($tagName));
+
+                $isFolder = isset($activeFolderNames[$lowerName]);
+
+                // Count active file mappings in oc_filecache using raw SQL to prevent Doctrine casting error
+                $activeMappingsCount = (int)$this->db->executeQuery($sqlCheckMappings, [$tagId])->fetchOne();
+
+                if ($isFolder) {
+                    $report['tags_retained'][] = [
+                        'id' => $tagId,
+                        'name' => $tagName,
+                        'reason' => 'active_folder',
+                        'active_mappings' => $activeMappingsCount,
+                    ];
+                } elseif ($activeMappingsCount > 0) {
+                    $report['tags_retained'][] = [
+                        'id' => $tagId,
+                        'name' => $tagName,
+                        'reason' => 'active_file_mappings',
+                        'active_mappings' => $activeMappingsCount,
+                    ];
+                } else {
+                    // Surplus/Orphan: no active folder and 0 active files
+                    $tagsToDelete[] = $tagId;
+                    $report['surplus_tags_deleted'][] = [
+                        'id' => $tagId,
+                        'name' => $tagName,
+                    ];
+                }
+            }
+
+            // Step 5: Delete all surplus tags
+            if (!empty($tagsToDelete)) {
+                $this->tagManager->deleteTags($tagsToDelete);
+                foreach ($tagsToDelete as $tid) {
+                    $this->tagOwnershipService->deleteTagOwner($tid);
+                }
+                $this->logger->info("archive_autotag: Pruned " . count($tagsToDelete) . " surplus orphaned tags: " . json_encode($report['surplus_tags_deleted']));
+            }
+
+            return $report;
+        } catch (\Throwable $e) {
+            $this->logger->error("archive_autotag: Reconcile error: " . $e->getMessage());
+            return $report;
         }
     }
 

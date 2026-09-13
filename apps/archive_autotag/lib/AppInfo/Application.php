@@ -8,8 +8,10 @@ use OCA\ArchiveAutoTag\Listener\BeforeNodeWrittenListener;
 use OCA\ArchiveAutoTag\Listener\BeforeUserDeletedListener;
 use OCA\ArchiveAutoTag\Listener\LoadAdditionalScriptsListener;
 use OCA\ArchiveAutoTag\Listener\NodeCreatedListener;
+use OCA\ArchiveAutoTag\Listener\NodeDeletedListener;
 use OCA\ArchiveAutoTag\Listener\NodeRenamedListener;
 use OCA\ArchiveAutoTag\Listener\NodeWrittenListener;
+use OCA\ArchiveAutoTag\Service\AutoTagService;
 use OCA\ArchiveAutoTag\Service\FileOwnershipService;
 use OCA\ArchiveAutoTag\Service\FolderPolicyService;
 use OCA\ArchiveAutoTag\Service\UploadLimitService;
@@ -23,6 +25,7 @@ use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\Files\Events\Node\BeforeNodeCreatedEvent;
 use OCP\Files\Events\Node\BeforeNodeWrittenEvent;
 use OCP\Files\Events\Node\NodeCreatedEvent;
+use OCP\Files\Events\Node\NodeDeletedEvent;
 use OCP\Files\Events\Node\NodeRenamedEvent;
 use OCP\Files\Events\Node\NodeWrittenEvent;
 use OCP\Files\ForbiddenException;
@@ -54,6 +57,7 @@ class Application extends App implements IBootstrap {
         $context->registerEventListener(NodeCreatedEvent::class, NodeCreatedListener::class);
         $context->registerEventListener(NodeWrittenEvent::class, NodeWrittenListener::class);
         $context->registerEventListener(NodeRenamedEvent::class, NodeRenamedListener::class);
+        $context->registerEventListener(NodeDeletedEvent::class, NodeDeletedListener::class);
 
         // Enforce admin-only user deletion (prevent group admins from deleting accounts)
         $context->registerEventListener(BeforeUserDeletedEvent::class, BeforeUserDeletedListener::class);
@@ -67,6 +71,7 @@ class Application extends App implements IBootstrap {
         Util::connectHook('OC_Filesystem', 'write', self::class, 'preWriteHook');
         Util::connectHook('OC_Filesystem', 'create', self::class, 'preWriteHook');
         Util::connectHook('OC_Filesystem', 'mkdir', self::class, 'preMkdirHook');
+        Util::connectHook('OC_Filesystem', 'delete', self::class, 'postDeleteHook');
 
         // Register Archive File Isolation Storage Wrapper
         Filesystem::addStorageWrapper(
@@ -85,6 +90,19 @@ class Application extends App implements IBootstrap {
             },
             10
         );
+    }
+
+    /**
+     * Intercept filesystem delete to trigger tag reconciliation upon deletion.
+     */
+    public static function postDeleteHook(array &$params): void {
+        try {
+            $container = \OC::$server;
+            /** @var AutoTagService $autoTagService */
+            $autoTagService = $container->get(AutoTagService::class);
+            $autoTagService->reconcileAllTags();
+        } catch (\Throwable $t) {
+        }
     }
 
     /**
