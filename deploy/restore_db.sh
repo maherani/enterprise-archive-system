@@ -37,7 +37,10 @@ fi
 EXPECTED_SHA_FILE="$TARGET.sha256"
 if [ -f "$EXPECTED_SHA_FILE" ]; then
     echo "[INFO] Verifying backup checksum..."
-    (cd "$(dirname "$EXPECTED_SHA_FILE")" && sha256sum -c "$(basename "$EXPECTED_SHA_FILE")")
+    (
+        cd "$(dirname "$TARGET")"
+        sha256sum -c "$(basename "$EXPECTED_SHA_FILE")"
+    )
 fi
 
 TMP_DIR=$(mktemp -d)
@@ -106,6 +109,14 @@ docker exec archive_db psql -U "$POSTGRES_USER" -d postgres \
 docker exec archive_db psql -U "$POSTGRES_USER" -d postgres \
     -c "CREATE DATABASE \"$POSTGRES_DB\" OWNER \"$POSTGRES_USER\";"
 
+# Local container authentication may allow the administrative psql command
+# without a password. Explicitly synchronize the role password before starting
+# Nextcloud so TCP authentication matches the current .env configuration.
+echo "[INFO] Synchronizing PostgreSQL role password with .env..."
+docker exec archive_db psql -U "$POSTGRES_USER" -d postgres \
+    -v role="$POSTGRES_USER" -v password="$POSTGRES_PASSWORD" \
+    -c 'SELECT format('"'"'ALTER ROLE %I PASSWORD %L'"'"', :'role', :'password') \gexec' >/dev/null
+
 echo "[INFO] Importing database dump..."
 docker exec -i archive_db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" < "$DB_DUMP"
 
@@ -140,7 +151,8 @@ docker compose -f "$PROJECT_DIR/docker-compose.yml" up -d app >/dev/null
 docker exec archive_app chown -R www-data:www-data /var/www/html/data /var/www/html/config /var/www/html/custom_apps
 
 # Re-apply the current environment's database connection explicitly so the
-# deployment remains aligned with .env even when config.php came from backup.
+# deployment remains aligned with .env. The PostgreSQL Role password has
+# already been synchronized, so occ can connect successfully now.
 docker exec -u www-data archive_app php occ config:system:set dbtype --value="pgsql"
 docker exec -u www-data archive_app php occ config:system:set dbhost --value="db"
 docker exec -u www-data archive_app php occ config:system:set dbname --value="$POSTGRES_DB"
