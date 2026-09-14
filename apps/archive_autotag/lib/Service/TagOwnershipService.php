@@ -7,6 +7,7 @@ namespace OCA\ArchiveAutoTag\Service;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IGroupManager;
+use OCP\IUserManager;
 use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
 
@@ -15,6 +16,7 @@ class TagOwnershipService {
         private IDBConnection $db,
         private IUserSession $userSession,
         private IGroupManager $groupManager,
+        private IUserManager $userManager,
         private LoggerInterface $logger,
     ) {
     }
@@ -55,12 +57,61 @@ class TagOwnershipService {
         return $row ? (string)$row['owner_uid'] : null;
     }
 
+    public function assignTagToGroup(int $tagId, string $groupId): void {
+        $now = time();
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('id')
+           ->from('archive_tag_groups')
+           ->where($qb->expr()->eq('tag_id', $qb->createNamedParameter($tagId)))
+           ->andWhere($qb->expr()->eq('group_id', $qb->createNamedParameter($groupId)));
+        $row = $qb->executeQuery()->fetchAssociative();
+
+        if (!$row) {
+            $ins = $this->db->getQueryBuilder();
+            $ins->insert('archive_tag_groups')
+                ->values([
+                    'tag_id' => $ins->createNamedParameter($tagId),
+                    'group_id' => $ins->createNamedParameter($groupId),
+                    'created_at' => $ins->createNamedParameter($now),
+                ]);
+            $ins->executeStatement();
+            $this->logger->info("archive_autotag: Tag ID {$tagId} assigned to group '{$groupId}'");
+        }
+    }
+
+    public function removeTagFromGroup(int $tagId, string $groupId): void {
+        $qb = $this->db->getQueryBuilder();
+        $qb->delete('archive_tag_groups')
+           ->where($qb->expr()->eq('tag_id', $qb->createNamedParameter($tagId)))
+           ->andWhere($qb->expr()->eq('group_id', $qb->createNamedParameter($groupId)));
+        $qb->executeStatement();
+        $this->logger->info("archive_autotag: Tag ID {$tagId} removed from group '{$groupId}'");
+    }
+
+    public function getTagGroups(int $tagId): array {
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('group_id')
+               ->from('archive_tag_groups')
+               ->where($qb->expr()->eq('tag_id', $qb->createNamedParameter($tagId)));
+            $rows = $qb->executeQuery()->fetchAllAssociative();
+            return array_map(fn($r) => (string)$r['group_id'], $rows);
+        } catch (\Throwable $t) {
+            return [];
+        }
+    }
+
     public function deleteTagOwner(int $tagId): void {
         try {
             $qb = $this->db->getQueryBuilder();
             $qb->delete('archive_tag_ownership')
                ->where($qb->expr()->eq('tag_id', $qb->createNamedParameter($tagId)));
             $qb->executeStatement();
+
+            $qb2 = $this->db->getQueryBuilder();
+            $qb2->delete('archive_tag_groups')
+                ->where($qb2->expr()->eq('tag_id', $qb2->createNamedParameter($tagId)));
+            $qb2->executeStatement();
         } catch (\Throwable $t) {
         }
     }
@@ -72,27 +123,48 @@ class TagOwnershipService {
                 return true;
             }
             $userId = $user->getUID();
+        } else {
+            $user = $this->userManager->get($userId);
         }
 
-        // 1. Admin sees ALL tags
+        // 1. Admin sees ALL tags across all groups
         if ($userId === 'admin' || $this->groupManager->isAdmin($userId)) {
             return true;
         }
 
-        // 2. Lookup owner
+        $userGroups = $user !== null ? $this->groupManager->getUserGroupIds($user) : [];
+
+        // 2. Check group-level tag restrictions
+        $tagGroups = $this->getTagGroups($tagId);
+        if (!empty($tagGroups)) {
+            // Strict Group Isolation: User MUST belong to at least one assigned group
+            return !empty(array_intersect($userGroups, $tagGroups));
+        }
+
+        // 3. Fallback: Tag has no explicit group restriction in archive_tag_groups
+        // Check if tag name matches any existing group in the system
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('name')->from('systemtag')->where($qb->expr()->eq('id', $qb->createNamedParameter($tagId)));
+        $tagName = (string)($qb->executeQuery()->fetchOne() ?: '');
+
+        if ($tagName !== '') {
+            foreach ($this->groupManager->search('') as $grp) {
+                $gid = $grp->getGID();
+                if (strcasecmp($tagName, $gid) === 0) {
+                    // Tag matches a department group name -> restrict to members of that group
+                    return in_array($gid, $userGroups, true);
+                }
+            }
+        }
+
+        // 4. Check user ownership for private tags
         $owner = $this->getTagOwner($tagId);
-        // If untracked tag, default to 'system' so hierarchical parent tags stay visible
-        if ($owner === null || $owner === 'system' || $owner === 'admin') {
-            return true;
+        if ($owner !== null && $owner !== 'system' && $owner !== 'admin') {
+            return $owner === $userId;
         }
 
-        // 3. User can see their own tags
-        if ($owner === $userId) {
-            return true;
-        }
-
-        // Cannot see other user's private tags
-        return false;
+        // 5. General unrestricted system tag (e.g. Enterprise_Archive)
+        return true;
     }
 
     public function canUserManageTag(int $tagId, ?string $userId = null): bool {
@@ -129,8 +201,11 @@ class TagOwnershipService {
                 return array_map(fn($r) => (int)$r['id'], $rows);
             }
             $userId = $user->getUID();
+        } else {
+            $user = $this->userManager->get($userId);
         }
 
+        // Admin sees all tags
         if ($userId === 'admin' || $this->groupManager->isAdmin($userId)) {
             $qb = $this->db->getQueryBuilder();
             $qb->select('id')->from('systemtag');
@@ -139,16 +214,16 @@ class TagOwnershipService {
         }
 
         $qb = $this->db->getQueryBuilder();
-        $qb->select('t.id')
-           ->from('systemtag', 't')
-           ->leftJoin('t', 'archive_tag_ownership', 'o', $qb->expr()->eq('t.id', 'o.tag_id'))
-           ->where(
-               $qb->expr()->orX(
-                   $qb->expr()->isNull('o.owner_uid'),
-                   $qb->expr()->in('o.owner_uid', $qb->createNamedParameter(['system', 'admin', $userId], IQueryBuilder::PARAM_STR_ARRAY))
-               )
-           );
-        $rows = $qb->executeQuery()->fetchAllAssociative();
-        return array_map(fn($r) => (int)$r['id'], $rows);
+        $qb->select('id')->from('systemtag');
+        $allTagIds = array_map(fn($r) => (int)$r['id'], $qb->executeQuery()->fetchAllAssociative());
+
+        $visibleTagIds = [];
+        foreach ($allTagIds as $tid) {
+            if ($this->canUserSeeTag($tid, $userId)) {
+                $visibleTagIds[] = $tid;
+            }
+        }
+
+        return $visibleTagIds;
     }
 }

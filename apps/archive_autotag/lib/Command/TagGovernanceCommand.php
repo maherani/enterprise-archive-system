@@ -6,6 +6,7 @@ namespace OCA\ArchiveAutoTag\Command;
 use OCA\ArchiveAutoTag\Service\AutoTagService;
 use OCA\ArchiveAutoTag\Service\TagOwnershipService;
 use OCP\IDBConnection;
+use OCP\IGroupManager;
 use OCP\SystemTag\ISystemTagManager;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -19,6 +20,7 @@ class TagGovernanceCommand extends Command {
         private TagOwnershipService $tagOwnershipService,
         private ISystemTagManager $tagManager,
         private IDBConnection $db,
+        private IGroupManager $groupManager,
         private AutoTagService $autoTagService,
     ) {
         parent::__construct();
@@ -26,16 +28,16 @@ class TagGovernanceCommand extends Command {
 
     protected function configure(): void {
         $this->setName('archive:tag:gov')
-            ->setDescription('Administrator tag governance: list, inspect, set owner, delete, and reconcile tags')
-            ->addArgument('action', InputArgument::REQUIRED, 'Action: list, delete, set-owner, reconcile')
-            ->addArgument('tag', InputArgument::OPTIONAL, 'Tag ID or Tag Name (required for delete and set-owner)')
-            ->addArgument('owner', InputArgument::OPTIONAL, 'Owner ID: system, admin, or username (for set-owner)');
+            ->setDescription('Administrator tag governance: list, inspect, set owner, assign group, delete, and reconcile tags')
+            ->addArgument('action', InputArgument::REQUIRED, 'Action: list, delete, set-owner, set-group, remove-group, reconcile')
+            ->addArgument('tag', InputArgument::OPTIONAL, 'Tag ID or Tag Name')
+            ->addArgument('target', InputArgument::OPTIONAL, 'Owner username or Group ID');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int {
         $action = strtolower((string)$input->getArgument('action'));
         $tagArg = (string)$input->getArgument('tag');
-        $ownerArg = (string)$input->getArgument('owner');
+        $targetArg = (string)$input->getArgument('target');
 
         switch ($action) {
             case 'list':
@@ -53,13 +55,49 @@ class TagGovernanceCommand extends Command {
 
                 $output->writeln("<info>All System and User Tags in Archive:</info>");
                 foreach ($rows as $r) {
-                    $tid = $r['id'];
+                    $tid = (int)$r['id'];
                     $name = $r['name'];
                     $owner = $r['owner_uid'] ?? 'system';
+                    $groups = $this->tagOwnershipService->getTagGroups($tid);
+                    $groupsStr = !empty($groups) ? implode(', ', $groups) : 'global';
                     $vis = ((int)$r['visibility'] === 1) ? 'visible' : 'hidden';
                     $edit = ((int)$r['editable'] === 1) ? 'user-assignable' : 'restricted';
-                    $output->writeln("  - [ID: <comment>{$tid}</comment>] '<info>{$name}</info>' | Owner: <comment>{$owner}</comment> | ({$vis}, {$edit})");
+                    $output->writeln("  - [ID: <comment>{$tid}</comment>] '<info>{$name}</info>' | Groups: [<comment>{$groupsStr}</comment>] | Owner: <comment>{$owner}</comment> | ({$vis}, {$edit})");
                 }
+                return Command::SUCCESS;
+
+            case 'set-group':
+                if ($tagArg === '' || $targetArg === '') {
+                    $output->writeln("<error>Usage: php occ archive:tag:gov set-group <tag> <groupId></error>");
+                    return Command::FAILURE;
+                }
+                $tagId = $this->resolveTagId($tagArg);
+                if ($tagId === null) {
+                    $output->writeln("<error>Tag '{$tagArg}' not found.</error>");
+                    return Command::FAILURE;
+                }
+
+                if (!$this->groupManager->groupExists($targetArg)) {
+                    $output->writeln("<comment>Warning: Group '{$targetArg}' does not exist in Nextcloud yet, but mapping will be stored.</comment>");
+                }
+
+                $this->tagOwnershipService->assignTagToGroup($tagId, $targetArg);
+                $output->writeln("<info>Successfully assigned tag ID {$tagId} ('{$tagArg}') to group '<comment>{$targetArg}</comment>'.</info>");
+                return Command::SUCCESS;
+
+            case 'remove-group':
+                if ($tagArg === '' || $targetArg === '') {
+                    $output->writeln("<error>Usage: php occ archive:tag:gov remove-group <tag> <groupId></error>");
+                    return Command::FAILURE;
+                }
+                $tagId = $this->resolveTagId($tagArg);
+                if ($tagId === null) {
+                    $output->writeln("<error>Tag '{$tagArg}' not found.</error>");
+                    return Command::FAILURE;
+                }
+
+                $this->tagOwnershipService->removeTagFromGroup($tagId, $targetArg);
+                $output->writeln("<info>Successfully removed group '<comment>{$targetArg}</comment>' from tag ID {$tagId}.</info>");
                 return Command::SUCCESS;
 
             case 'delete':
@@ -78,7 +116,7 @@ class TagGovernanceCommand extends Command {
                 return Command::SUCCESS;
 
             case 'set-owner':
-                if ($tagArg === '' || $ownerArg === '') {
+                if ($tagArg === '' || $targetArg === '') {
                     $output->writeln("<error>Usage: php occ archive:tag:gov set-owner <tag> <owner></error>");
                     return Command::FAILURE;
                 }
@@ -88,8 +126,8 @@ class TagGovernanceCommand extends Command {
                     return Command::FAILURE;
                 }
 
-                $this->tagOwnershipService->setTagOwner($tagId, $ownerArg);
-                $output->writeln("<info>Successfully updated owner of tag ID {$tagId} to '<comment>{$ownerArg}</comment>'.</info>");
+                $this->tagOwnershipService->setTagOwner($tagId, $targetArg);
+                $output->writeln("<info>Successfully updated owner of tag ID {$tagId} to '<comment>{$targetArg}</comment>'.</info>");
                 return Command::SUCCESS;
 
             case 'reconcile':
@@ -103,7 +141,7 @@ class TagGovernanceCommand extends Command {
                 return Command::SUCCESS;
 
             default:
-                $output->writeln("<error>Unknown action: {$action}. Use list, delete, set-owner, or reconcile.</error>");
+                $output->writeln("<error>Unknown action: {$action}. Use list, delete, set-owner, set-group, remove-group, or reconcile.</error>");
                 return Command::FAILURE;
         }
     }
