@@ -143,6 +143,40 @@ if ! docker compose -f "$PROJECT_DIR/docker-compose.yml" run --rm --no-deps --en
     exit 1
 fi
 
+# The restored config.php can contain the database password from the backup.
+# Replace only the dbpassword value before the first occ command so Nextcloud
+# can connect to the restored database using the current .env credentials.
+echo "[INFO] Aligning restored Nextcloud database config with .env..."
+DB_PASSWORD_B64="$(printf '%s' "$POSTGRES_PASSWORD" | base64 -w 0)"
+docker compose -f "$PROJECT_DIR/docker-compose.yml" run --rm --no-deps \
+    -e "RESTORE_DB_PASSWORD_B64=$DB_PASSWORD_B64" \
+    --entrypoint php app -r '
+        $path = "/var/www/html/config/config.php";
+        $content = file_get_contents($path);
+        if ($content === false) {
+            fwrite(STDERR, "Unable to read config.php\n");
+            exit(1);
+        }
+        $password = base64_decode(getenv("RESTORE_DB_PASSWORD_B64"), true);
+        if ($password === false) {
+            fwrite(STDERR, "Unable to decode database password\n");
+            exit(1);
+        }
+        $escaped = str_replace(["\\", "'"], ["\\\\", "\\'"], $password);
+        $pattern = "/('dbpassword'\\s*=>\\s*')(?:\\\\.|[^'\\\\])*(')/";
+        $replacement = "\\$1" . $escaped . "\\$2";
+        $updated = preg_replace($pattern, $replacement, $content, 1, $count);
+        if ($updated === null || $count !== 1) {
+            fwrite(STDERR, "Unable to update dbpassword in config.php\n");
+            exit(1);
+        }
+        if (file_put_contents($path, $updated) === false) {
+            fwrite(STDERR, "Unable to write config.php\n");
+            exit(1);
+        }
+    '
+unset DB_PASSWORD_B64
+
 # Start the application against the restored database/filesystem.
 docker compose -f "$PROJECT_DIR/docker-compose.yml" up -d app >/dev/null
 
