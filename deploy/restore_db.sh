@@ -133,7 +133,6 @@ docker compose -f "$PROJECT_DIR/docker-compose.yml" run --rm --no-deps -T --entr
 echo "[INFO] Restoring Nextcloud config..."
 docker compose -f "$PROJECT_DIR/docker-compose.yml" run --rm --no-deps -T --entrypoint tar app \
     -xzf - -C /var/www/html < "$CONFIG_ARCHIVE"
-
 echo "[INFO] Restoring custom apps..."
 docker compose -f "$PROJECT_DIR/docker-compose.yml" run --rm --no-deps -T --entrypoint tar app \
     -xzf - -C /var/www/html < "$CUSTOM_APPS_ARCHIVE"
@@ -151,8 +150,8 @@ docker compose -f "$PROJECT_DIR/docker-compose.yml" up -d app >/dev/null
 docker exec archive_app chown -R www-data:www-data /var/www/html/data /var/www/html/config /var/www/html/custom_apps
 
 # Re-apply the current environment's database connection explicitly so the
-deployment remains aligned with .env. The PostgreSQL role password has
-# already been synchronized, so occ can connect successfully now.
+after restore, deployment remains aligned with .env.
+# The PostgreSQL role password has already been synchronized, so occ can connect successfully now.
 docker exec -u www-data archive_app php occ config:system:set dbtype --value="pgsql"
 docker exec -u www-data archive_app php occ config:system:set dbhost --value="db"
 docker exec -u www-data archive_app php occ config:system:set dbname --value="$POSTGRES_DB"
