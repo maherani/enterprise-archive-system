@@ -162,10 +162,10 @@ docker compose -f "$PROJECT_DIR/docker-compose.yml" run --rm --no-deps \
             fwrite(STDERR, "Unable to decode database password\n");
             exit(1);
         }
-        $escaped = str_replace(["\\", "'"], ["\\\\", "\\'"], $password);
         $pattern = "/('dbpassword'\\s*=>\\s*')(?:\\\\.|[^'\\\\])*(')/";
-        $replacement = "\\$1" . $escaped . "\\$2";
-        $updated = preg_replace($pattern, $replacement, $content, 1, $count);
+        $updated = preg_replace_callback($pattern, function ($matches) use ($password) {
+            return $matches[1] . $password . $matches[2];
+        }, $content, 1, $count);
         if ($updated === null || $count !== 1) {
             fwrite(STDERR, "Unable to update dbpassword in config.php\n");
             exit(1);
