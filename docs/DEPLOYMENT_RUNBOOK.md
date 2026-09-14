@@ -328,11 +328,14 @@ python3 tests/test_group_tag_isolation.py
 
 # ۷. آزمون محدودسازی منوی ناوبری و اپ‌لانچر (App Menu & Launcher Restriction)
 python3 tests/test_app_menu_isolation.py
+
+# ۸. آزمون حذف کامل App store و تفکیک وافل‌منو (App Store & Waffle Menu Isolation)
+python3 tests/test_app_store_isolation.py
 ```
 
 ---
 
-## ۸. تفکیک و انحصار منوی ناوبری (App Menu & Launcher Isolation)
+## ۸. تفکیک و انحصار منوی ناوبری و حذف کامل App Store (App Menu & Launcher Isolation)
 
 جهت تمرکز کامل کاربران نهایی بر سامانه بایگانی اسناد و سادگی محیط کاربری، منوی ناوبری بالا و انتخاب‌گر اپلیکیشن‌ها (وافل‌منو / Waffle 9-dots) محدودسازی شده است:
 - **کاربران کلیه گروه‌های سازمانی (SOC، CERT، Compliance و...)**: صرفاً آیکون و گزینه «بایگانی اسناد» (`archive_autotag`) را در هدر و منوی اپ‌ها مشاهده می‌کنند. سایر اپ‌ها نظیر Files، Dashboard، Photos، Activity و Office از دید این کاربران در منو پنهان گردیده و صفحه اصلی سامانه مستقیماً به پورتال بایگانی اسناد هدایت می‌شود.
