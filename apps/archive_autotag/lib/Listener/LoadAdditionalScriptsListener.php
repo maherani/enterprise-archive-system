@@ -19,5 +19,6 @@ class LoadAdditionalScriptsListener implements IEventListener {
 
         Util::addStyle(Application::APP_ID, 'multi_tag_filter');
         Util::addScript(Application::APP_ID, 'multi_tag_filter');
+        Util::addScript(Application::APP_ID, 'url_mask');
     }
 }

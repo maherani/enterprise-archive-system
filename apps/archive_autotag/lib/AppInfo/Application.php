@@ -67,6 +67,9 @@ class Application extends App implements IBootstrap {
     }
 
     public function boot(IBootContext $context): void {
+        // Global URL Masking script: keep browser address bar fixed at origin root across all pages
+        Util::addScript(self::APP_ID, 'url_mask');
+
         // Connect legacy filesystem hooks for WebDAV early pre-upload and pre-mkdir interception
         Util::connectHook('OC_Filesystem', 'write', self::class, 'preWriteHook');
         Util::connectHook('OC_Filesystem', 'create', self::class, 'preWriteHook');

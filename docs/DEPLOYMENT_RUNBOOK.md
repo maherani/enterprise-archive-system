@@ -144,14 +144,17 @@ NEXTCLOUD_TRUSTED_DOMAINS=localhost 127.0.0.1 192.168.1.100 archive.organization
        --admin-pass "<NEXTCLOUD_ADMIN_PASSWORD>"
    ```
 
-4. **تنظیم دامنه‌ها و پراکسی معتمد:**
+4. **تنظیم دامنه‌ها، DNS سازمانی و پراکسی معتمد:**
    ```bash
    docker exec -u www-data archive_app php occ config:system:set trusted_domains 1 --value="localhost"
    docker exec -u www-data archive_app php occ config:system:set trusted_domains 2 --value="127.0.0.1"
    docker exec -u www-data archive_app php occ config:system:set trusted_domains 3 --value="<SERVER_IP>"
+   docker exec -u www-data archive_app php occ config:system:set trusted_domains 4 --value="docs.maskan"
    docker exec -u www-data archive_app php occ config:system:set trusted_proxies 0 --value="172.16.0.0/12"
    docker exec -u www-data archive_app php occ config:system:set default_phone_region --value="IR"
    ```
+   > [!NOTE]
+   > برای ثبات دائمی نشانی در نوار آدرس مرورگر (Stealth URL Masking)، سامانه مجهز به ماژول بومی `url_mask.js` است که با استفاده از HTML5 History API آدرس را به طور دائم روی `http://localhost` یا DNS تعریف‌شده نظیر `http://docs.maskan` بدون رفرش یا اختلال در روتینگ ثابت نگاه می‌دارد.
 
 5. **استقرار ماژول بومی `archive_autotag`:**
    ```bash
@@ -313,6 +316,9 @@ python3 tests/test_user_governance.py
 
 # ۳. آزمون فیلتر همپوشانی چندتگی اسناد (Multi-Tag Intersection) و ACL
 python3 tests/test_multi_tag_filter.py
+
+# ۴. آزمون ثبات نشانی مرورگر (Stealth URL Masking) و چند دامنه‌ای (docs.maskan)
+python3 tests/test_url_masking.py
 ```
 
 تمامی آزمون‌ها باید با موفقیت ۱۰۰٪ پاس شوند.
