@@ -86,10 +86,10 @@ enterprise-archive-system/
 ??? db/                               # PostgreSQL persistent data volume
 ??? deploy/                           # Deployment automation & operations
 ?   ??? audit_user_roles.sh           # User role auditing and subadmin governance
-?   ??? backup_db.sh                  # Automated PostgreSQL database backup
+│   ├── backup_db.sh                  # Automated full Nextcloud & PostgreSQL database backup engine
 ?   ??? check_health.sh               # Health check and consistency inspector
 ?   ??? deploy_from_scratch.sh        # Zero-to-production one-command bare server installer
-?   ??? restore_db.sh                 # Database disaster recovery and restore
+│   ├── restore_db.sh                 # Full Nextcloud & database disaster recovery engine with credential alignment
 ?   ??? set-group-quota.sh            # Automated batch quota configurator for groups
 ??? docs/                             # Architectural and operational documentation
 ?   ??? AI_ON_PREMISE_ARCHITECTURE.md
@@ -175,10 +175,10 @@ Status: **Completed**
 
 Status: **Completed**
 
-### Step 8 ? Data Persistence, Automated Backup & Disaster Recovery
-- Configured resilient volume mapping and safe restart policies.
-- Developed `deploy/backup_db.sh` for timestamped SQL backups.
-- Developed `deploy/restore_db.sh` for instant disaster recovery with session termination and lock cleanup.
+### Step 8 ➔ Data Persistence, Automated Full Backup & Disaster Recovery
+- Configured resilient volume mapping and safe restart policies (`restart: unless-stopped`).
+- Developed `deploy/backup_db.sh`: Monolithic multi-component backup engine producing complete archives (`database.sql`, `data.tar.gz`, `config.tar.gz`, `custom_apps.tar.gz`, `manifest.txt`) with SHA256 checksum verification.
+- Developed `deploy/restore_db.sh`: Enterprise disaster recovery engine featuring checksum validation, service orchestration, PostgreSQL role password synchronization from `.env`, containerized filesystem replacement, deterministic `config.php` credential alignment, and cache rebuild.
 - Published architectural analysis in `docs/DATA_PERSISTENCE_AND_RELIABILITY.md`.
 
 Status: **Completed**

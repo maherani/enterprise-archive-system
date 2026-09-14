@@ -201,8 +201,8 @@ python3 tests/test_tag_lifecycle_reconciliation.py
 
 Automated operations scripts are available in `deploy/`:
 - **Automated Bare Server Installer**: `./deploy/deploy_from_scratch.sh`
-- **Database Backup**: `./deploy/backup_db.sh`
-- **Disaster Recovery Restore**: `./deploy/restore_db.sh [backup.sql]`
+- **Full Nextcloud & Database Backup**: `./deploy/backup_db.sh` (Produces complete portable backup with SHA256 verification)
+- **Disaster Recovery Restore**: `./deploy/restore_db.sh [backup.tar.gz]` (Atomic full-system restore with credential synchronization)
 - **System Health & Integrity Check**: `./deploy/check_health.sh`
 - **Batch Group Quota Provisioning**: `./deploy/set-group-quota.sh <group> <quota>`
 - **User Role Audit & Remediation**: `./deploy/audit_user_roles.sh`
