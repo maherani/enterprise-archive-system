@@ -37,7 +37,7 @@ fi
 EXPECTED_SHA_FILE="$TARGET.sha256"
 if [ -f "$EXPECTED_SHA_FILE" ]; then
     echo "[INFO] Verifying backup checksum..."
-    sha256sum -c "$EXPECTED_SHA_FILE"
+    (cd "$(dirname "$EXPECTED_SHA_FILE")" && sha256sum -c "$(basename "$EXPECTED_SHA_FILE")")
 fi
 
 TMP_DIR=$(mktemp -d)
