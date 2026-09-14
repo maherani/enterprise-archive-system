@@ -149,9 +149,9 @@ fi
 echo "[INFO] Aligning restored Nextcloud database config with .env..."
 DB_PASSWORD_B64="$(printf '%s' "$POSTGRES_PASSWORD" | base64 -w 0)"
 
-docker exec -i \
+docker compose -f "$PROJECT_DIR/docker-compose.yml" run --rm --no-deps -T \
     -e "RESTORE_DB_PASSWORD_B64=$DB_PASSWORD_B64" \
-    archive_app php <<'PHP'
+    --entrypoint php app <<'PHP'
 <?php
 $path = "/var/www/html/config/config.php";
 
