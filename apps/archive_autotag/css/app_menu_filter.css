@@ -1,0 +1,20 @@
+/* Enterprise Archive System - App Menu & Launcher Isolation */
+
+html.ea-non-admin #header-start__appmenu li[data-id]:not([data-id="archive_autotag"]),
+body.ea-non-admin #header-start__appmenu li[data-id]:not([data-id="archive_autotag"]),
+html.ea-non-admin #header-start__appmenu a[href*="/apps/"]:not([href*="archive_autotag"]),
+body.ea-non-admin #header-start__appmenu a[href*="/apps/"]:not([href*="archive_autotag"]),
+html.ea-non-admin .app-menu li[data-id]:not([data-id="archive_autotag"]),
+body.ea-non-admin .app-menu li[data-id]:not([data-id="archive_autotag"]),
+html.ea-non-admin .app-menu a[href*="/apps/"]:not([href*="archive_autotag"]),
+body.ea-non-admin .app-menu a[href*="/apps/"]:not([href*="archive_autotag"]),
+html.ea-non-admin .app-menu__list li:not(:has(a[href*="archive_autotag"])),
+body.ea-non-admin .app-menu__list li:not(:has(a[href*="archive_autotag"])) {
+    display: none !important;
+}
+
+/* Ensure ??????? ????? is styled cleanly and visibly */
+#header-start__appmenu [data-id="archive_autotag"],
+.app-menu [data-id="archive_autotag"] {
+    display: flex !important;
+}

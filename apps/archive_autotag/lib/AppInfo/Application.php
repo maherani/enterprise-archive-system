@@ -70,6 +70,45 @@ class Application extends App implements IBootstrap {
         // Global URL Masking script: keep browser address bar fixed at origin root across all pages
         Util::addScript(self::APP_ID, 'url_mask');
 
+        // Global App Launcher & Navigation restriction: for non-admin groups, only show "??????? ?????"
+        Util::addScript(self::APP_ID, 'app_menu_filter');
+        Util::addStyle(self::APP_ID, 'app_menu_filter');
+
+        // Restrict navigation and app launcher state: for non-admin users, only display "??????? ?????"
+        try {
+            /** @var \OCP\IInitialStateService $initialStateService */
+            $initialStateService = \OC::$server->get(\OCP\IInitialStateService::class);
+            $initialStateService->provideLazyInitialState('core', 'apps', static function () {
+                $container = \OC::$server;
+                $userSession = $container->get(IUserSession::class);
+                $user = $userSession->getUser();
+                $navigationManager = $container->get(\OCP\INavigationManager::class);
+                $allApps = array_values($navigationManager->getAll());
+                if ($user !== null) {
+                    $groupManager = $container->get(IGroupManager::class);
+                    if (!$groupManager->isAdmin($user->getUID())) {
+                        return array_values(array_filter($allApps, static function ($app) {
+                            return ($app['id'] ?? '') === self::APP_ID;
+                        }));
+                    }
+                }
+                return $allApps;
+            });
+
+            // Also provide is_admin state for frontend scripts
+            $initialStateService->provideLazyInitialState(self::APP_ID, 'is_admin', static function () {
+                $container = \OC::$server;
+                $userSession = $container->get(IUserSession::class);
+                $user = $userSession->getUser();
+                if ($user !== null) {
+                    $groupManager = $container->get(IGroupManager::class);
+                    return $groupManager->isAdmin($user->getUID());
+                }
+                return false;
+            });
+        } catch (\Throwable $t) {
+        }
+
         // Connect legacy filesystem hooks for WebDAV early pre-upload and pre-mkdir interception
         Util::connectHook('OC_Filesystem', 'write', self::class, 'preWriteHook');
         Util::connectHook('OC_Filesystem', 'create', self::class, 'preWriteHook');
