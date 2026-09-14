@@ -3,7 +3,7 @@
 Test App Menu and Navigation Isolation:
 Verifies that for every non-admin group (SOC, CERT, Compliance_Unit, etc.),
 only "بایگانی اسناد" (archive_autotag) is displayed in the navigation and app switcher.
-Only users belonging to the admin group are exempt and receive all apps.
+Specifically ensures App store is removed for all non-admin groups and preserved only for admin.
 """
 
 import unittest
@@ -22,8 +22,8 @@ NON_ADMIN_USERS = [
 ]
 
 class TestAppMenuIsolation(unittest.TestCase):
-    def test_01_admin_user_sees_all_apps(self):
-        """Admin user must see all enabled apps in initial-state-core-apps."""
+    def test_01_admin_user_sees_all_apps_and_appstore(self):
+        """Admin user must see all enabled apps in core-apps and App store in settingsNavEntries."""
         session = requests.Session()
         session.auth = (ADMIN_USER, ADMIN_PASS)
         response = session.get(f"{BASE_URL}/")
@@ -31,6 +31,7 @@ class TestAppMenuIsolation(unittest.TestCase):
 
         apps = []
         is_admin = None
+        settings_nav = {}
         for line in response.text.splitlines():
             if 'id="initial-state-core-apps"' in line:
                 val = line.split('value="')[1].split('"')[0]
@@ -38,6 +39,9 @@ class TestAppMenuIsolation(unittest.TestCase):
             if 'id="initial-state-archive_autotag-is_admin"' in line:
                 val = line.split('value="')[1].split('"')[0]
                 is_admin = json.loads(base64.b64decode(val).decode('utf-8'))
+            if 'id="initial-state-core-settingsNavEntries"' in line:
+                val = line.split('value="')[1].split('"')[0]
+                settings_nav = json.loads(base64.b64decode(val).decode('utf-8'))
 
         self.assertTrue(is_admin, "Admin user must have archive_autotag is_admin=True")
         app_ids = [a.get("id") for a in apps]
@@ -48,8 +52,12 @@ class TestAppMenuIsolation(unittest.TestCase):
         self.assertIn("office", app_ids)
         self.assertGreater(len(apps), 1, "Admin user must have multiple apps in core-apps")
 
-    def test_02_non_admin_groups_only_see_archive_portal(self):
-        """Non-admin users from SOC, CERT, Compliance_Unit must ONLY see archive_autotag."""
+        # Admin must have App store (core_apps) in settingsNavEntries
+        self.assertIn("core_apps", settings_nav, "Admin must have core_apps (App store) available")
+        self.assertEqual(settings_nav["core_apps"].get("href"), "/settings/apps")
+
+    def test_02_non_admin_groups_only_see_archive_portal_and_no_appstore(self):
+        """Non-admin users from SOC, CERT, Compliance_Unit must ONLY see archive_autotag and NO App store."""
         for username, password, group in NON_ADMIN_USERS:
             with self.subTest(user=username, group=group):
                 session = requests.Session()
@@ -59,6 +67,7 @@ class TestAppMenuIsolation(unittest.TestCase):
 
                 apps = []
                 is_admin = None
+                settings_nav = {}
                 for line in response.text.splitlines():
                     if 'id="initial-state-core-apps"' in line:
                         val = line.split('value="')[1].split('"')[0]
@@ -66,6 +75,9 @@ class TestAppMenuIsolation(unittest.TestCase):
                     if 'id="initial-state-archive_autotag-is_admin"' in line:
                         val = line.split('value="')[1].split('"')[0]
                         is_admin = json.loads(base64.b64decode(val).decode('utf-8'))
+                    if 'id="initial-state-core-settingsNavEntries"' in line:
+                        val = line.split('value="')[1].split('"')[0]
+                        settings_nav = json.loads(base64.b64decode(val).decode('utf-8'))
 
                 self.assertFalse(is_admin, f"User {username} in group {group} must have is_admin=False")
                 app_ids = [a.get("id") for a in apps]
@@ -76,8 +88,12 @@ class TestAppMenuIsolation(unittest.TestCase):
                 self.assertEqual(apps[0].get("id"), "archive_autotag")
                 self.assertEqual(apps[0].get("name"), "بایگانی اسناد")
 
+                # App store / core_apps must NOT be present in settingsNavEntries for non-admins
+                self.assertNotIn("core_apps", settings_nav, f"App store (core_apps) must NOT be present for {username}")
+                self.assertNotIn("appstore", settings_nav, f"App store must NOT be present for {username}")
+
                 # Forbidden apps must NOT be present
-                for forbidden in ["files", "dashboard", "photos", "activity", "office", "appstore"]:
+                for forbidden in ["files", "dashboard", "photos", "activity", "office", "appstore", "core_apps"]:
                     self.assertNotIn(forbidden, app_ids, f"App {forbidden} must NOT be visible to non-admin {username}")
 
     def test_03_non_admin_direct_files_page_still_isolated(self):

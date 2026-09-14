@@ -95,6 +95,22 @@ class Application extends App implements IBootstrap {
                 return $allApps;
             });
 
+            // Also filter settingsNavEntries to remove core_apps (App store) for non-admin users
+            $initialStateService->provideLazyInitialState('core', 'settingsNavEntries', static function () {
+                $container = \OC::$server;
+                $userSession = $container->get(IUserSession::class);
+                $user = $userSession->getUser();
+                $navigationManager = $container->get(\OCP\INavigationManager::class);
+                $settingsNav = $navigationManager->getAll('settings');
+                if ($user !== null) {
+                    $groupManager = $container->get(IGroupManager::class);
+                    if (!$groupManager->isAdmin($user->getUID())) {
+                        unset($settingsNav['core_apps'], $settingsNav['appstore']);
+                    }
+                }
+                return $settingsNav;
+            });
+
             // Also provide is_admin state for frontend scripts
             $initialStateService->provideLazyInitialState(self::APP_ID, 'is_admin', static function () {
                 $container = \OC::$server;
