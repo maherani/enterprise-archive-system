@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
 	<id>archive_autotag</id>
-	<name>Archive Auto Tagger &amp; Governance</name>
-	<summary>Automatic hierarchical parent folder tagging, per-user upload limit, folder creation restriction, strict document/tag isolation, and dynamic folder-driven tag reconciliation</summary>
-	<description>Automatically tags files with their hierarchical parent folder names as restricted system tags upon upload, updates tags upon folder rename, prunes surplus orphaned tags on folder delete, enforces per-user upload file size limits, restricts folder hierarchy creation to administrators, strictly enforces per-user document and tag visibility isolation, and provides automated tag lifecycle reconciliation.</description>
-	<version>1.5.0</version>
+	<name>سامانه بایگانی اسناد سازمانی</name>
+	<summary>سامانه یکپارچه بایگانی، فیلتر چندتگی اسناد، کنترل دسترسی و سقف آپلود</summary>
+	<description>Automatic hierarchical parent folder tagging, per-user upload limit, folder creation restriction, strict document/tag isolation, dynamic folder-driven tag reconciliation, and modern enterprise archive portal.</description>
+	<version>1.6.0</version>
 	<licence>agpl</licence>
 	<author>Enterprise Archive System</author>
 	<namespace>ArchiveAutoTag</namespace>
@@ -13,6 +13,14 @@
 	<dependencies>
 		<nextcloud min-version="28" max-version="35"/>
 	</dependencies>
+	<navigations>
+		<navigation>
+			<name>بایگانی اسناد</name>
+			<route>archive_autotag.Page.index</route>
+			<icon>archive.svg</icon>
+			<order>1</order>
+		</navigation>
+	</navigations>
 	<commands>
 		<command>OCA\ArchiveAutoTag\Command\RetagAllCommand</command>
 		<command>OCA\ArchiveAutoTag\Command\UserLimitCommand</command>

@@ -319,6 +319,9 @@ python3 tests/test_multi_tag_filter.py
 
 # ۴. آزمون ثبات نشانی مرورگر (Stealth URL Masking) و چند دامنه‌ای (docs.maskan)
 python3 tests/test_url_masking.py
+
+# ۵. آزمون یکپارچگی پورتال مدرن بایگانی اسناد (Enterprise Archive Portal UI/UX)
+python3 tests/test_archive_portal.py
 ```
 
 تمامی آزمون‌ها باید با موفقیت ۱۰۰٪ پاس شوند.

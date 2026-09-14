@@ -99,7 +99,17 @@ class TagFilterController extends Controller {
     }
 
     /**
+     * List all accessible archive files (initial portal load).
+     */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function listAllArchiveFiles(): DataResponse {
+        return $this->filterByTags('all');
+    }
+
+    /**
      * Perform strict multi-tag intersection filtering with ACL enforcement.
+     * Supports ?tags=tag1,tag2 and ?q=searchTerm
      */
     #[NoAdminRequired]
     #[NoCSRFRequired]
@@ -119,25 +129,7 @@ class TagFilterController extends Controller {
             ?? ($_GET['tag_ids'] ?? '')
         ));
 
-        if ($rawInput === '') {
-            return new DataResponse([
-                'status' => 'success',
-                'files' => [],
-                'total' => 0,
-                'selected_tags' => [],
-            ]);
-        }
-
-        // Parse requested tag tokens
-        $tagTokens = array_filter(array_map('trim', explode(',', $rawInput)), fn($t) => $t !== '');
-        if (empty($tagTokens)) {
-            return new DataResponse([
-                'status' => 'success',
-                'files' => [],
-                'total' => 0,
-                'selected_tags' => [],
-            ]);
-        }
+        $q = trim((string)($this->request->getParam('q', '') ?: ($_GET['q'] ?? '')));
 
         // Map names and IDs to tag objects
         $allTags = $this->tagManager->getAllTags(true);
@@ -153,22 +145,28 @@ class TagFilterController extends Controller {
             $tagMapById[$tId] = $t;
         }
 
-        $resolvedTagIds = [];
+        $candidateFileIds = [];
         $selectedTagDetails = [];
 
-        foreach ($tagTokens as $token) {
-            $matchedTag = null;
-            if (is_numeric($token) && isset($tagMapById[(int)$token])) {
-                $matchedTag = $tagMapById[(int)$token];
-            } else {
-                $lower = mb_strtolower($token, 'UTF-8');
-                if (isset($tagMapByName[$lower])) {
-                    $matchedTag = $tagMapByName[$lower];
+        if ($rawInput === '' || $rawInput === 'all') {
+            // Return all files that have at least one visible system tag
+            if (!empty($visibleTagIds)) {
+                $qb = $this->db->getQueryBuilder();
+                $qb->selectDistinct('objectid')
+                   ->from('systemtag_object_mapping')
+                   ->where($qb->expr()->eq('objecttype', $qb->createNamedParameter('files')))
+                   ->andWhere($qb->expr()->in('systemtagid', $qb->createNamedParameter($visibleTagIds, IQueryBuilder::PARAM_INT_ARRAY)))
+                   ->setMaxResults(500);
+
+                $res = $qb->executeQuery();
+                while ($row = $res->fetchAssociative()) {
+                    $candidateFileIds[] = (int)$row['objectid'];
                 }
             }
-
-            if ($matchedTag === null) {
-                // Requested tag does not exist or not visible -> intersection is empty
+        } else {
+            // Parse requested tag tokens
+            $tagTokens = array_filter(array_map('trim', explode(',', $rawInput)), fn($t) => $t !== '');
+            if (empty($tagTokens)) {
                 return new DataResponse([
                     'status' => 'success',
                     'files' => [],
@@ -177,29 +175,50 @@ class TagFilterController extends Controller {
                 ]);
             }
 
-            $id = (int)$matchedTag->getId();
-            if (!in_array($id, $resolvedTagIds, true)) {
-                $resolvedTagIds[] = $id;
-                $selectedTagDetails[] = [
-                    'id' => $id,
-                    'name' => $matchedTag->getName(),
-                ];
+            $resolvedTagIds = [];
+            foreach ($tagTokens as $token) {
+                $matchedTag = null;
+                if (is_numeric($token) && isset($tagMapById[(int)$token])) {
+                    $matchedTag = $tagMapById[(int)$token];
+                } else {
+                    $lower = mb_strtolower($token, 'UTF-8');
+                    if (isset($tagMapByName[$lower])) {
+                        $matchedTag = $tagMapByName[$lower];
+                    }
+                }
+
+                if ($matchedTag === null) {
+                    return new DataResponse([
+                        'status' => 'success',
+                        'files' => [],
+                        'total' => 0,
+                        'selected_tags' => [],
+                    ]);
+                }
+
+                $id = (int)$matchedTag->getId();
+                if (!in_array($id, $resolvedTagIds, true)) {
+                    $resolvedTagIds[] = $id;
+                    $selectedTagDetails[] = [
+                        'id' => $id,
+                        'name' => $matchedTag->getName(),
+                    ];
+                }
             }
-        }
 
-        // Intersect query using HAVING COUNT(DISTINCT systemtagid) = N
-        $qb = $this->db->getQueryBuilder();
-        $qb->select('objectid')
-           ->from('systemtag_object_mapping')
-           ->where($qb->expr()->eq('objecttype', $qb->createNamedParameter('files')))
-           ->andWhere($qb->expr()->in('systemtagid', $qb->createNamedParameter($resolvedTagIds, IQueryBuilder::PARAM_INT_ARRAY)))
-           ->groupBy('objectid')
-           ->having($qb->expr()->eq($qb->createFunction('COUNT(DISTINCT systemtagid)'), $qb->createNamedParameter(count($resolvedTagIds), IQueryBuilder::PARAM_INT)));
+            // Intersect query using HAVING COUNT(DISTINCT systemtagid) = N
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('objectid')
+               ->from('systemtag_object_mapping')
+               ->where($qb->expr()->eq('objecttype', $qb->createNamedParameter('files')))
+               ->andWhere($qb->expr()->in('systemtagid', $qb->createNamedParameter($resolvedTagIds, IQueryBuilder::PARAM_INT_ARRAY)))
+               ->groupBy('objectid')
+               ->having($qb->expr()->eq($qb->createFunction('COUNT(DISTINCT systemtagid)'), $qb->createNamedParameter(count($resolvedTagIds), IQueryBuilder::PARAM_INT)));
 
-        $res = $qb->executeQuery();
-        $candidateFileIds = [];
-        while ($row = $res->fetchAssociative()) {
-            $candidateFileIds[] = (int)$row['objectid'];
+            $res = $qb->executeQuery();
+            while ($row = $res->fetchAssociative()) {
+                $candidateFileIds[] = (int)$row['objectid'];
+            }
         }
 
         if (empty($candidateFileIds)) {
@@ -227,7 +246,6 @@ class TagFilterController extends Controller {
 
             $nodes = $userFolder->getById($fileId);
             if (empty($nodes)) {
-                // User does not have read access to this file
                 continue;
             }
 
@@ -238,6 +256,14 @@ class TagFilterController extends Controller {
             $relPath = $fullPath;
             if (str_starts_with($fullPath, $userFolderPath)) {
                 $relPath = ltrim(substr($fullPath, strlen($userFolderPath)), '/');
+            }
+
+            // Optional keyword search filter across filename and path
+            if ($q !== '') {
+                $nodeName = $node->getName();
+                if (mb_stripos($nodeName, $q) === false && mb_stripos($relPath, $q) === false) {
+                    continue;
+                }
             }
 
             $parentDir = dirname($relPath);
