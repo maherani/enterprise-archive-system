@@ -20,6 +20,7 @@ set +a
 
 : "${POSTGRES_DB:?POSTGRES_DB is not set in .env}"
 : "${POSTGRES_USER:?POSTGRES_USER is not set in .env}"
+: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set in .env}"
 
 TARGET="${1:-$BACKUP_DIR/latest_nextcloud_backup.tar.gz}"
 
@@ -31,6 +32,12 @@ fi
 if ! tar -tzf "$TARGET" >/dev/null 2>&1; then
     echo "[ERROR] Backup archive is invalid or corrupted: $TARGET"
     exit 1
+fi
+
+EXPECTED_SHA_FILE="$TARGET.sha256"
+if [ -f "$EXPECTED_SHA_FILE" ]; then
+    echo "[INFO] Verifying backup checksum..."
+    sha256sum -c "$EXPECTED_SHA_FILE"
 fi
 
 TMP_DIR=$(mktemp -d)
@@ -53,30 +60,27 @@ CONFIG_ARCHIVE="$BACKUP_ROOT/config.tar.gz"
 CUSTOM_APPS_ARCHIVE="$BACKUP_ROOT/custom_apps.tar.gz"
 
 for required in "$DB_DUMP" "$DATA_ARCHIVE" "$CONFIG_ARCHIVE" "$CUSTOM_APPS_ARCHIVE"; do
-    if [ ! -f "$required" ]; then
-        echo "[ERROR] Backup component missing: $required"
+    if [ ! -s "$required" ]; then
+        echo "[ERROR] Backup component missing or empty: $required"
         exit 1
     fi
 done
 
-if ! docker inspect archive_db >/dev/null 2>&1; then
-    echo "[ERROR] Container archive_db does not exist."
-    exit 1
-fi
-
-if ! docker inspect archive_app >/dev/null 2>&1; then
-    echo "[ERROR] Container archive_app does not exist."
-    exit 1
-fi
+for container in archive_db archive_app; do
+    if ! docker inspect "$container" >/dev/null 2>&1; then
+        echo "[ERROR] Container $container does not exist."
+        exit 1
+    fi
+done
 
 echo "[WARNING] This will replace the current Nextcloud database, data, config, and custom apps."
 echo "[INFO] Backup source: $TARGET"
 echo "[INFO] Database: $POSTGRES_DB (owner: $POSTGRES_USER)"
 
-# Stop web-facing services before replacing state.
+# Stop application/proxy so no application process can write during restore.
 docker compose -f "$PROJECT_DIR/docker-compose.yml" stop app proxy >/dev/null
 
-# Ensure PostgreSQL is running for administrative operations.
+# Keep PostgreSQL running for database administration.
 docker compose -f "$PROJECT_DIR/docker-compose.yml" up -d db >/dev/null
 
 # Wait for PostgreSQL readiness.
@@ -105,49 +109,52 @@ docker exec archive_db psql -U "$POSTGRES_USER" -d postgres \
 echo "[INFO] Importing database dump..."
 docker exec -i archive_db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" < "$DB_DUMP"
 
-# Restore the file-backed state into the bind-mounted Nextcloud directory.
-NEXTCLOUD_DIR="$PROJECT_DIR/nextcloud"
-mkdir -p "$NEXTCLOUD_DIR"
-
-# Keep the current directory itself, replace only backed-up subtrees.
-rm -rf "$NEXTCLOUD_DIR/data" "$NEXTCLOUD_DIR/config" "$NEXTCLOUD_DIR/custom_apps"
-mkdir -p "$NEXTCLOUD_DIR"
+# Use a temporary Compose container with the same bind mount to manipulate
+# protected Nextcloud paths while archive_app itself is stopped.
+echo "[INFO] Replacing file-backed Nextcloud state..."
+docker compose -f "$PROJECT_DIR/docker-compose.yml" run --rm --no-deps --entrypoint sh app -c \
+    'rm -rf /var/www/html/data /var/www/html/config /var/www/html/custom_apps && mkdir -p /var/www/html/data /var/www/html/config /var/www/html/custom_apps' >/dev/null
 
 echo "[INFO] Restoring Nextcloud data..."
-tar -xzf "$DATA_ARCHIVE" -C "$NEXTCLOUD_DIR"
+docker compose -f "$PROJECT_DIR/docker-compose.yml" run --rm --no-deps -T --entrypoint tar app \
+    -xzf - -C /var/www/html < "$DATA_ARCHIVE"
 
 echo "[INFO] Restoring Nextcloud config..."
-tar -xzf "$CONFIG_ARCHIVE" -C "$NEXTCLOUD_DIR"
+docker compose -f "$PROJECT_DIR/docker-compose.yml" run --rm --no-deps -T --entrypoint tar app \
+    -xzf - -C /var/www/html < "$CONFIG_ARCHIVE"
 
 echo "[INFO] Restoring custom apps..."
-tar -xzf "$CUSTOM_APPS_ARCHIVE" -C "$NEXTCLOUD_DIR"
+docker compose -f "$PROJECT_DIR/docker-compose.yml" run --rm --no-deps -T --entrypoint tar app \
+    -xzf - -C /var/www/html < "$CUSTOM_APPS_ARCHIVE"
 
-# The project .env is authoritative for the database connection.
-if [ -f "$NEXTCLOUD_DIR/config/config.php" ]; then
-    echo "[INFO] Re-applying current .env database connection to config.php..."
-    docker compose -f "$PROJECT_DIR/docker-compose.yml" up -d app >/dev/null
-    docker exec -u www-data archive_app php occ config:system:set dbtype --value="pgsql"
-    docker exec -u www-data archive_app php occ config:system:set dbhost --value="db"
-    docker exec -u www-data archive_app php occ config:system:set dbname --value="$POSTGRES_DB"
-    docker exec -u www-data archive_app php occ config:system:set dbuser --value="$POSTGRES_USER"
-    docker exec -u www-data archive_app php occ config:system:set dbpassword --value="${POSTGRES_PASSWORD:-}"
-else
-    echo "[ERROR] Restored config.php is missing."
+if ! docker compose -f "$PROJECT_DIR/docker-compose.yml" run --rm --no-deps --entrypoint sh app -c \
+    'test -f /var/www/html/config/config.php && test -d /var/www/html/data && test -d /var/www/html/custom_apps'; then
+    echo "[ERROR] Restored Nextcloud filesystem state is incomplete."
     exit 1
 fi
 
-# Repair ownership for the bind-mounted tree.
+# Start the application against the restored database/filesystem.
+docker compose -f "$PROJECT_DIR/docker-compose.yml" up -d app >/dev/null
+
+# Ensure file ownership is compatible with Nextcloud.
 docker exec archive_app chown -R www-data:www-data /var/www/html/data /var/www/html/config /var/www/html/custom_apps
+
+# Re-apply the current environment's database connection explicitly so the
+# deployment remains aligned with .env even when config.php came from backup.
+docker exec -u www-data archive_app php occ config:system:set dbtype --value="pgsql"
+docker exec -u www-data archive_app php occ config:system:set dbhost --value="db"
+docker exec -u www-data archive_app php occ config:system:set dbname --value="$POSTGRES_DB"
+docker exec -u www-data archive_app php occ config:system:set dbuser --value="$POSTGRES_USER"
+docker exec -u www-data archive_app php occ config:system:set dbpassword --value="$POSTGRES_PASSWORD"
 
 # Clear stale file locks if the table exists.
 docker exec archive_db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
     -c "DO \$\$ BEGIN IF to_regclass('oc_file_locks') IS NOT NULL THEN TRUNCATE TABLE oc_file_locks; END IF; END \$\$;" >/dev/null
 
 echo "[INFO] Rebuilding file cache from restored storage..."
-docker exec -u www-data archive_app php occ maintenance:mode --off >/dev/null 2>&1 || true
 docker exec -u www-data archive_app php occ files:scan --all
 
-# Bring proxy back after application verification.
+# Bring proxy back only after the application and file scan succeed.
 docker compose -f "$PROJECT_DIR/docker-compose.yml" up -d proxy >/dev/null
 
 echo "[SUCCESS] Full Nextcloud backup successfully restored from $TARGET"
