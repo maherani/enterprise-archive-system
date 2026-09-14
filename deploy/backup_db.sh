@@ -11,7 +11,8 @@ if [ ! -f "$ENV_FILE" ]; then
     exit 1
 fi
 
-# Load project environment. Values containing spaces must be quoted in .env.
+# Load project environment. Values with spaces (for example trusted domains)
+# must be quoted in .env.
 set -a
 # shellcheck disable=SC1090
 source "$ENV_FILE"
@@ -45,9 +46,11 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 WORK_DIR="$BACKUP_DIR/.full_backup_$TIMESTAMP"
 BACKUP_FILE="$BACKUP_DIR/nextcloud_full_backup_$TIMESTAMP.tar.gz"
 LATEST_FILE="$BACKUP_DIR/latest_nextcloud_backup.tar.gz"
+LISTING_FILE="$WORK_DIR.archive_listing.txt"
 
 cleanup() {
     rm -rf "$WORK_DIR"
+    rm -f "$LISTING_FILE"
 }
 trap cleanup EXIT
 
@@ -88,10 +91,12 @@ EOF
 tar -C "$BACKUP_DIR" -czf "$BACKUP_FILE" "$(basename "$WORK_DIR")"
 cp "$BACKUP_FILE" "$LATEST_FILE"
 
-# Verify archive readability and presence of all components.
-tar -tzf "$BACKUP_FILE" >/dev/null
+# Verify archive readability and presence of all components. Keep the tar
+# listing in a file instead of piping tar into grep -q, which can trigger a
+# false failure under `set -o pipefail` when grep exits early.
+tar -tzf "$BACKUP_FILE" > "$LISTING_FILE"
 for component in database.sql data.tar.gz config.tar.gz custom_apps.tar.gz manifest.txt; do
-    if ! tar -tzf "$BACKUP_FILE" | grep -q "/$component$"; then
+    if ! grep -Fq "/$component" "$LISTING_FILE"; then
         echo "[ERROR] Backup verification failed; missing component: $component"
         exit 1
     fi
