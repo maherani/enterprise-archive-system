@@ -73,7 +73,6 @@ for container in archive_db archive_app; do
     if ! docker inspect "$container" >/dev/null 2>&1; then
         echo "[ERROR] Container $container does not exist."
         exit 1
-    fi
 done
 
 echo "[WARNING] This will replace the current Nextcloud database, data, config, and custom apps."
@@ -113,9 +112,8 @@ docker exec archive_db psql -U "$POSTGRES_USER" -d postgres \
 # without a password. Explicitly synchronize the role password before starting
 # Nextcloud so TCP authentication matches the current .env configuration.
 echo "[INFO] Synchronizing PostgreSQL role password with .env..."
-docker exec -i archive_db psql -U "$POSTGRES_USER" -d postgres \
-    -v password="$POSTGRES_PASSWORD" <<'SQL' >/dev/null
-SELECT format('ALTER ROLE %I PASSWORD %L', current_user, :'password') \gexec
+docker exec archive_db psql -U "$POSTGRES_USER" -d postgres <<SQL
+ALTER ROLE "$POSTGRES_USER" PASSWORD '$POSTGRES_PASSWORD';
 SQL
 
 echo "[INFO] Importing database dump..."
@@ -152,7 +150,7 @@ docker compose -f "$PROJECT_DIR/docker-compose.yml" up -d app >/dev/null
 docker exec archive_app chown -R www-data:www-data /var/www/html/data /var/www/html/config /var/www/html/custom_apps
 
 # Re-apply the current environment's database connection explicitly so the
-deployment remains aligned with .env. The PostgreSQL Role password has
+after_comment_fix='deployment remains aligned with .env. The PostgreSQL role password has'
 # already been synchronized, so occ can connect successfully now.
 docker exec -u www-data archive_app php occ config:system:set dbtype --value="pgsql"
 docker exec -u www-data archive_app php occ config:system:set dbhost --value="db"
