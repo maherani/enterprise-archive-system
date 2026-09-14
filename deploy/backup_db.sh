@@ -21,19 +21,9 @@ set +a
 : "${POSTGRES_USER:?POSTGRES_USER is not set in .env}"
 : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set in .env}"
 
-if ! docker inspect archive_db >/dev/null 2>&1; then
-    echo "[ERROR] Container archive_db does not exist."
-    exit 1
-fi
-if ! docker inspect archive_app >/dev/null 2>&1; then
-    echo "[ERROR] Container archive_app does not exist."
-    exit 1
-fi
-
-NEXTCLOUD_DIR="$PROJECT_DIR/nextcloud"
-for required_dir in "$NEXTCLOUD_DIR/data" "$NEXTCLOUD_DIR/config" "$NEXTCLOUD_DIR/custom_apps"; do
-    if [ ! -d "$required_dir" ]; then
-        echo "[ERROR] Required Nextcloud directory not found: $required_dir"
+for container in archive_db archive_app; do
+    if ! docker inspect "$container" >/dev/null 2>&1; then
+        echo "[ERROR] Container $container does not exist."
         exit 1
     fi
 done
@@ -42,6 +32,13 @@ if ! docker exec archive_db pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/d
     echo "[ERROR] PostgreSQL is not ready using POSTGRES_USER/POSTGRES_DB from .env."
     exit 1
 fi
+
+for required_dir in data config custom_apps; do
+    if ! docker exec archive_app test -d "/var/www/html/$required_dir"; then
+        echo "[ERROR] Nextcloud directory is not available inside archive_app: $required_dir"
+        exit 1
+    fi
+done
 
 mkdir -p "$BACKUP_DIR"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
@@ -65,11 +62,19 @@ if [ ! -s "$WORK_DIR/database.sql" ]; then
 fi
 
 echo "[INFO] Archiving Nextcloud data, config, and custom apps..."
-tar -C "$NEXTCLOUD_DIR" -czf "$WORK_DIR/data.tar.gz" data
+# The bind-mounted Nextcloud directories are not necessarily readable by the
+# host user. Read them through archive_app as root and stream the archives back
+# to the host without changing their on-disk permissions.
+docker exec archive_app tar -C /var/www/html -czf - data > "$WORK_DIR/data.tar.gz"
+docker exec archive_app tar -C /var/www/html -czf - config > "$WORK_DIR/config.tar.gz"
+docker exec archive_app tar -C /var/www/html -czf - custom_apps > "$WORK_DIR/custom_apps.tar.gz"
 
-tar -C "$NEXTCLOUD_DIR" -czf "$WORK_DIR/config.tar.gz" config
-
-tar -C "$NEXTCLOUD_DIR" -czf "$WORK_DIR/custom_apps.tar.gz" custom_apps
+for component in database.sql data.tar.gz config.tar.gz custom_apps.tar.gz; do
+    if [ ! -s "$WORK_DIR/$component" ]; then
+        echo "[ERROR] Backup component is empty: $component"
+        exit 1
+    fi
+done
 
 cat > "$WORK_DIR/manifest.txt" <<EOF
 backup_type=full_nextcloud
