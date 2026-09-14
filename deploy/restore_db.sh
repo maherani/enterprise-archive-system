@@ -113,9 +113,10 @@ docker exec archive_db psql -U "$POSTGRES_USER" -d postgres \
 # without a password. Explicitly synchronize the role password before starting
 # Nextcloud so TCP authentication matches the current .env configuration.
 echo "[INFO] Synchronizing PostgreSQL role password with .env..."
-docker exec archive_db psql -U "$POSTGRES_USER" -d postgres \
-    -v role="$POSTGRES_USER" -v password="$POSTGRES_PASSWORD" \
-    -c 'SELECT format('"'"'ALTER ROLE %I PASSWORD %L'"'"', :'role', :'password') \gexec' >/dev/null
+docker exec -i archive_db psql -U "$POSTGRES_USER" -d postgres \
+    -v password="$POSTGRES_PASSWORD" <<'SQL' >/dev/null
+SELECT format('ALTER ROLE %I PASSWORD %L', current_user, :'password') \gexec
+SQL
 
 echo "[INFO] Importing database dump..."
 docker exec -i archive_db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" < "$DB_DUMP"
@@ -151,7 +152,7 @@ docker compose -f "$PROJECT_DIR/docker-compose.yml" up -d app >/dev/null
 docker exec archive_app chown -R www-data:www-data /var/www/html/data /var/www/html/config /var/www/html/custom_apps
 
 # Re-apply the current environment's database connection explicitly so the
-# deployment remains aligned with .env. The PostgreSQL Role password has
+deployment remains aligned with .env. The PostgreSQL Role password has
 # already been synchronized, so occ can connect successfully now.
 docker exec -u www-data archive_app php occ config:system:set dbtype --value="pgsql"
 docker exec -u www-data archive_app php occ config:system:set dbhost --value="db"
