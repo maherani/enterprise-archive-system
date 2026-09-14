@@ -148,33 +148,48 @@ fi
 # can connect to the restored database using the current .env credentials.
 echo "[INFO] Aligning restored Nextcloud database config with .env..."
 DB_PASSWORD_B64="$(printf '%s' "$POSTGRES_PASSWORD" | base64 -w 0)"
-docker compose -f "$PROJECT_DIR/docker-compose.yml" run --rm --no-deps \
+
+docker exec -i \
     -e "RESTORE_DB_PASSWORD_B64=$DB_PASSWORD_B64" \
-    --entrypoint php app -r '
-        $path = "/var/www/html/config/config.php";
-        $content = file_get_contents($path);
-        if ($content === false) {
-            fwrite(STDERR, "Unable to read config.php\n");
-            exit(1);
-        }
-        $password = base64_decode(getenv("RESTORE_DB_PASSWORD_B64"), true);
-        if ($password === false) {
-            fwrite(STDERR, "Unable to decode database password\n");
-            exit(1);
-        }
-        $pattern = "/('dbpassword'\\s*=>\\s*')(?:\\\\.|[^'\\\\])*(')/";
-        $updated = preg_replace_callback($pattern, function ($matches) use ($password) {
-            return $matches[1] . $password . $matches[2];
-        }, $content, 1, $count);
-        if ($updated === null || $count !== 1) {
-            fwrite(STDERR, "Unable to update dbpassword in config.php\n");
-            exit(1);
-        }
-        if (file_put_contents($path, $updated) === false) {
-            fwrite(STDERR, "Unable to write config.php\n");
-            exit(1);
-        }
-    '
+    archive_app php <<'PHP'
+<?php
+$path = "/var/www/html/config/config.php";
+
+$content = file_get_contents($path);
+if ($content === false) {
+    fwrite(STDERR, "Unable to read config.php\n");
+    exit(1);
+}
+
+$password = base64_decode(getenv("RESTORE_DB_PASSWORD_B64"), true);
+if ($password === false) {
+    fwrite(STDERR, "Unable to decode database password\n");
+    exit(1);
+}
+
+$pattern = "/^(\\s*'dbpassword'\\s*=>\\s*')[^']*(',?\\s*)$/m";
+
+$updated = preg_replace_callback(
+    $pattern,
+    static function (array $m) use ($password): string {
+        return $m[1] . addcslashes($password, "\\'") . $m[2];
+    },
+    $content,
+    1,
+    $count
+);
+
+if ($updated === null || $count !== 1) {
+    fwrite(STDERR, "Unable to update dbpassword in config.php\n");
+    exit(1);
+}
+
+if (file_put_contents($path, $updated) === false) {
+    fwrite(STDERR, "Unable to write config.php\n");
+    exit(1);
+}
+PHP
+
 unset DB_PASSWORD_B64
 
 # Start the application against the restored database/filesystem.
