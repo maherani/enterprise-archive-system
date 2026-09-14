@@ -1,56 +1,153 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ENV_FILE="$PROJECT_DIR/.env"
 BACKUP_DIR="$SCRIPT_DIR/backups"
-TARGET_FILE="${1:-$BACKUP_DIR/latest_db_backup.sql}"
 
 if [ ! -f "$ENV_FILE" ]; then
-    echo "[ERROR] Environment file not found: $ENV_FILE"
+    echo "[ERROR] .env not found: $ENV_FILE"
     exit 1
 fi
 
-# Load project database configuration used by docker-compose.yml.
+# Load project environment. Values with spaces (for example trusted domains)
+# must be quoted in .env.
 set -a
-# shellcheck disable=SC1091
+# shellcheck disable=SC1090
 source "$ENV_FILE"
 set +a
 
 : "${POSTGRES_DB:?POSTGRES_DB is not set in .env}"
 : "${POSTGRES_USER:?POSTGRES_USER is not set in .env}"
 
-if [ ! -f "$TARGET_FILE" ]; then
-    echo "[ERROR] Backup file not found: $TARGET_FILE"
+TARGET="${1:-$BACKUP_DIR/latest_nextcloud_backup.tar.gz}"
+
+if [ ! -f "$TARGET" ]; then
+    echo "[ERROR] Full backup not found: $TARGET"
     exit 1
 fi
 
-if ! docker inspect -f '{{.State.Running}}' archive_db 2>/dev/null | grep -q '^true$'; then
-    echo "[ERROR] Container archive_db is not running."
+if ! tar -tzf "$TARGET" >/dev/null 2>&1; then
+    echo "[ERROR] Backup archive is invalid or corrupted: $TARGET"
     exit 1
 fi
 
-echo "[WARNING] Restoring database '$POSTGRES_DB' from $TARGET_FILE..."
-echo "[INFO] Database role: $POSTGRES_USER"
-echo "[INFO] Terminating active PostgreSQL connections..."
-docker exec -i archive_db psql -U "$POSTGRES_USER" -d postgres \
-    -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$POSTGRES_DB' AND pid <> pg_backend_pid();"
+TMP_DIR=$(mktemp -d)
+cleanup() {
+    rm -rf "$TMP_DIR"
+}
+trap cleanup EXIT
+
+tar -xzf "$TARGET" -C "$TMP_DIR"
+
+BACKUP_ROOT=$(find "$TMP_DIR" -mindepth 1 -maxdepth 1 -type d -print -quit)
+if [ -z "${BACKUP_ROOT:-}" ]; then
+    echo "[ERROR] Backup archive has no root directory."
+    exit 1
+fi
+
+DB_DUMP="$BACKUP_ROOT/database.sql"
+DATA_ARCHIVE="$BACKUP_ROOT/data.tar.gz"
+CONFIG_ARCHIVE="$BACKUP_ROOT/config.tar.gz"
+CUSTOM_APPS_ARCHIVE="$BACKUP_ROOT/custom_apps.tar.gz"
+
+for required in "$DB_DUMP" "$DATA_ARCHIVE" "$CONFIG_ARCHIVE" "$CUSTOM_APPS_ARCHIVE"; do
+    if [ ! -f "$required" ]; then
+        echo "[ERROR] Backup component missing: $required"
+        exit 1
+    fi
+done
+
+if ! docker inspect archive_db >/dev/null 2>&1; then
+    echo "[ERROR] Container archive_db does not exist."
+    exit 1
+fi
+
+if ! docker inspect archive_app >/dev/null 2>&1; then
+    echo "[ERROR] Container archive_app does not exist."
+    exit 1
+fi
+
+echo "[WARNING] This will replace the current Nextcloud database, data, config, and custom apps."
+echo "[INFO] Backup source: $TARGET"
+echo "[INFO] Database: $POSTGRES_DB (owner: $POSTGRES_USER)"
+
+# Stop web-facing services before replacing state.
+docker compose -f "$PROJECT_DIR/docker-compose.yml" stop app proxy >/dev/null
+
+# Ensure PostgreSQL is running for administrative operations.
+docker compose -f "$PROJECT_DIR/docker-compose.yml" up -d db >/dev/null
+
+# Wait for PostgreSQL readiness.
+for _ in $(seq 1 30); do
+    if docker exec archive_db pg_isready -U "$POSTGRES_USER" -d postgres >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
+
+if ! docker exec archive_db pg_isready -U "$POSTGRES_USER" -d postgres >/dev/null 2>&1; then
+    echo "[ERROR] PostgreSQL did not become ready."
+    exit 1
+fi
+
+echo "[INFO] Terminating active database connections..."
+docker exec archive_db psql -U "$POSTGRES_USER" -d postgres \
+    -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$POSTGRES_DB' AND pid <> pg_backend_pid();" >/dev/null
 
 echo "[INFO] Dropping and recreating database '$POSTGRES_DB'..."
-docker exec -i archive_db psql -U "$POSTGRES_USER" -d postgres \
+docker exec archive_db psql -U "$POSTGRES_USER" -d postgres \
     -c "DROP DATABASE IF EXISTS \"$POSTGRES_DB\";"
-docker exec -i archive_db psql -U "$POSTGRES_USER" -d postgres \
+docker exec archive_db psql -U "$POSTGRES_USER" -d postgres \
     -c "CREATE DATABASE \"$POSTGRES_DB\" OWNER \"$POSTGRES_USER\";"
 
-echo "[INFO] Importing SQL dump..."
-docker exec -i archive_db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" < "$TARGET_FILE"
+echo "[INFO] Importing database dump..."
+docker exec -i archive_db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" < "$DB_DUMP"
 
-echo "[INFO] Clearing file locks..."
+# Restore the file-backed state into the bind-mounted Nextcloud directory.
+NEXTCLOUD_DIR="$PROJECT_DIR/nextcloud"
+mkdir -p "$NEXTCLOUD_DIR"
+
+# Keep the current directory itself, replace only backed-up subtrees.
+rm -rf "$NEXTCLOUD_DIR/data" "$NEXTCLOUD_DIR/config" "$NEXTCLOUD_DIR/custom_apps"
+mkdir -p "$NEXTCLOUD_DIR"
+
+echo "[INFO] Restoring Nextcloud data..."
+tar -xzf "$DATA_ARCHIVE" -C "$NEXTCLOUD_DIR"
+
+echo "[INFO] Restoring Nextcloud config..."
+tar -xzf "$CONFIG_ARCHIVE" -C "$NEXTCLOUD_DIR"
+
+echo "[INFO] Restoring custom apps..."
+tar -xzf "$CUSTOM_APPS_ARCHIVE" -C "$NEXTCLOUD_DIR"
+
+# The project .env is authoritative for the database connection.
+if [ -f "$NEXTCLOUD_DIR/config/config.php" ]; then
+    echo "[INFO] Re-applying current .env database connection to config.php..."
+    docker compose -f "$PROJECT_DIR/docker-compose.yml" up -d app >/dev/null
+    docker exec -u www-data archive_app php occ config:system:set dbtype --value="pgsql"
+    docker exec -u www-data archive_app php occ config:system:set dbhost --value="db"
+    docker exec -u www-data archive_app php occ config:system:set dbname --value="$POSTGRES_DB"
+    docker exec -u www-data archive_app php occ config:system:set dbuser --value="$POSTGRES_USER"
+    docker exec -u www-data archive_app php occ config:system:set dbpassword --value="${POSTGRES_PASSWORD:-}"
+else
+    echo "[ERROR] Restored config.php is missing."
+    exit 1
+fi
+
+# Repair ownership for the bind-mounted tree.
+docker exec archive_app chown -R www-data:www-data /var/www/html/data /var/www/html/config /var/www/html/custom_apps
+
+# Clear stale file locks if the table exists.
 docker exec archive_db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
-    -c "TRUNCATE oc_file_locks;"
+    -c "DO \$\$ BEGIN IF to_regclass('oc_file_locks') IS NOT NULL THEN TRUNCATE TABLE oc_file_locks; END IF; END \$\$;" >/dev/null
 
-echo "[INFO] Scanning Nextcloud files..."
+echo "[INFO] Rebuilding file cache from restored storage..."
+docker exec -u www-data archive_app php occ maintenance:mode --off >/dev/null 2>&1 || true
 docker exec -u www-data archive_app php occ files:scan --all
 
-echo "[SUCCESS] Database successfully restored from $TARGET_FILE"
+# Bring proxy back after application verification.
+docker compose -f "$PROJECT_DIR/docker-compose.yml" up -d proxy >/dev/null
+
+echo "[SUCCESS] Full Nextcloud backup successfully restored from $TARGET"
