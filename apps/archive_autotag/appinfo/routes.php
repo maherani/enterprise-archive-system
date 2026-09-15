@@ -16,6 +16,12 @@ return [
         ['name' => 'FolderRequest#auditTrail', 'url' => '/api/folder-requests/{id}/audit', 'verb' => 'GET'],
         ['name' => 'FolderRequest#approve', 'url' => '/api/folder-requests/{id}/approve', 'verb' => 'POST'],
         ['name' => 'FolderRequest#reject', 'url' => '/api/folder-requests/{id}/reject', 'verb' => 'POST'],
+
+        // Secure AI File Retrieval API & Swagger UI
+        ['name' => 'AiFile#getFile', 'url' => '/api/v1/ai/files/{fileId}', 'verb' => 'GET'],
+        ['name' => 'AiFile#getMetadata', 'url' => '/api/v1/ai/files/{fileId}/metadata', 'verb' => 'GET'],
+        ['name' => 'AiFile#openapiSpec', 'url' => '/api/openapi.json', 'verb' => 'GET'],
+        ['name' => 'AiFile#swaggerUi', 'url' => '/api/docs', 'verb' => 'GET'],
     ],
     'ocs' => [
         ['name' => 'TagFilter#listVisibleTags', 'url' => '/api/tags', 'verb' => 'GET'],
@@ -30,5 +36,11 @@ return [
         ['name' => 'FolderRequest#auditTrail', 'url' => '/api/folder-requests/{id}/audit', 'verb' => 'GET'],
         ['name' => 'FolderRequest#approve', 'url' => '/api/folder-requests/{id}/approve', 'verb' => 'POST'],
         ['name' => 'FolderRequest#reject', 'url' => '/api/folder-requests/{id}/reject', 'verb' => 'POST'],
+
+        // Secure AI File Retrieval API & Swagger UI
+        ['name' => 'AiFile#getFile', 'url' => '/api/v1/ai/files/{fileId}', 'verb' => 'GET'],
+        ['name' => 'AiFile#getMetadata', 'url' => '/api/v1/ai/files/{fileId}/metadata', 'verb' => 'GET'],
+        ['name' => 'AiFile#openapiSpec', 'url' => '/api/openapi.json', 'verb' => 'GET'],
+        ['name' => 'AiFile#swaggerUi', 'url' => '/api/docs', 'verb' => 'GET'],
     ],
 ];

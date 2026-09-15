@@ -19,7 +19,7 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
                     ?   archive_app    ?  (Nextcloud 34 Apache)
                     ?   (Internal:80)  ?  - WebDAV Endpoint: /remote.php/dav/files/
                     ????????????????????  - LDAP & Token Authentication
-                             ?            - Custom App: archive_autotag v1.9.6
+                             ?            - Custom App: archive_autotag v2.0.0
                              ?            - Dynamic Hierarchical Auto-Tagging
                              ?            - Native Multi-Tag Intersection Search (AND)
                              ?            - Granular Per-User File Upload Size Limit
@@ -87,7 +87,7 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
     - Full-width canvas guarantee, instant debounce search, multi-tag faceted chips, and view switching (Card Grid vs. Table List).
     - Dynamic responsive push workspace (Accordion sliding): Opening the right-docked quick-view drawer smoothly compresses the document workspace to the left, guaranteeing that menus never obstruct files or cards.
     - Comprehensive dark theme applied globally to the Top Navigation Header, Files App, and Login page.
-14. **Delegated Folder Creation Workflow & Multi-Tier Governance (`archive_autotag v1.9.6`)**:
+14. **Delegated Folder Creation Workflow & Multi-Tier Governance (`archive_autotag v2.0.0`)**:
     - Regular users are strictly prohibited from creating folders or submitting folder creation requests (`HTTP 403 Forbidden`).
     - Group Administrators (Subadmins) possess dedicated portal controls (`[ + درخواست پوشه جدید ]` and `[ درخواست‌های گروه ]`) to submit folder requests within their departmental archive scope.
     - System Administrators have centralized oversight via `[ مدیریت درخواست‌های پوشه ]` with real-time pending badge counter, multi-criteria filtering, and one-click atomic approval / reasoned rejection.
@@ -225,3 +225,10 @@ Automated operations scripts are available in `deploy/`:
 - **System Health & Integrity Check**: `./deploy/check_health.sh`
 - **Batch Group Quota Provisioning**: `./deploy/set-group-quota.sh <group> <quota>`
 - **User Role Audit & Remediation**: `./deploy/audit_user_roles.sh`
+13. **Secure AI File Retrieval API & Air-Gapped Swagger UI (`archive_autotag v2.0.0`)**:
+    - High-throughput, memory-constant ($O(1)$ RAM) binary file streaming API (`GET /api/v1/ai/files/{fileId}`) designed for on-premise AI assistants and RAG pipelines.
+    - Dual-mode authentication: HTTP Basic Auth (user credentials) and Dedicated AI Machine Bearer Token (`Authorization: Bearer <token>`) with optional dynamic delegation (`X-On-Behalf-Of: <user_uid>`).
+    - Strict enforcement of the enterprise Archive ACL via `FileOwnershipService` preventing cross-department access and IDOR attacks.
+    - 100% self-hosted, air-gapped Swagger UI (`/api/docs`) and OpenAPI 3.0.3 specification (`/api/openapi.json`) without any external CDN dependencies.
+    - Immutable audit trail recorded in PostgreSQL table `oc_archive_ai_audit` with correlation IDs (`X-Request-ID`), actor UID, client ID, auth type, byte count, and outcome.
+
