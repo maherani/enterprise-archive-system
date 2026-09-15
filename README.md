@@ -105,6 +105,7 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
 - **Step 11 ? Bare-Metal Deployment Automation**: `deploy/deploy_from_scratch.sh`, `.env.example`, and updated runbook.
 - **Step 12 ? Per-User File Access Control & Tag Isolation (v1.4.0)**: Zero-data-leak file and tag isolation, admin grant workflows, and automated E2E test suite `tests/test_archive_acl_and_tag_isolation.py` (100% pass rate).
 - **Step 13 ? Enterprise Archive Portal UI/UX & Obsidian-Orange Design System (v1.7.1)**: Modern enterprise dashboard, dynamic sliding push workspace, global Obsidian-Orange theme, cache busting, and automated test suite `tests/test_archive_portal.py` (100% pass rate).
+- **Step 14 — Delegated Folder Creation Workflow & Multi-Tier Governance (v1.8.0)**: Departmental folder requests for group subadmins, centralized admin review panel, atomic folder and group tag provisioning, reasoned rejection audit, and automated test suite `tests/test_folder_request_workflow.py` (100% pass rate).
 
 See [PROJECT_STATE.md](PROJECT_STATE.md) and [docs/DEPLOYMENT_RUNBOOK.md](docs/DEPLOYMENT_RUNBOOK.md) for full operational guides and architectural records.
 
