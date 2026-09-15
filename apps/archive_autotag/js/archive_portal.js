@@ -934,8 +934,11 @@
             '      <div class="ea-form-help">از کاراکترهای مجاز استفاده فرمایید؛ تگ متناظر با همین نام خودکار ساخته خواهد شد.</div>',
             '    </div>',
             '    <div class="ea-form-group">',
-            '      <label class="ea-form-label">مسیر والد در آرشیو (اختیاری):</label>',
-            '      <input type="text" id="ea-form-target-path" class="ea-form-input" placeholder="مثال: افتا (در صورت خالی بودن، در ریشه گروه ایجاد می‌شود)">',
+            '      <label class="ea-form-label">مسیر والد در آرشیو (پوشه والد):</label>',
+            '      <select id="ea-form-target-path" class="ea-form-select">',
+            '        <option value="">⏳ در حال دریافت پوشه‌های گروه...</option>',
+            '      </select>',
+            '      <div class="ea-form-help">پوشه‌ای که مایلید پوشه جدید داخل آن قرار گیرد را انتخاب نمایید (جهت ساخت مستقیم در سطح اصلی، «ریشه گروه» را انتخاب فرمایید).</div>',
             '    </div>',
             '    <div class="ea-form-group">',
             '      <label class="ea-form-label">توضیحات و ضرورت اداری (اجباری):</label>',
@@ -958,6 +961,41 @@
         overlay.onclick = function (e) {
             if (e.target === overlay) closeModal();
         };
+
+        var groupSelect = document.getElementById('ea-form-group-id');
+        var pathSelect = document.getElementById('ea-form-target-path');
+
+        function loadParentFolders(groupId) {
+            if (!pathSelect) return;
+            pathSelect.disabled = true;
+            pathSelect.innerHTML = '<option value="">⏳ در حال دریافت پوشه‌های گروه ' + escapeHtml(groupId) + '...</option>';
+
+            fetch('/index.php/apps/archive_autotag/api/group-folders?group_id=' + encodeURIComponent(groupId), {
+                headers: { 'Accept': 'application/json' }
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                pathSelect.disabled = false;
+                if (data && data.status === 'success' && Array.isArray(data.folders) && data.folders.length > 0) {
+                    pathSelect.innerHTML = data.folders.map(function (f) {
+                        return '<option value="' + escapeHtml(f.path) + '">' + escapeHtml(f.display || (f.path ? '📁 ' + f.path : '📁 ریشه گروه (اصلی)')) + '</option>';
+                    }).join('');
+                } else {
+                    pathSelect.innerHTML = '<option value="">📁 ریشه گروه (اصلی)</option>';
+                }
+            })
+            .catch(function () {
+                pathSelect.disabled = false;
+                pathSelect.innerHTML = '<option value="">📁 ریشه گروه (اصلی)</option>';
+            });
+        }
+
+        if (groupSelect) {
+            groupSelect.onchange = function () {
+                loadParentFolders(groupSelect.value);
+            };
+            loadParentFolders(groupSelect.value);
+        }
 
         var submitBtn = document.getElementById('ea-form-submit-btn');
         submitBtn.onclick = function () {

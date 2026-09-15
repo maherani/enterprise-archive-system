@@ -357,6 +357,29 @@ Status: **Completed**
 Status: **Completed**
 
 ---
+
+### Step 14.3 — Dynamic Parent Folder Tree & Group Archive Hierarchy Dropdown (v1.9.2)
+- **Problem & Requirements:**
+  1. Previously, in the folder creation request modal (`درخواست ایجاد پوشه جدید در آرشیو`), the parent path (`مسیر والد در آرشیو`) was a free-text input where group admins had to manually type paths (e.g. `افتا`), risking syntax errors and path mismatches.
+  2. The user required that the parent path field be automatically and dynamically populated from the real-time directory tree of the requesting group, allowing the group admin to pick the target parent folder from a clean dropdown list (`<select>`).
+- **Implementation & Architecture:**
+  - **Backend Service (`FolderRequestService::getGroupFolders`):**
+    - Recursively scans the group's physical archive root (`Enterprise_Archive/<groupId>/`) using `IRootFolder` and `Folder::getDirectoryListing()`.
+    - Generates a structured hierarchy containing `path` (relative to group root), `name`, `level`, and formatted `display` label with indentation (e.g. `📁 ریشه گروه (اصلی)`, `📁 افتا`, `  ↳ 📁 افتا / گزارش‌ها`).
+  - **Backend Controller & API (`FolderRequestController::getGroupFolders`):**
+    - Registered endpoint `GET /api/group-folders?group_id=<groupId>`.
+    - Enforced strict authorization: Admins can inspect any group; Group Admins can ONLY inspect groups where they hold subadmin privileges (rejecting cross-group attempts with `HTTP 403 Forbidden`).
+  - **Frontend UI/UX (`archive_portal.js`):**
+    - Replaced text input `#ea-form-target-path` with an interactive `<select id="ea-form-target-path" class="ea-form-select">`.
+    - Automatically loads parent folders on modal open and dynamically refreshes when the selected group changes (`#ea-form-group-id.onchange`).
+    - Defaults to `📁 ریشه گروه (اصلی)` (empty relative path).
+  - **Automated Verification:**
+    - `tests/test_group_folders_api.py`: 100% Passed across admin discovery, group admin discovery, regular user rejection (403), and cross-group spoofing rejection (403).
+    - Full regression suites verified: `test_folder_request_governance_v2.py` (100%), `test_folder_request_workflow.py` (100%), `test_archive_portal.py` (100%).
+
+Status: **Completed**
+
+---
 ## Repository Status
 
 - Repository: `maherani/enterprise-archive-system`

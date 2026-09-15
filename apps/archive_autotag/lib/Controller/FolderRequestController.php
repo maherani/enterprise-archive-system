@@ -228,4 +228,35 @@ class FolderRequestController extends Controller {
             return new DataResponse(['status' => 'error', 'message' => $t->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
+
+    /**
+     * Get folder hierarchy for a specific group (for parent path dropdown).
+     */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function getGroupFolders(string $group_id = ''): DataResponse {
+        $user = $this->userSession->getUser();
+        if ($user === null) {
+            return new DataResponse(['status' => 'error', 'message' => 'Unauthenticated.'], Http::STATUS_UNAUTHORIZED);
+        }
+
+        $groupId = $group_id !== '' ? $group_id : (string)$this->request->getParam('group_id', '');
+        if ($groupId === '') {
+            return new DataResponse(['status' => 'error', 'message' => 'شناسه گروه الزامی است.'], Http::STATUS_BAD_REQUEST);
+        }
+
+        $roleInfo = $this->folderRequestService->getUserRoleInfo($user->getUID());
+
+        // Admin can view any group folders; Group Admin can only view their own subadmin groups
+        if (!$roleInfo['is_admin'] && !in_array($groupId, $roleInfo['subadmin_groups'], true)) {
+            return new DataResponse(['status' => 'error', 'message' => 'دسترسی به پوشه‌های این گروه برای شما مجاز نیست.'], Http::STATUS_FORBIDDEN);
+        }
+
+        $folders = $this->folderRequestService->getGroupFolders($groupId);
+        return new DataResponse([
+            'status' => 'success',
+            'group_id' => $groupId,
+            'folders' => $folders,
+        ]);
+    }
 }

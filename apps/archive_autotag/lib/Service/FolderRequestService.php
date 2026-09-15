@@ -684,6 +684,76 @@ class FolderRequestService {
     }
 
     /**
+     * Get all available archive directories for a specific group to populate parent folder selections.
+     * Returns a list of relative paths from the group's archive root.
+     *
+     * @return array<int, array{path: string, name: string, display: string, level: int}>
+     */
+    public function getGroupFolders(string $groupId): array {
+        $folders = [
+            [
+                'path' => '',
+                'name' => 'ریشه گروه',
+                'display' => '📁 ریشه گروه (اصلی)',
+                'level' => 0,
+            ]
+        ];
+
+        try {
+            $adminUser = $this->userManager->get('admin');
+            if ($adminUser === null) {
+                return $folders;
+            }
+
+            $adminHome = $this->rootFolder->getUserFolder($adminUser->getUID());
+            if (!$adminHome->nodeExists('Enterprise_Archive')) {
+                return $folders;
+            }
+
+            $archiveRoot = $adminHome->get('Enterprise_Archive');
+            if (!($archiveRoot instanceof Folder) || !$archiveRoot->nodeExists($groupId)) {
+                return $folders;
+            }
+
+            $groupBase = $archiveRoot->get($groupId);
+            if (!($groupBase instanceof Folder)) {
+                return $folders;
+            }
+
+            // Recursive scan helper
+            $scan = function (Folder $dir, string $relativePrefix, int $level) use (&$scan, &$folders) {
+                $nodes = $dir->getDirectoryListing();
+                usort($nodes, function ($a, $b) {
+                    return strcmp($a->getName(), $b->getName());
+                });
+
+                foreach ($nodes as $node) {
+                    if ($node instanceof Folder) {
+                        $name = $node->getName();
+                        $relPath = $relativePrefix === '' ? $name : $relativePrefix . '/' . $name;
+                        $indent = str_repeat("  ", $level - 1);
+                        $folders[] = [
+                            'path' => $relPath,
+                            'name' => $name,
+                            'display' => ($level > 1 ? $indent . '↳ ' : '') . '📁 ' . ($level > 1 ? str_replace('/', ' / ', $relPath) : $name),
+                            'level' => $level,
+                        ];
+                        // Recurse into subfolder
+                        $scan($node, $relPath, $level + 1);
+                    }
+                }
+            };
+
+            $scan($groupBase, '', 1);
+
+        } catch (\Throwable $t) {
+            $this->logger->error("archive_autotag: Failed to get group folders for '{$groupId}': " . $t->getMessage(), ['exception' => $t]);
+        }
+
+        return $folders;
+    }
+
+    /**
      * Helper to cast DB row to standard format.
      */
     private function formatRequestRow(array $row): array {
