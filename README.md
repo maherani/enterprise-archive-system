@@ -82,6 +82,11 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
     - Private tags created by user A are strictly hidden from user B (omitted from `/api/tags` and return `HTTP 404` in WebDAV).
     - System/Admin tags remain globally visible to all archive users.
     - Administrators have full authority to view, modify, or delete any tag (`occ archive:tag:gov`).
+13. **Enterprise Archive Portal UI/UX & Obsidian-Orange Design System (v1.7.1)**:
+    - High-performance, authoritative Enterprise Archive Portal with deep Obsidian (`#090b0e`, `#11141b`) and Industrial Orange (`#f97316`) theme.
+    - Full-width canvas guarantee, instant debounce search, multi-tag faceted chips, and view switching (Card Grid vs. Table List).
+    - Dynamic responsive push workspace (Accordion sliding): Opening the right-docked quick-view drawer smoothly compresses the document workspace to the left, guaranteeing that menus never obstruct files or cards.
+    - Comprehensive dark theme applied globally to the Top Navigation Header, Files App, and Login page.
 
 ---
 
@@ -99,6 +104,7 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
 - **Step 10 ? Multi-Tag Intersection Filter**: Web UI integration and REST API verified via automated E2E tests and live browser CDP runs.
 - **Step 11 ? Bare-Metal Deployment Automation**: `deploy/deploy_from_scratch.sh`, `.env.example`, and updated runbook.
 - **Step 12 ? Per-User File Access Control & Tag Isolation (v1.4.0)**: Zero-data-leak file and tag isolation, admin grant workflows, and automated E2E test suite `tests/test_archive_acl_and_tag_isolation.py` (100% pass rate).
+- **Step 13 ? Enterprise Archive Portal UI/UX & Obsidian-Orange Design System (v1.7.1)**: Modern enterprise dashboard, dynamic sliding push workspace, global Obsidian-Orange theme, cache busting, and automated test suite `tests/test_archive_portal.py` (100% pass rate).
 
 See [PROJECT_STATE.md](PROJECT_STATE.md) and [docs/DEPLOYMENT_RUNBOOK.md](docs/DEPLOYMENT_RUNBOOK.md) for full operational guides and architectural records.
 
@@ -192,6 +198,9 @@ python3 tests/test_multi_tag_filter.py
 
 # Test 5: Dynamic Folder-Driven Tag Lifecycle & Automatic Reconciliation
 python3 tests/test_tag_lifecycle_reconciliation.py
+
+# Test 6: Enterprise Archive Portal UI/UX & Integration Verification
+python3 tests/test_archive_portal.py
 
 ```
 

@@ -209,7 +209,7 @@
         renderDocumentList();
     }
 
-    // Action: Open Drawer
+    // Action: Open Drawer with Push Animation
     function openDrawer(file) {
         state.activeDrawerFile = file;
         renderDrawer();
@@ -217,17 +217,25 @@
         if (drawer) {
             drawer.classList.add('open');
         }
+        var root = document.getElementById('archive-portal-root');
+        if (root) {
+            root.classList.add('drawer-open');
+        }
     }
 
-    // Action: Close Drawer
+    // Action: Close Drawer with Smooth Restore
     function closeDrawer() {
         var drawer = document.getElementById('ea-drawer-backdrop');
         if (drawer) {
             drawer.classList.remove('open');
         }
+        var root = document.getElementById('archive-portal-root');
+        if (root) {
+            root.classList.remove('drawer-open');
+        }
         setTimeout(function () {
             state.activeDrawerFile = null;
-        }, 320);
+        }, 350);
     }
 
     // Action: Copy File Link
@@ -797,8 +805,18 @@
         }
     }
 
+    // Keyboard Shortcuts (e.g. Escape to close drawer)
+    function setupKeyboardListeners() {
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && state.activeDrawerFile) {
+                closeDrawer();
+            }
+        });
+    }
+
     // Auto-Initialization when DOM is ready
     function init() {
+        setupKeyboardListeners();
         var root = document.getElementById('archive-portal-root');
         if (root) {
             fetchTags();

@@ -1,15 +1,217 @@
-﻿/* Enterprise Archive System - App Menu & Launcher Isolation */
+/* Enterprise Archive System - Comprehensive Global Obsidian & Orange Theming */
+/* Theme: Obsidian & Industrial Orange (مشکی و نارنجی سازمانی) */
 
-/* For all non-admin users (all groups except admin):
-   Strictly hide any app launcher or navigation entry other than archive_autotag.
-   Specifically remove App store, Files, Photos, Dashboard, Activity, Office, etc. */
+/* -------------------------------------------------------------------------
+   1. Root Variables & System-Wide Color Tokens Override
+   ------------------------------------------------------------------------- */
+:root,
+[data-theme-default],
+[data-theme="dark"],
+body[theme="dark"],
+#body-user,
+#body-login {
+    --color-primary: #f97316 !important;
+    --color-primary-text: #ffffff !important;
+    --color-primary-element: #f97316 !important;
+    --color-primary-element-bright: #fb923c !important;
+    --color-primary-element-dark: #ea580c !important;
+    --color-primary-hover: #ea580c !important;
+    
+    --color-main-background: #090b0e !important;
+    --color-main-background-translucent: rgba(9, 11, 14, 0.95) !important;
+    --color-main-background-blur: rgba(9, 11, 14, 0.85) !important;
+    --color-background-plain: #090b0e !important;
+    --color-background-hover: #181d27 !important;
+    --color-background-dark: #11141b !important;
+    --color-background-darker: #0d1117 !important;
+    
+    --color-border: #202632 !important;
+    --color-border-dark: #2d3647 !important;
+    --color-border-maxcontrast: #3b465a !important;
+    
+    --color-main-text: #f8fafc !important;
+    --color-text-maxcontrast: #cbd5e1 !important;
+    --color-text-muted: #94a3b8 !important;
+    
+    --image-login-background: none !important;
+}
 
+/* -------------------------------------------------------------------------
+   2. Global Canvas & Body Reset (Eliminate Blue Background & 3D Wallpaper)
+   ------------------------------------------------------------------------- */
+html,
+body,
+#body-user,
+#body-login,
+#body-settings,
+#content,
+#content-wrapper,
+#app-content,
+#app-content-wrapper,
+.app-archive_autotag,
+.app-files {
+    background: #090b0e !important;
+    background-color: #090b0e !important;
+    background-image: none !important;
+    color: #f8fafc !important;
+}
+
+/* -------------------------------------------------------------------------
+   3. Top Enterprise Header Bar (#header) - Complete Overhaul
+   ------------------------------------------------------------------------- */
+#header {
+    background: #0d1117 !important;
+    background-color: #0d1117 !important;
+    border-bottom: 1px solid #202632 !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
+    height: 50px !important;
+    z-index: 2000 !important;
+}
+
+/* Header Start & Brand Logo */
+#header .header-start {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+#header #nextcloud .logo {
+    filter: drop-shadow(0 0 6px rgba(249, 115, 22, 0.5));
+}
+
+/* Header Navigation Links */
+#header-start__appmenu,
+#header-menu {
+    display: flex;
+    align-items: center;
+}
+
+#header-start__appmenu a,
+#header-start__appmenu li,
+#header a,
+#header button {
+    color: #cbd5e1 !important;
+    transition: all 0.2s ease;
+}
+
+#header-start__appmenu a:hover,
+#header a:hover {
+    background: #181d27 !important;
+    color: #f97316 !important;
+}
+
+/* Active Navigation Tab (بایگانی اسناد) */
+#header-start__appmenu [data-id="archive_autotag"] a,
+#header-start__appmenu [data-id="archive_autotag"],
+#header-start__appmenu a.active,
+#header-start__appmenu li.active a {
+    color: #f97316 !important;
+    border-bottom: 2.5px solid #f97316 !important;
+    font-weight: 700 !important;
+}
+
+/* Header Unified Search Bar */
+#unified-search,
+.unified-search {
+    background: transparent !important;
+}
+
+#unified-search input,
+.unified-search input,
+.unified-search__input {
+    background: #181d27 !important;
+    border: 1px solid #2d3647 !important;
+    color: #f8fafc !important;
+    border-radius: 20px !important;
+    padding: 6px 16px !important;
+    transition: all 0.2s ease !important;
+}
+
+#unified-search input:focus,
+.unified-search input:focus,
+.unified-search__input:focus {
+    border-color: #f97316 !important;
+    background: #1f2533 !important;
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.28) !important;
+    color: #ffffff !important;
+}
+
+#unified-search input::placeholder,
+.unified-search__input::placeholder {
+    color: #64748b !important;
+}
+
+/* Header End (Notifications, Contacts, User Profile) */
+#header-end {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#header-end button,
+#header-end a,
+#header-end .header-menu__trigger {
+    color: #94a3b8 !important;
+    background: transparent !important;
+    border-radius: 8px !important;
+}
+
+#header-end button:hover,
+#header-end a:hover,
+#header-end .header-menu__trigger:hover {
+    background: #181d27 !important;
+    color: #f97316 !important;
+}
+
+/* User Avatar Ring */
+#header-end .avatardiv,
+#user-menu .avatardiv {
+    border: 1.5px solid #f97316 !important;
+    box-shadow: 0 0 8px rgba(249, 115, 22, 0.35) !important;
+}
+
+/* -------------------------------------------------------------------------
+   4. Popover Menus, Waffle Dropdowns & Modals
+   ------------------------------------------------------------------------- */
+.popover__wrapper,
+.app-menu,
+.menu,
+.menu__list,
+.modal-container,
+.modal-content,
+.user-status-menu-configuration {
+    background: #11141b !important;
+    border: 1px solid #202632 !important;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.85) !important;
+    color: #f8fafc !important;
+    border-radius: 12px !important;
+}
+
+.popover__wrapper a,
+.popover__wrapper button,
+.menu a,
+.menu button,
+.app-menu a {
+    color: #cbd5e1 !important;
+}
+
+.popover__wrapper a:hover,
+.popover__wrapper button:hover,
+.menu a:hover,
+.menu button:hover,
+.app-menu a:hover {
+    background: #181d27 !important;
+    color: #f97316 !important;
+}
+
+/* -------------------------------------------------------------------------
+   5. App Menu & Launcher Isolation (Strict Non-Admin Governance)
+   ------------------------------------------------------------------------- */
 html.ea-non-admin #header-start__appmenu li[data-id]:not([data-id="archive_autotag"]),
 body.ea-non-admin #header-start__appmenu li[data-id]:not([data-id="archive_autotag"]),
 html.ea-non-admin #header-start__appmenu a:not([href*="archive_autotag"]),
 body.ea-non-admin #header-start__appmenu a:not([href*="archive_autotag"]),
 
-/* App Launcher Popover / Waffle Menu */
 html.ea-non-admin .app-menu li:not([data-id="archive_autotag"]):not(:has(a[href*="archive_autotag"])),
 body.ea-non-admin .app-menu li:not([data-id="archive_autotag"]):not(:has(a[href*="archive_autotag"])),
 html.ea-non-admin .app-menu a:not([href*="archive_autotag"]),
@@ -17,7 +219,6 @@ body.ea-non-admin .app-menu a:not([href*="archive_autotag"]),
 html.ea-non-admin .app-menu__list li:not(:has(a[href*="archive_autotag"])),
 body.ea-non-admin .app-menu__list li:not(:has(a[href*="archive_autotag"])),
 
-/* Specifically target and remove App store for non-admin groups */
 html.ea-non-admin [data-id="core_apps"],
 body.ea-non-admin [data-id="core_apps"],
 html.ea-non-admin [data-id="appstore"],
@@ -35,9 +236,87 @@ body.ea-non-admin .app-menu-entry:not([data-id="archive_autotag"]):not(:has(a[hr
     display: none !important;
 }
 
-/* Ensure بایگانی اسناد is styled cleanly and visibly */
 #header-start__appmenu [data-id="archive_autotag"],
 .app-menu [data-id="archive_autotag"],
 .app-menu a[href*="archive_autotag"] {
     display: flex !important;
+}
+
+/* -------------------------------------------------------------------------
+   6. Sidebar / Left Navigation (Nextcloud Files Navigation)
+   ------------------------------------------------------------------------- */
+#app-navigation,
+.app-navigation {
+    background: #0d1117 !important;
+    border-left: 1px solid #202632 !important;
+    color: #cbd5e1 !important;
+}
+
+#app-navigation li a,
+.app-navigation li a {
+    color: #cbd5e1 !important;
+    border-radius: 8px !important;
+}
+
+#app-navigation li a:hover,
+.app-navigation li a:hover {
+    background: #181d27 !important;
+    color: #f97316 !important;
+}
+
+#app-navigation li.active a,
+.app-navigation li.active a {
+    background: rgba(249, 115, 22, 0.14) !important;
+    color: #f97316 !important;
+    font-weight: 700 !important;
+    border-right: 3px solid #f97316 !important;
+}
+
+/* -------------------------------------------------------------------------
+   7. Login Page (#body-login) Theming
+   ------------------------------------------------------------------------- */
+#body-login {
+    background: #090b0e !important;
+    background-color: #090b0e !important;
+    background-image: none !important;
+    color: #f8fafc !important;
+}
+
+#body-login #login,
+#body-login .login {
+    background: #11141b !important;
+    border: 1px solid #202632 !important;
+    border-radius: 16px !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8) !important;
+    padding: 30px !important;
+}
+
+#body-login button[type="submit"],
+#body-login #submit-form,
+#body-login .login__submit {
+    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%) !important;
+    border-color: transparent !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 16px rgba(249, 115, 22, 0.35) !important;
+    border-radius: 8px !important;
+}
+
+#body-login button[type="submit"]:hover,
+#body-login #submit-form:hover {
+    box-shadow: 0 6px 22px rgba(249, 115, 22, 0.5) !important;
+    transform: translateY(-1px);
+}
+
+#body-login input[type="text"],
+#body-login input[type="password"] {
+    background: #181d27 !important;
+    border: 1px solid #2d3647 !important;
+    color: #f8fafc !important;
+    border-radius: 8px !important;
+}
+
+#body-login input[type="text"]:focus,
+#body-login input[type="password"]:focus {
+    border-color: #f97316 !important;
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.28) !important;
 }

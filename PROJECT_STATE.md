@@ -238,13 +238,43 @@ Status: **Completed**
 
 Status: **Completed**
 
+### Step 13 — Enterprise Archive Portal UI/UX Overhaul & Obsidian-Orange Design System (v1.7.1)
+- **Problem & Requirements:**
+  1. Default Nextcloud interface is blue, cluttered, and generic; users require an authoritative, minimalist, high-contrast Enterprise Theme.
+  2. Complete elimination of default blue colors, fluid 3D wallpapers, and generic banners across the Portal, Navigation Header, Files App, and Login page.
+  3. Seamless sliding push workspace (Accordion-style content compression): When right-docked drawers (quick-view file details) open, workspace data smoothly slides and compresses to the left, guaranteeing zero data obstruction (`#archive-portal-root.drawer-open`). When closed, it smoothly expands back to full width without any blank dead zones.
+  4. Strict Zero Data Loss Policy: Retained all database records, restored user accounts, document permissions, and system tags intact.
+- **Implementation & Architecture:**
+  - **Color Palette & Tokens:** Deep Obsidian (`#090b0e`, `#11141b`, `#181d27`) with Industrial Orange accent (`#f97316`, `#ea580c`).
+  - **Portal Stylesheet (`apps/archive_autotag/css/archive_portal.css`):**
+    - Full-width canvas guarantee with glassmorphism card surfaces and glowing hover states.
+    - Card Grid (`.ea-document-grid`) and List Table (`.ea-table`) views with persistent view switching in `localStorage`.
+    - Dynamic push workspace: `#archive-portal-root.drawer-open` sets `padding-right: 460px !important`, smoothly sliding content left in 0.35s cubic-bezier.
+    - Non-obstructive Quick-View drawer (`.ea-drawer`) anchored to the right (`width: 440px`), with detailed metadata, download links, and copy-link button.
+  - **Global Header Theming (`apps/archive_autotag/css/app_menu_filter.css`):**
+    - Overrides Nextcloud top header (`#header`) in `#0d1117`, `#202632` border, orange active tab indicator, orange search ring.
+  - **Multi-Tag Files Filter (`apps/archive_autotag/css/multi_tag_filter.css`):**
+    - Themed with dark obsidian chips, orange active states, and consistent typography.
+  - **Login Page Theme (`core/css/guest.css`):** Dark obsidian card, carbon inputs, and orange gradient button.
+  - **Portal Script (`apps/archive_autotag/js/archive_portal.js`):**
+    - Clean DOM rendering with instant debounce search, faceted tag chips, and drawer interactions.
+    - Added `Escape` key listener for closing drawer.
+    - Removed false-positive user-menu observer to ensure full-width default canvas across all viewports.
+  - **Cache Busting & Versioning (v1.7.1):**
+    - Updated `apps/archive_autotag/appinfo/info.xml` to `1.7.1` and executed `occ upgrade` to generate new asset query hashes (`?v=f484827b-4`), overcoming browser `immutable` disk caching.
+- **Automated Verification:**
+  - `tests/test_archive_portal.py`: 5 out of 5 tests passed (100%).
+  - Verified user access and ACL isolation for multiple users (`admin`, `maherani`, `archive_user1`, `api_worker`).
+
+Status: **Completed**
+
 ---
 
 ## Repository Status
 
 - Repository: `maherani/enterprise-archive-system`
 - Branch: `main`
-- Current Checkpoint: **Steps 1 through 12 fully completed, verified, and synchronized.**
+- Current Checkpoint: **Steps 1 through 13 fully completed, verified, and synchronized.**
 
 ### 5. Dynamic Folder-Driven Tag Lifecycle & Reconciliation (`tests/test_tag_lifecycle_reconciliation.py`)
 - **Step 1**: Folder creation triggers automatic tag registration & hierarchy tagging.

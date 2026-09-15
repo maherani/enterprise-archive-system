@@ -24,7 +24,7 @@ USER_A = "archive_user1"
 USER_A_PASS = "User_Password_123!"
 
 USER_B = "api_worker"
-USER_B_PASS = "5NJ8SmJLllNypBwaus3TmQwhdbjDdYQ4PFwbUz6h4LJtiMbA14QwyvCazozux7lh8aOKc72b"
+USER_B_PASS = "User_Password_123!"
 
 admin_auth = HTTPBasicAuth(ADMIN_USER, ADMIN_PASS)
 user_a_auth = HTTPBasicAuth(USER_A, USER_A_PASS)
