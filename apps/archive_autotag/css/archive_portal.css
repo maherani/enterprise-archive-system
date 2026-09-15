@@ -157,6 +157,12 @@ body[theme="dark"] :root,
   gap: 12px;
 }
 
+.ea-workflow-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .ea-btn {
   display: inline-flex;
   align-items: center;
