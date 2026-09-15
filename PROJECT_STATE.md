@@ -270,7 +270,7 @@ Status: **Completed**
 
 ---
 
-### Step 14 — Delegated Folder Creation Workflow & Multi-Tier Governance (v1.8.1)
+### Step 14 — Delegated Folder Creation Workflow & Multi-Tier Governance (v1.8.0)
 - **Problem & Requirements:**
   1. Regular users must never create folders or bypass archive policies.
   2. Group administrators require a formal channel to request new folders within their specific departmental archive scope, without granting them direct unmonitored filesystem creation permissions.
@@ -299,6 +299,32 @@ Status: **Completed**
     - Asset cache busting query strings refreshed (`?v=5dbcc382-4` and `?v=da35cf6b-4`) via `occ upgrade`.
 - **Automated Verification:**
   - `tests/test_folder_request_workflow.py`: Passed 100% across all 11 governance checks (regular user block, anti-spoofing, admin exemption, isolation, rejection with reason, atomic folder/tag creation, WebDAV upload, and MKCOL restriction).
+
+Status: **Completed**
+
+---
+
+### Step 14.1 — Advanced Request Governance: Duplicate Prevention, Complete Audit Trail & Native Notifications (v1.9.0)
+- **Problem & Requirements:**
+  1. Prevent duplicate folder requests by evaluating both physical archive directory existence and concurrent/pending request status in the database (with race condition prevention).
+  2. Implement a complete, tamper-proof audit trail tracking the full lifecycle of every folder request (`request_created`, `request_pending`, `request_approved`, `folder_created`, `permissions_applied`, `tag_created`, `request_completed`, `request_rejected`, `request_failed`).
+  3. Send native Nextcloud notifications to the requesting Group Admin upon approval (with folder details and link), rejection (with mandatory reason), or processing errors.
+  4. Provide dedicated UI controls in the Enterprise Archive Portal for viewing the audit trail timeline.
+- **Implementation & Architecture:**
+  - **Database Migration (`Version1900Date20260916000001.php`):**
+    - Created `oc_archive_folder_request_audit` storing request ID, event type, actor, group, folder name/path, status transitions, rejection reasons, error info, and timestamps.
+    - Created partial unique index `arch_folder_req_pending_uniq_idx` on `(group_id, target_path, folder_name)` where `status = 'pending'`.
+  - **Backend Services (`FolderRequestService.php`, `FolderRequestController.php`, `FolderRequestNotifier.php`):**
+    - `validateNoDuplicates()`: Validates physical folder existence via `IRootFolder` and verifies no pending request exists in DB; returns HTTP 409 Conflict.
+    - `logAuditEvent()`: Records structured lifecycle events in DB and writes to `Psr\Log\LoggerInterface` (`admin_audit` compatible).
+    - `sendNotificationToUser()`: Dispatches native Nextcloud notifications via `OCP\Notification\IManager` registered with `FolderRequestNotifier`.
+    - `GET /api/folder-requests/{id}/audit`: Access-controlled endpoint returning full chronological audit events.
+  - **Portal Frontend UI/UX (`archive_portal.js`, `archive_portal.css`):**
+    - Added "📋 لاگ" (Audit) button to Group Admin Requests modal and System Admin Review modal.
+    - Implemented `window._eaViewAudit(id, folderName)` rendering an Obsidian-Orange vertical timeline modal with distinct badges and icons.
+  - **Automated Verification:**
+    - `tests/test_folder_request_governance_v2.py`: 100% Passed across duplicate physical rejection, duplicate pending rejection, audit access control, approval lifecycle audit, rejection lifecycle audit, and database notification delivery.
+    - Full regression suites verified: `test_folder_request_workflow.py` (100%), `test_archive_portal.py` (100%), `test_group_tag_isolation.py` (100%).
 
 Status: **Completed**
 

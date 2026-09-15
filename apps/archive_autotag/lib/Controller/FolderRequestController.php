@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace OCA\ArchiveAutoTag\Controller;
 
 use OCA\ArchiveAutoTag\Exception\SecurityPermissionException;
-
 use OCA\ArchiveAutoTag\Service\FolderRequestService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -85,6 +84,8 @@ class FolderRequestController extends Controller {
             return new DataResponse(['status' => 'error', 'message' => $e->getMessage()], Http::STATUS_FORBIDDEN);
         } catch (\InvalidArgumentException $e) {
             return new DataResponse(['status' => 'error', 'message' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+        } catch (\DomainException $e) {
+            return new DataResponse(['status' => 'error', 'message' => $e->getMessage()], Http::STATUS_CONFLICT);
         } catch (\Throwable $t) {
             return new DataResponse(['status' => 'error', 'message' => $t->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
@@ -131,6 +132,34 @@ class FolderRequestController extends Controller {
             return new DataResponse([
                 'status' => 'success',
                 'request' => $request,
+            ]);
+        } catch (NotFoundException $e) {
+            return new DataResponse(['status' => 'error', 'message' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+        } catch (SecurityPermissionException $e) {
+            return new DataResponse(['status' => 'error', 'message' => $e->getMessage()], Http::STATUS_FORBIDDEN);
+        } catch (\Throwable $t) {
+            return new DataResponse(['status' => 'error', 'message' => $t->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Get complete audit trail events for a single request.
+     */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function auditTrail(int $id): DataResponse {
+        $user = $this->userSession->getUser();
+        if ($user === null) {
+            return new DataResponse(['status' => 'error', 'message' => 'Unauthenticated.'], Http::STATUS_UNAUTHORIZED);
+        }
+
+        try {
+            $auditTrail = $this->folderRequestService->getRequestAuditTrail($id, $user->getUID());
+            return new DataResponse([
+                'status' => 'success',
+                'request_id' => $id,
+                'audit_trail' => $auditTrail,
+                'count' => count($auditTrail),
             ]);
         } catch (NotFoundException $e) {
             return new DataResponse(['status' => 'error', 'message' => $e->getMessage()], Http::STATUS_NOT_FOUND);

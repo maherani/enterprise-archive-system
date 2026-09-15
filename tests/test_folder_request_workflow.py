@@ -26,6 +26,7 @@ Validates:
 """
 
 import sys
+import time
 import subprocess
 import requests
 from requests.auth import HTTPBasicAuth
@@ -121,8 +122,10 @@ def run_tests():
     # Step 3: Valid Request Submission by Group Admin
     # ------------------------------------------------------------------
     print("\n[Step 3] Group Admin submits valid folder creation request for group 'SOC'...")
+    ts = int(time.time())
+    folder_name_1 = f"سامانه_پدافند_{ts}"
     req_payload_1 = {
-        "folder_name": "سامانه_پدافند_سایبری",
+        "folder_name": folder_name_1,
         "target_path": "افتا",
         "description": "پوشه اسناد امنیتی و گزارش‌های پدافند سایبری مرکز عملیات امنیت",
         "group_id": "SOC"
@@ -197,7 +200,7 @@ def run_tests():
     # ------------------------------------------------------------------
     print("\n[Step 5] Testing Approval Workflow & Atomic Folder/Tag Provisioning...")
     # 5.1 Group Admin submits a fresh request for approval
-    folder_to_create = "عملیات_امنیتی_۱۴۰۵"
+    folder_to_create = f"عملیات_امنیتی_{int(time.time())}"
     req_payload_2 = {
         "folder_name": folder_to_create,
         "target_path": "افتا",
@@ -241,7 +244,6 @@ def run_tests():
     # 5.4 Verify WebDAV File Upload into the Newly Created Folder
     print("\n[Step 5.4] Verifying WebDAV Upload into newly created folder...")
     new_folder_webdav = f"{NEXTCLOUD_URL}/remote.php/dav/files/{SOC_ADMIN_USER}/SOC/افتا/{folder_to_create}"
-    import time
     sample_doc_url = f"{new_folder_webdav}/incident_report_{int(time.time())}.txt"
     r_put = requests.put(sample_doc_url, data=b"Highly confidential SOC operation report content.", auth=soc_admin_auth)
     print(f"  - WebDAV PUT status: {r_put.status_code}")

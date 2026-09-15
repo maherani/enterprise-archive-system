@@ -46,6 +46,7 @@ class Application extends App implements IBootstrap {
         // Enforce per-user upload size limits and folder creation restriction
         $context->registerEventListener(BeforeNodeCreatedEvent::class, BeforeNodeCreatedListener::class);
         $context->registerEventListener(BeforeNodeWrittenEvent::class, BeforeNodeWrittenListener::class);
+        $context->registerNotifierService(\OCA\ArchiveAutoTag\Notification\FolderRequestNotifier::class);
 
         // SabreDAV 403 Forbidden enforcement (Upload limits and MKCOL folder restriction)
         $context->registerEventListener(

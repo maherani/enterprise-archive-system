@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace OCA\ArchiveAutoTag\Service;
 
 use OCA\ArchiveAutoTag\Exception\SecurityPermissionException;
-
 use OCA\ArchiveAutoTag\Service\AutoTagService;
 use OCA\ArchiveAutoTag\Service\TagOwnershipService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -17,6 +16,7 @@ use OCP\IGroupManager;
 use Psr\Log\LoggerInterface;
 use OCP\IUserManager;
 use OCP\IUserSession;
+use OCP\Notification\IManager as INotificationManager;
 use OCP\Share\IManager as IShareManager;
 use OCP\SystemTag\ISystemTagManager;
 
@@ -35,6 +35,7 @@ class FolderRequestService {
     private AutoTagService $autoTagService;
     private TagOwnershipService $tagOwnershipService;
     private ISystemTagManager $tagManager;
+    private INotificationManager $notificationManager;
     private LoggerInterface $logger;
 
     public function __construct(
@@ -47,6 +48,7 @@ class FolderRequestService {
         AutoTagService $autoTagService,
         TagOwnershipService $tagOwnershipService,
         ISystemTagManager $tagManager,
+        INotificationManager $notificationManager,
         LoggerInterface $logger
     ) {
         $this->db = $db;
@@ -58,6 +60,7 @@ class FolderRequestService {
         $this->autoTagService = $autoTagService;
         $this->tagOwnershipService = $tagOwnershipService;
         $this->tagManager = $tagManager;
+        $this->notificationManager = $notificationManager;
         $this->logger = $logger;
     }
 
@@ -100,8 +103,6 @@ class FolderRequestService {
             $this->logger->warning("FolderRequestService::getSubadminGroups DB error: " . $t->getMessage());
         }
 
-// Subadmin groups retrieved directly from group_admin table
-
         return $gids;
     }
 
@@ -128,6 +129,128 @@ class FolderRequestService {
             'subadmin_groups' => $subadminGroups,
             'member_groups' => $memberGroups,
         ];
+    }
+
+    /**
+     * Validate that no duplicate pending request or physical folder exists for this path.
+     */
+    public function validateNoDuplicates(string $folderName, string $targetPath, string $groupId): void {
+        // 1. Check if a pending request already exists for this exact path in this group
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('id')
+           ->from('archive_folder_requests')
+           ->where($qb->expr()->eq('group_id', $qb->createNamedParameter($groupId)))
+           ->andWhere($qb->expr()->eq('target_path', $qb->createNamedParameter($targetPath)))
+           ->andWhere($qb->expr()->eq('folder_name', $qb->createNamedParameter($folderName)))
+           ->andWhere($qb->expr()->eq('status', $qb->createNamedParameter(self::STATUS_PENDING)));
+        $pendingRow = $qb->executeQuery()->fetchAssociative();
+
+        if ($pendingRow) {
+            $pendingId = (int)$pendingRow['id'];
+            throw new \DomainException("درخواست دیگری برای ایجاد این مسیر (پوشه «{$folderName}») در حال حاضر با شناسه #{$pendingId} در وضعیت «در انتظار بررسی» (pending) ثبت شده است.");
+        }
+
+        // 2. Check if the folder physically exists in the archive filesystem
+        try {
+            $adminUser = $this->userManager->get('admin');
+            if ($adminUser !== null) {
+                $adminHome = $this->rootFolder->getUserFolder($adminUser->getUID());
+                if ($adminHome->nodeExists('Enterprise_Archive')) {
+                    $archiveRoot = $adminHome->get('Enterprise_Archive');
+                    if ($archiveRoot instanceof Folder && $archiveRoot->nodeExists($groupId)) {
+                        $groupBase = $archiveRoot->get($groupId);
+                        if ($groupBase instanceof Folder) {
+                            $checkDir = $groupBase;
+                            if ($targetPath !== '') {
+                                $segments = explode('/', $targetPath);
+                                foreach ($segments as $seg) {
+                                    $seg = trim($seg);
+                                    if ($seg !== '' && $checkDir instanceof Folder && $checkDir->nodeExists($seg)) {
+                                        $node = $checkDir->get($seg);
+                                        if ($node instanceof Folder) {
+                                            $checkDir = $node;
+                                        }
+                                    }
+                                }
+                            }
+                            if ($checkDir instanceof Folder && $checkDir->nodeExists($folderName)) {
+                                throw new \DomainException("پوشه‌ای با نام «{$folderName}» در مسیر مشخص‌شده برای گروه '{$groupId}' از قبل در ساختار آرشیو وجود فیزیکی دارد.");
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (\DomainException $de) {
+            throw $de;
+        } catch (\Throwable $t) {
+            $this->logger->warning("validateNoDuplicates filesystem check warning: " . $t->getMessage());
+        }
+    }
+
+    /**
+     * Record an audit event in the database and system audit log.
+     */
+    public function logAuditEvent(
+        int $requestId,
+        string $eventType,
+        string $actorUid,
+        string $groupId,
+        string $folderName,
+        string $folderPath,
+        ?string $prevStatus = null,
+        ?string $newStatus = null,
+        ?string $details = null,
+        ?string $rejectionReason = null,
+        ?string $errorInfo = null
+    ): void {
+        $now = time();
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->insert('archive_folder_request_audit')
+               ->values([
+                   'request_id' => $qb->createNamedParameter($requestId),
+                   'event_type' => $qb->createNamedParameter($eventType),
+                   'actor_uid' => $qb->createNamedParameter($actorUid),
+                   'group_id' => $qb->createNamedParameter($groupId),
+                   'folder_name' => $qb->createNamedParameter($folderName),
+                   'folder_path' => $qb->createNamedParameter($folderPath),
+                   'prev_status' => $qb->createNamedParameter($prevStatus),
+                   'new_status' => $qb->createNamedParameter($newStatus),
+                   'details' => $qb->createNamedParameter($details),
+                   'rejection_reason' => $qb->createNamedParameter($rejectionReason),
+                   'error_info' => $qb->createNamedParameter($errorInfo),
+                   'created_at' => $qb->createNamedParameter($now),
+               ]);
+            $qb->executeStatement();
+        } catch (\Throwable $t) {
+            $this->logger->error("archive_autotag: Failed to record audit event '{$eventType}' for request #{$requestId}: " . $t->getMessage());
+        }
+
+        $this->logger->info("[archive_audit] request_id={$requestId} event={$eventType} actor={$actorUid} group={$groupId} folder='{$folderName}' prev={$prevStatus} new={$newStatus}");
+    }
+
+    /**
+     * Send a Nextcloud native notification to the user.
+     */
+    private function sendNotificationToUser(string $recipientUid, string $subject, array $params, int $requestId): void {
+        try {
+            $recipient = $this->userManager->get($recipientUid);
+            if ($recipient === null) {
+                return;
+            }
+
+            $notification = $this->notificationManager->createNotification();
+            $notification->setApp('archive_autotag')
+                         ->setUser($recipientUid)
+                         ->setDateTime(new \DateTime())
+                         ->setObject('folder_request', (string)$requestId)
+                         ->setSubject($subject, $params);
+
+            $this->notificationManager->notify($notification);
+            $this->logger->info("archive_autotag: Notification '{$subject}' dispatched to '{$recipientUid}' for request #{$requestId}.");
+        } catch (\Throwable $t) {
+            $this->logger->warning("archive_autotag: Could not dispatch notification to '{$recipientUid}': " . $t->getMessage());
+        }
     }
 
     /**
@@ -168,23 +291,38 @@ class FolderRequestService {
             throw new \InvalidArgumentException("Invalid directory path traversal detected.");
         }
 
+        // Duplicate Prevention Validation
+        $this->validateNoDuplicates($folderName, $targetPath, $groupId);
+
         $description = trim($description);
         $now = time();
 
-        $qb = $this->db->getQueryBuilder();
-        $qb->insert('archive_folder_requests')
-           ->values([
-               'folder_name' => $qb->createNamedParameter($folderName),
-               'target_path' => $qb->createNamedParameter($targetPath),
-               'description' => $qb->createNamedParameter($description),
-               'group_id' => $qb->createNamedParameter($groupId),
-               'requester_uid' => $qb->createNamedParameter($requesterUid),
-               'status' => $qb->createNamedParameter(self::STATUS_PENDING),
-               'created_at' => $qb->createNamedParameter($now),
-               'updated_at' => $qb->createNamedParameter($now),
-           ]);
-        $qb->executeStatement();
-        $id = (int)$this->db->lastInsertId('archive_folder_requests');
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->insert('archive_folder_requests')
+               ->values([
+                   'folder_name' => $qb->createNamedParameter($folderName),
+                   'target_path' => $qb->createNamedParameter($targetPath),
+                   'description' => $qb->createNamedParameter($description),
+                   'group_id' => $qb->createNamedParameter($groupId),
+                   'requester_uid' => $qb->createNamedParameter($requesterUid),
+                   'status' => $qb->createNamedParameter(self::STATUS_PENDING),
+                   'created_at' => $qb->createNamedParameter($now),
+                   'updated_at' => $qb->createNamedParameter($now),
+               ]);
+            $qb->executeStatement();
+            $id = (int)$this->db->lastInsertId('archive_folder_requests');
+        } catch (\Throwable $t) {
+            // Check for unique constraint violation on concurrent requests
+            if (str_contains($t->getMessage(), 'arch_folder_req_pending_uniq_idx') || str_contains($t->getMessage(), 'unique')) {
+                throw new \DomainException("درخواست دیگری برای ایجاد این مسیر هم‌اکنون به صورت همزمان ثبت شده و در انتظار بررسی است.");
+            }
+            throw $t;
+        }
+
+        // Record Audit Trail Events
+        $this->logAuditEvent($id, 'request_created', $requesterUid, $groupId, $folderName, $targetPath, null, self::STATUS_PENDING, 'درخواست ایجاد پوشه جدید ثبت گردید.');
+        $this->logAuditEvent($id, 'request_pending', $requesterUid, $groupId, $folderName, $targetPath, null, self::STATUS_PENDING, 'در انتظار بررسی و تأیید مدیر سیستم قرار گرفت.');
 
         $this->logger->info("archive_autotag: Folder request #{$id} created by '{$requesterUid}' for group '{$groupId}': '{$folderName}'");
 
@@ -262,6 +400,39 @@ class FolderRequestService {
     }
 
     /**
+     * Get complete audit trail events for a request.
+     */
+    public function getRequestAuditTrail(int $id, string $currentUid): array {
+        // Enforce access control on request
+        $request = $this->getRequest($id, $currentUid);
+
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('*')
+           ->from('archive_folder_request_audit')
+           ->where($qb->expr()->eq('request_id', $qb->createNamedParameter($id)))
+           ->orderBy('id', 'ASC');
+        $rows = $qb->executeQuery()->fetchAllAssociative();
+
+        return array_map(function (array $r) {
+            return [
+                'id' => (int)$r['id'],
+                'request_id' => (int)$r['request_id'],
+                'event_type' => (string)$r['event_type'],
+                'actor_uid' => (string)$r['actor_uid'],
+                'group_id' => (string)$r['group_id'],
+                'folder_name' => (string)$r['folder_name'],
+                'folder_path' => (string)$r['folder_path'],
+                'prev_status' => $r['prev_status'] ? (string)$r['prev_status'] : null,
+                'new_status' => $r['new_status'] ? (string)$r['new_status'] : null,
+                'details' => $r['details'] ? (string)$r['details'] : null,
+                'rejection_reason' => $r['rejection_reason'] ? (string)$r['rejection_reason'] : null,
+                'error_info' => $r['error_info'] ? (string)$r['error_info'] : null,
+                'created_at' => (int)$r['created_at'],
+            ];
+        }, $rows);
+    }
+
+    /**
      * Approve folder creation request and atomically create folder, permissions, and group-bound tag.
      * Can ONLY be performed by System Admin.
      */
@@ -278,10 +449,14 @@ class FolderRequestService {
         $folderName = $request['folder_name'];
         $groupId = $request['group_id'];
         $targetPath = $request['target_path'];
+        $requesterUid = $request['requester_uid'];
 
         $createdFolder = null;
         $createdTag = null;
         $now = time();
+
+        // Audit Event: Approval initiated
+        $this->logAuditEvent($id, 'request_approved', $adminUid, $groupId, $folderName, $targetPath, self::STATUS_PENDING, self::STATUS_APPROVED, 'فرآیند بررسی و تأیید توسط مدیر سیستم آغاز گردید.');
 
         try {
             // 1. Resolve Master Admin User Folder
@@ -341,8 +516,14 @@ class FolderRequestService {
 
             $folderId = $createdFolder->getId();
 
+            // Audit Event: Physical Folder Created
+            $this->logAuditEvent($id, 'folder_created', $adminUid, $groupId, $folderName, $targetPath, 'pending', 'approved', "پوشه فیزیکی با شناسه {$folderId} ایجاد شد.");
+
             // 6. Inherit and Verify Group Share Permissions
             $this->ensureGroupShareExists($groupBase, $groupId, $createdFolder);
+
+            // Audit Event: Permissions Applied
+            $this->logAuditEvent($id, 'permissions_applied', $adminUid, $groupId, $folderName, $targetPath, 'pending', 'approved', "مجوزهای دسترسی گروه '{$groupId}' (Read+Create) فعال گردید.");
 
             // 7. Atomic Tag Creation & Group Binding
             $createdTag = $this->autoTagService->getOrCreateRestrictedTag($folderName);
@@ -359,6 +540,9 @@ class FolderRequestService {
                 // Ignore if already tagged
             }
 
+            // Audit Event: Tag Created & Bound
+            $this->logAuditEvent($id, 'tag_created', $adminUid, $groupId, $folderName, $targetPath, 'pending', 'approved', "برچسب سیستمی اختصاصی '{$folderName}' با شناسه {$tagId} تولید و مقید شد.");
+
             // 8. Update request status to approved
             $upQb = $this->db->getQueryBuilder();
             $upQb->update('archive_folder_requests')
@@ -371,6 +555,17 @@ class FolderRequestService {
                  ->set('error_message', $upQb->createNamedParameter(null))
                  ->where($upQb->expr()->eq('id', $upQb->createNamedParameter($id)));
             $upQb->executeStatement();
+
+            // Audit Event: Completed
+            $this->logAuditEvent($id, 'request_completed', $adminUid, $groupId, $folderName, $targetPath, self::STATUS_PENDING, self::STATUS_APPROVED, 'درخواست با موفقیت تایید و تکمیل شد.');
+
+            // Dispatch Native Nextcloud Notification to Group Admin
+            $this->sendNotificationToUser($requesterUid, 'folder_request_approved', [
+                'folderName' => $folderName,
+                'groupId' => $groupId,
+                'targetPath' => $targetPath,
+                'adminUid' => $adminUid,
+            ], $id);
 
             $this->logger->info("archive_autotag: Folder request #{$id} APPROVED by '{$adminUid}'. Created folder ID {$folderId}, Tag ID {$tagId}.");
 
@@ -388,6 +583,16 @@ class FolderRequestService {
                   ->set('error_message', $errQb->createNamedParameter($e->getMessage()))
                   ->where($errQb->expr()->eq('id', $errQb->createNamedParameter($id)));
             $errQb->executeStatement();
+
+            // Audit Event: Failed / Error
+            $this->logAuditEvent($id, 'request_failed', $adminUid, $groupId, $folderName, $targetPath, self::STATUS_PENDING, self::STATUS_FAILED, null, null, $e->getMessage());
+
+            // Notify Requester about Error
+            $this->sendNotificationToUser($requesterUid, 'folder_request_failed', [
+                'folderName' => $folderName,
+                'groupId' => $groupId,
+                'error' => $e->getMessage(),
+            ], $id);
 
             throw $e;
         }
@@ -422,6 +627,17 @@ class FolderRequestService {
              ->set('rejection_reason', $upQb->createNamedParameter($reason))
              ->where($upQb->expr()->eq('id', $upQb->createNamedParameter($id)));
         $upQb->executeStatement();
+
+        // Audit Event: Rejected
+        $this->logAuditEvent($id, 'request_rejected', $adminUid, $request['group_id'], $request['folder_name'], $request['target_path'], self::STATUS_PENDING, self::STATUS_REJECTED, 'درخواست ایجاد پوشه توسط مدیر ارشد سیستم رد شد.', $reason);
+
+        // Notify Group Admin
+        $this->sendNotificationToUser($request['requester_uid'], 'folder_request_rejected', [
+            'folderName' => $request['folder_name'],
+            'groupId' => $request['group_id'],
+            'reason' => $reason,
+            'adminUid' => $adminUid,
+        ], $id);
 
         $this->logger->info("archive_autotag: Folder request #{$id} REJECTED by '{$adminUid}'. Reason: '{$reason}'");
 
