@@ -380,6 +380,27 @@ Status: **Completed**
 Status: **Completed**
 
 ---
+
+### Step 14.4 — CSP-Safe Event Handlers for Folder Request Approval & Rejection (v1.9.3)
+- **Problem & Root Cause:**
+  - Clicking "تأیید و ساخت" or "رد درخواست" in the Folder Request Review modal had no effect because the buttons used inline `onclick="..."` HTML attributes.
+  - Nextcloud enforces strict Content Security Policy (CSP: `script-src 'self' 'nonce-...'`) without `'unsafe-inline'`, causing the browser to block inline handlers silently and prevent execution of approval/rejection workflows.
+- **Implementation & Architecture:**
+  - **CSP-Compliant DOM Event Listeners (`archive_portal.js`):**
+    - Removed inline `onclick` attributes from `actionsHtml`.
+    - Bound metadata to HTML5 data attributes (`data-id`, `data-folder-name`, `data-group-id`).
+    - Attached explicit DOM click listeners (`btn.onclick = ...`) in `loadAdminRequests`.
+    - Included CSRF token header (`requesttoken: window.OC.requestToken`) in all POST requests.
+    - Added real-time loading feedback on buttons (`btn.innerText = '⏳ در حال ساخت...'` and `btn.innerText = '⏳ در حال ثبت...'`).
+    - Upon approval/rejection, automatically reloaded the request list in-place (`loadAdminRequests(...)`) and refreshed the pending counter without closing the modal.
+  - **Version & Cache Busting (`info.xml`):**
+    - Bumped app version to `1.9.3` and executed `occ upgrade`.
+- **Verification:**
+  - All test suites passed 100%: `test_folder_request_governance_v2.py`, `test_folder_request_workflow.py`, `test_group_folders_api.py`.
+
+Status: **Completed**
+
+---
 ## Repository Status
 
 - Repository: `maherani/enterprise-archive-system`

@@ -1232,8 +1232,8 @@
                 if (req.status === 'pending') {
                     actionsHtml = [
                         '<div class="ea-table-actions">',
-                        '  <button class="ea-btn ea-btn-sm ea-btn-approve" onclick="window._eaApproveReq(' + req.id + ', \'' + escapeHtml(req.folder_name) + '\', \'' + escapeHtml(req.group_id) + '\')">✔ تأیید و ساخت</button>',
-                        '  <button class="ea-btn ea-btn-sm ea-btn-reject" onclick="window._eaRejectReq(' + req.id + ', \'' + escapeHtml(req.folder_name) + '\')">✖ رد درخواست</button>',
+                        '  <button type="button" class="ea-btn ea-btn-sm ea-btn-approve" data-id="' + req.id + '" data-folder-name="' + escapeHtml(req.folder_name) + '" data-group-id="' + escapeHtml(req.group_id) + '">✔ تأیید و ساخت</button>',
+                        '  <button type="button" class="ea-btn ea-btn-sm ea-btn-reject" data-id="' + req.id + '" data-folder-name="' + escapeHtml(req.folder_name) + '">✖ رد درخواست</button>',
                         '</div>'
                     ].join('\n');
                 } else if (req.status === 'rejected' && req.rejection_reason) {
@@ -1278,38 +1278,79 @@
                 '  </table>',
                 '</div>'
             ].join('\n');
+
+            // Attach CSP-safe event listeners to Approve buttons
+            body.querySelectorAll('.ea-btn-approve').forEach(function (btn) {
+                btn.onclick = function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var id = btn.getAttribute('data-id');
+                    var folderName = btn.getAttribute('data-folder-name') || '';
+                    var groupId = btn.getAttribute('data-group-id') || '';
+                    handleApproveRequest(btn, id, folderName, groupId);
+                };
+            });
+
+            // Attach CSP-safe event listeners to Reject buttons
+            body.querySelectorAll('.ea-btn-reject').forEach(function (btn) {
+                btn.onclick = function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var id = btn.getAttribute('data-id');
+                    var folderName = btn.getAttribute('data-folder-name') || '';
+                    handleRejectRequest(btn, id, folderName);
+                };
+            });
         })
         .catch(function (err) {
             body.innerHTML = '<div class="ea-rejection-box">خطا در بارگذاری اطلاعات: ' + escapeHtml(err.message) + '</div>';
         });
     }
 
-        // Global Action Handlers for Admin Table
-    window._eaApproveReq = function (id, folderName, groupId) {
+    function handleApproveRequest(btn, id, folderName, groupId) {
         if (!confirm('آیا از تأیید درخواست ایجاد پوشه «' + folderName + '» برای گروه «' + groupId + '» اطمینان دارید؟\nاین عملیات پوشه را در ساختار آرشیو ساخته و تگ متناظر را خودکار ثبت و مقید می‌کند.')) {
             return;
         }
 
+        if (btn) {
+            btn.disabled = true;
+            btn.innerText = '⏳ در حال ساخت...';
+        }
+
+        var headers = { 'Accept': 'application/json' };
+        if (window.OC && window.OC.requestToken) {
+            headers['requesttoken'] = window.OC.requestToken;
+        }
+
         fetch('/index.php/apps/archive_autotag/api/folder-requests/' + id + '/approve', {
             method: 'POST',
-            headers: { 'Accept': 'application/json' }
+            headers: headers
         })
         .then(function (res) { return res.json(); })
         .then(function (data) {
             if (data && data.status === 'success') {
                 showToast('پوشه «' + folderName + '» با موفقیت ایجاد و تگ اختصاصی گروه الصاق شد.');
                 fetchPendingRequestsCount();
-                openAdminManageRequestsModal();
+                var statusSelect = document.getElementById('ea-admin-filter-status');
+                loadAdminRequests(statusSelect ? statusSelect.value : 'all');
             } else {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerText = '✔ تأیید و ساخت';
+                }
                 alert('خطا در تأیید درخواست: ' + ((data && data.message) ? data.message : 'نامشخص'));
             }
         })
         .catch(function (err) {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerText = '✔ تأیید و ساخت';
+            }
             alert('خطای ارتباط با سرور: ' + err.message);
         });
-    };
+    }
 
-    window._eaRejectReq = function (id, folderName) {
+    function handleRejectRequest(btn, id, folderName) {
         var reason = prompt('لطفاً دلیل رد درخواست «' + folderName + '» را وارد فرمایید (اجباری - به ادمین گروه نمایش داده می‌شود):');
         if (reason === null) return;
         reason = reason.trim();
@@ -1318,12 +1359,22 @@
             return;
         }
 
+        if (btn) {
+            btn.disabled = true;
+            btn.innerText = '⏳ در حال ثبت...';
+        }
+
+        var headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        };
+        if (window.OC && window.OC.requestToken) {
+            headers['requesttoken'] = window.OC.requestToken;
+        }
+
         fetch('/index.php/apps/archive_autotag/api/folder-requests/' + id + '/reject', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
+            headers: headers,
             body: JSON.stringify({ reason: reason })
         })
         .then(function (res) { return res.json(); })
@@ -1331,14 +1382,32 @@
             if (data && data.status === 'success') {
                 showToast('درخواست رد شد و دلیل ثبت گردید.');
                 fetchPendingRequestsCount();
-                openAdminManageRequestsModal();
+                var statusSelect = document.getElementById('ea-admin-filter-status');
+                loadAdminRequests(statusSelect ? statusSelect.value : 'all');
             } else {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerText = '✖ رد درخواست';
+                }
                 alert('خطا در رد درخواست: ' + ((data && data.message) ? data.message : 'نامشخص'));
             }
         })
         .catch(function (err) {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerText = '✖ رد درخواست';
+            }
             alert('خطای ارتباط با سرور: ' + err.message);
         });
+    }
+
+    // Global Action Handlers for backwards compatibility
+    window._eaApproveReq = function (id, folderName, groupId) {
+        handleApproveRequest(null, id, folderName, groupId);
+    };
+
+    window._eaRejectReq = function (id, folderName) {
+        handleRejectRequest(null, id, folderName);
     };
 
     // Keyboard Shortcuts (e.g. Escape to close drawer)
