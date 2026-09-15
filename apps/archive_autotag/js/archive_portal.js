@@ -810,8 +810,8 @@
             var locateBtn = document.getElementById('ea-drawer-locate-btn');
             if (locateBtn) {
                 locateBtn.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    window.open(file.web_url, '_blank');
+                    // Allow native HTML target="_blank" navigation (never blocked by popup blockers)
+                    // No e.preventDefault()
                 });
             }
         }

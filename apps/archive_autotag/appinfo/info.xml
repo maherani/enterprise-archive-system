@@ -4,7 +4,7 @@
 	<name>سامانه بایگانی اسناد سازمانی</name>
 	<summary>سامانه یکپارچه بایگانی، فیلتر چندتگی اسناد، کنترل دسترسی و سقف آپلود</summary>
 	<description>Automatic hierarchical parent folder tagging, per-user upload limit, folder creation restriction, strict document/tag isolation, dynamic folder-driven tag reconciliation, and modern enterprise archive portal.</description>
-	<version>1.9.5</version>
+	<version>1.9.6</version>
 	<licence>agpl</licence>
 	<author>Enterprise Archive System</author>
 	<namespace>ArchiveAutoTag</namespace>

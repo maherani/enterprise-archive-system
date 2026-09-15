@@ -448,6 +448,28 @@ Status: **Completed**
 Status: **Completed**
 
 ---
+
+### Step 14.7 — Canonical Nextcloud Deep-Linking (`/f/{fileId}`) & Native Navigation (v1.9.6)
+- **Problem & Root Cause:**
+  - Clicking "مکان در پوشه" (Locate in Folder) or the file path link in the quick-view drawer opened the Files app at the root or failed to navigate to the target directory.
+  - Root causes identified:
+    1. Query string `/` was encoded as `%2F` via `urlencode()`, which Vue Router and WebDAV treat literally rather than as directory path separators.
+    2. An unnecessary `e.preventDefault()` on the drawer locate button intercepted native `<a>` tag navigation, making it subject to browser popup blockers.
+- **Implementation & Architecture:**
+  - **Canonical Nextcloud Deep-Link Endpoint (`/f/{fileId}?openfile=false`):**
+    - Updated `TagFilterController.php` to generate `/f/{fileId}?openfile=false` for both files and folders.
+    - Uses Nextcloud's built-in `ViewController::showFile` server-side redirector which dynamically resolves user-specific storage, relative pathing, proper query parameters, and unencoded path separators before issuing an HTTP 303 redirect directly to the Files app.
+  - **Native Browser Tab Navigation (`archive_portal.js`):**
+    - Removed `e.preventDefault()` from `#ea-drawer-locate-btn`, allowing modern browsers to natively open the target URL in a new tab via `target="_blank" rel="noopener noreferrer"` without triggering popup blockers.
+  - **Version Bump & Cache Invalidation:**
+    - Bumped app version to `1.9.6` in `info.xml` and executed `occ upgrade`.
+- **Verification:**
+  - Verified `/f/660?openfile=false` and `/f/547?openfile=false` return 303 redirect with 200 OK final destination for both Bakbari and Admin.
+  - All 4 automated test suites passed 100%: `test_archive_portal.py`, `test_folder_request_governance_v2.py`, `test_folder_request_workflow.py`, `test_group_folders_api.py`.
+
+Status: **Completed**
+
+---
 ## Repository Status
 
 - Repository: `maherani/enterprise-archive-system`

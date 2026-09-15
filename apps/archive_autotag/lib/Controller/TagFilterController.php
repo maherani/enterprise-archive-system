@@ -288,9 +288,9 @@ class TagFilterController extends Controller {
             $targetDir = '/' . ltrim($isDir ? $relPath : $parentDir, '/');
             $targetDir = preg_replace('#/+#', '/', $targetDir);
 
-            $webUrl = $isDir
-                ? ('/apps/files/files?dir=' . urlencode($targetDir))
-                : ('/apps/files/files/' . $fileId . '?dir=' . urlencode($targetDir) . '&openfile=false');
+            // Canonical Nextcloud server-side deep link: resolves storage, relative user paths, and encoding
+            $webUrl = '/f/' . $fileId . '?openfile=false';
+            $folderUrl = '/f/' . $fileId . '?openfile=false';
 
             $filesResult[] = [
                 'id' => $fileId,
@@ -306,7 +306,7 @@ class TagFilterController extends Controller {
                 'is_dir' => $isDir,
                 'tags' => $fileTags,
                 'web_url' => $webUrl,
-                'folder_url' => '/apps/files/files?dir=' . urlencode($targetDir),
+                'folder_url' => $folderUrl,
                 'download_url' => '/remote.php/webdav/' . str_replace('%2F', '/', rawurlencode($relPath)),
             ];
         }
