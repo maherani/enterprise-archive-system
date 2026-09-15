@@ -1059,34 +1059,37 @@
             var rows = list.map(function (req) {
                 var statusHtml = getStatusBadgeHtml(req.status);
                 var reasonHtml = req.rejection_reason
-                    ? '<div class="ea-rejection-box"><strong>دلیل رد درخواست:</strong> ' + escapeHtml(req.rejection_reason) + '</div>'
+                    ? '<div class="ea-rejection-box" style="margin-top:6px;word-break:break-word;font-size:0.78rem;"><strong>دلیل رد درخواست:</strong> ' + escapeHtml(req.rejection_reason) + '</div>'
                     : '';
-                var pathDisplay = req.target_path ? escapeHtml(req.target_path) : 'ریشه گروه';
+                var pathDisplay = req.target_path ? escapeHtml(req.target_path) : '<span style="color:var(--ea-text-dim);">ریشه گروه</span>';
+                var descDisplay = req.description ? '<div style="font-size:0.75rem;color:var(--ea-text-dim);margin-top:3px;word-break:break-word;">' + escapeHtml(req.description) + '</div>' : '';
 
                 return [
                     '<tr>',
-                    '  <td><strong style="color:#ffffff;">' + escapeHtml(req.folder_name) + '</strong></td>',
-                    '  <td>' + pathDisplay + '</td>',
-                    '  <td>' + escapeHtml(req.group_id) + '</td>',
-                    '  <td>' + formatDate(req.created_at) + '</td>',
-                    '  <td>' + statusHtml + reasonHtml + '</td>',
+                    '  <td style="word-break:break-word;min-width:140px;"><strong style="color:#ffffff;font-size:0.88rem;">' + escapeHtml(req.folder_name) + '</strong>' + descDisplay + '</td>',
+                    '  <td style="word-break:break-all;font-size:0.82rem;">' + pathDisplay + '</td>',
+                    '  <td style="text-align:center;white-space:nowrap;"><span class="ea-meta-tag-chip" style="margin:0;font-size:0.76rem;padding:2px 8px;">' + escapeHtml(req.group_id) + '</span></td>',
+                    '  <td style="text-align:center;font-size:0.78rem;color:var(--ea-text-muted);white-space:nowrap;">' + formatDate(req.created_at) + '</td>',
+                    '  <td style="text-align:center;">' + statusHtml + reasonHtml + '</td>',
                     '</tr>'
                 ].join('\n');
             }).join('\n');
 
             body.innerHTML = [
-                '<table class="ea-req-table">',
-                '  <thead>',
-                '    <tr>',
-                '      <th>نام پوشه</th>',
-                '      <th>مسیر والد</th>',
-                '      <th>گروه</th>',
-                '      <th>تاریخ ثبت</th>',
-                '      <th>وضعیت</th>',
-                '    </tr>',
-                '  </thead>',
-                '  <tbody>' + rows + '</tbody>',
-                '</table>'
+                '<div class="ea-req-table-wrap">',
+                '  <table class="ea-req-table">',
+                '    <thead>',
+                '      <tr>',
+                '        <th style="min-width:140px;text-align:right;">نام پوشه</th>',
+                '        <th style="width:120px;text-align:right;">مسیر والد</th>',
+                '        <th style="width:80px;text-align:center;">گروه</th>',
+                '        <th style="width:110px;text-align:center;">تاریخ ثبت</th>',
+                '        <th style="width:140px;text-align:center;">وضعیت</th>',
+                '      </tr>',
+                '    </thead>',
+                '    <tbody>' + rows + '</tbody>',
+                '  </table>',
+                '</div>'
             ].join('\n');
         })
         .catch(function (err) {
@@ -1122,16 +1125,21 @@
             '    </div>',
             '    <button class="ea-modal-close" id="ea-modal-close-btn" title="بستن">✕</button>',
             '  </div>',
-            '  <div style="padding:14px 24px;background:var(--ea-surface-elevated);border-bottom:1px solid var(--ea-border-subtle);display:flex;gap:12px;align-items:center;">',
-            '    <span style="font-size:0.85rem;color:var(--ea-text-muted);font-weight:700;">فیلتر وضعیت:</span>',
-            '    <select id="ea-admin-filter-status" class="ea-form-select" style="width:auto;padding:6px 12px;">',
-            '      <option value="all">همه وضعیت‌ها</option>',
-            '      <option value="pending"' + (filterStatus === 'pending' ? ' selected' : '') + '>در انتظار بررسی</option>',
-            '      <option value="approved"' + (filterStatus === 'approved' ? ' selected' : '') + '>تأیید شده</option>',
-            '      <option value="rejected"' + (filterStatus === 'rejected' ? ' selected' : '') + '>رد شده</option>',
-            '      <option value="failed"' + (filterStatus === 'failed' ? ' selected' : '') + '>خطا</option>',
-            '    </select>',
-            '    <button id="ea-admin-refresh-list" class="ea-btn ea-btn-sm" style="margin-right:auto;">تازه سازی لیست</button>',
+            '  <div class="ea-modal-toolbar">',
+            '    <div class="ea-modal-toolbar-filters">',
+            '      <span style="font-size:0.85rem;color:var(--ea-text-muted);font-weight:700;">فیلتر وضعیت:</span>',
+            '      <select id="ea-admin-filter-status" class="ea-form-select" style="width:auto;padding:6px 14px;">',
+            '        <option value="all">همه وضعیت‌ها</option>',
+            '        <option value="pending"' + (filterStatus === 'pending' ? ' selected' : '') + '>در انتظار بررسی</option>',
+            '        <option value="approved"' + (filterStatus === 'approved' ? ' selected' : '') + '>تأیید شده</option>',
+            '        <option value="rejected"' + (filterStatus === 'rejected' ? ' selected' : '') + '>رد شده</option>',
+            '        <option value="failed"' + (filterStatus === 'failed' ? ' selected' : '') + '>خطا</option>',
+            '      </select>',
+            '    </div>',
+            '    <button id="ea-admin-refresh-list" class="ea-btn ea-btn-sm" title="به‌روزرسانی لیست">',
+            '      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="margin-left:4px;vertical-align:middle;"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
+            '      <span>تازه سازی لیست</span>',
+            '    </button>',
             '  </div>',
             '  <div class="ea-modal-body" id="ea-admin-reqs-body">',
             '    <div style="text-align:center;padding:30px;color:var(--ea-text-muted);">در حال بارگذاری اطلاعات...</div>',
@@ -1185,47 +1193,52 @@
 
                 if (req.status === 'pending') {
                     actionsHtml = [
-                        '<div style="display:flex;gap:6px;">',
-                        '  <button class="ea-btn ea-btn-sm ea-btn-approve" onclick="window._eaApproveReq(' + req.id + ', \'' + escapeHtml(req.folder_name) + '\', \'' + escapeHtml(req.group_id) + '\')">تأیید و ساخت</button>',
-                        '  <button class="ea-btn ea-btn-sm ea-btn-reject" onclick="window._eaRejectReq(' + req.id + ', \'' + escapeHtml(req.folder_name) + '\')">رد درخواست</button>',
+                        '<div class="ea-table-actions">',
+                        '  <button class="ea-btn ea-btn-sm ea-btn-approve" onclick="window._eaApproveReq(' + req.id + ', \'' + escapeHtml(req.folder_name) + '\', \'' + escapeHtml(req.group_id) + '\')">✔ تأیید و ساخت</button>',
+                        '  <button class="ea-btn ea-btn-sm ea-btn-reject" onclick="window._eaRejectReq(' + req.id + ', \'' + escapeHtml(req.folder_name) + '\')">✖ رد درخواست</button>',
                         '</div>'
                     ].join('\n');
                 } else if (req.status === 'rejected' && req.rejection_reason) {
-                    actionsHtml = '<span style="font-size:0.75rem;color:#f87171;" title="' + escapeHtml(req.rejection_reason) + '">دلیل: ' + escapeHtml(req.rejection_reason.substring(0, 30)) + '...</span>';
+                    actionsHtml = '<div style="font-size:0.75rem;color:#f87171;word-break:break-word;max-width:180px;line-height:1.3;" title="' + escapeHtml(req.rejection_reason) + '"><strong>دلیل رد:</strong> ' + escapeHtml(req.rejection_reason) + '</div>';
                 } else if (req.status === 'approved') {
-                    actionsHtml = '<span style="font-size:0.75rem;color:#34d399;">پوشه و تگ فعال شد</span>';
+                    actionsHtml = '<span style="font-size:0.78rem;font-weight:700;color:#34d399;display:inline-flex;align-items:center;gap:4px;">✔ فعال شد</span>';
                 } else if (req.status === 'failed' && req.error_message) {
-                    actionsHtml = '<span style="font-size:0.75rem;color:#fca5a5;" title="' + escapeHtml(req.error_message) + '">خطا در اجرا</span>';
+                    actionsHtml = '<span style="font-size:0.75rem;color:#fca5a5;word-break:break-word;" title="' + escapeHtml(req.error_message) + '">⚠ خطا: ' + escapeHtml(req.error_message.substring(0, 35)) + '</span>';
                 }
+
+                var pathInfo = req.target_path ? '<div style="font-size:0.73rem;color:var(--ea-primary);margin-top:2px;">📁 مسیر: ' + escapeHtml(req.target_path) + '</div>' : '';
+                var descInfo = req.description ? '<div style="font-size:0.75rem;color:var(--ea-text-dim);margin-top:4px;line-height:1.4;word-break:break-word;">' + escapeHtml(req.description) + '</div>' : '';
 
                 return [
                     '<tr>',
-                    '  <td>#' + req.id + '</td>',
-                    '  <td><strong style="color:#ffffff;">' + escapeHtml(req.folder_name) + '</strong><br><span style="font-size:0.75rem;color:var(--ea-text-dim);">' + escapeHtml(req.description || '') + '</span></td>',
-                    '  <td><span class="ea-meta-tag-chip" style="margin:0;">' + escapeHtml(req.group_id) + '</span></td>',
-                    '  <td>' + escapeHtml(req.requester_uid) + '</td>',
-                    '  <td>' + formatDate(req.created_at) + '</td>',
-                    '  <td>' + statusHtml + '</td>',
-                    '  <td>' + actionsHtml + '</td>',
+                    '  <td style="text-align:center;font-weight:700;color:var(--ea-text-muted);font-size:0.8rem;white-space:nowrap;">#' + toPersianDigits(req.id) + '</td>',
+                    '  <td style="word-break:break-word;min-width:180px;"><strong style="color:#ffffff;font-size:0.9rem;">' + escapeHtml(req.folder_name) + '</strong>' + pathInfo + descInfo + '</td>',
+                    '  <td style="text-align:center;white-space:nowrap;"><span class="ea-meta-tag-chip" style="margin:0;font-size:0.76rem;padding:2px 8px;">' + escapeHtml(req.group_id) + '</span></td>',
+                    '  <td style="text-align:center;font-size:0.8rem;word-break:break-all;">' + escapeHtml(req.requester_uid) + '</td>',
+                    '  <td style="text-align:center;font-size:0.78rem;color:var(--ea-text-muted);white-space:nowrap;">' + formatDate(req.created_at) + '</td>',
+                    '  <td style="text-align:center;white-space:nowrap;">' + statusHtml + '</td>',
+                    '  <td style="text-align:center;min-width:130px;">' + actionsHtml + '</td>',
                     '</tr>'
                 ].join('\n');
             }).join('\n');
 
             body.innerHTML = [
-                '<table class="ea-req-table">',
-                '  <thead>',
-                '    <tr>',
-                '      <th>شناسه</th>',
-                '      <th>نام پوشه و توضیحات</th>',
-                '      <th>گروه</th>',
-                '      <th>ادمین متقاضی</th>',
-                '      <th>تاریخ ثبت</th>',
-                '      <th>وضعیت</th>',
-                '      <th>عملیات</th>',
-                '    </tr>',
-                '  </thead>',
-                '  <tbody>' + rows + '</tbody>',
-                '</table>'
+                '<div class="ea-req-table-wrap">',
+                '  <table class="ea-req-table">',
+                '    <thead>',
+                '      <tr>',
+                '        <th style="width:50px;text-align:center;">شناسه</th>',
+                '        <th style="min-width:180px;text-align:right;">نام پوشه و توضیحات</th>',
+                '        <th style="width:70px;text-align:center;">گروه</th>',
+                '        <th style="width:90px;text-align:center;">ادمین متقاضی</th>',
+                '        <th style="width:105px;text-align:center;">تاریخ ثبت</th>',
+                '        <th style="width:115px;text-align:center;">وضعیت</th>',
+                '        <th style="width:140px;text-align:center;">عملیات</th>',
+                '      </tr>',
+                '    </thead>',
+                '    <tbody>' + rows + '</tbody>',
+                '  </table>',
+                '</div>'
             ].join('\n');
         })
         .catch(function (err) {
@@ -1233,7 +1246,7 @@
         });
     }
 
-    // Global Action Handlers for Admin Table
+        // Global Action Handlers for Admin Table
     window._eaApproveReq = function (id, folderName, groupId) {
         if (!confirm('آیا از تأیید درخواست ایجاد پوشه «' + folderName + '» برای گروه «' + groupId + '» اطمینان دارید؟\nاین عملیات پوشه را در ساختار آرشیو ساخته و تگ متناظر را خودکار ثبت و مقید می‌کند.')) {
             return;

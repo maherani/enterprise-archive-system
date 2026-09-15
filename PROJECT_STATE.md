@@ -329,6 +329,34 @@ Status: **Completed**
 Status: **Completed**
 
 ---
+
+### Step 14.2 — Responsive Full-Width Layout & Zero-Horizontal-Scroll Governance Modal (v1.9.1)
+- **Problem & Requirements:**
+  1. In the Folder Request Management & Review modal (`پنل مدیریت و بررسی درخواست‌های پوشه آرشیو`), the table width was constrained by an 880px container, pushing the `عملیات` (Actions) column offscreen on the right.
+  2. Action buttons (`تأیید و ساخت` and `رد درخواست`) were forced inline without wrapping, causing horizontal overflow.
+  3. LTR default direction from Nextcloud's body caused alignment inversions in Persian UI.
+  4. Core Requirement: Guarantee that all table columns (ID, Folder Name & Description, Group, Requester Admin, Date, Status, Actions) are 100% visible with **zero horizontal scrolling** (`نیاز به اسکرول افقی نباشد`), while preserving smooth vertical scrolling for large datasets (`اسکرول عمودی اشکالی ندارد`).
+- **Implementation & Architecture:**
+  - **Styles (`archive_portal.css`):**
+    - Expanded `.ea-modal-card-lg` to `width: 96vw; max-width: 1220px; max-height: 88vh;` to utilize full desktop/laptop canvas width.
+    - Added explicit `direction: rtl; text-align: right;` to `.ea-modal-overlay`, `.ea-modal-card`, `.ea-modal-header`, `.ea-modal-toolbar`, `.ea-modal-body`, and `.ea-modal-footer`.
+    - Enforced `overflow-x: hidden !important; overflow-y: auto !important;` on `.ea-modal-body` and `.ea-req-table-wrap`.
+    - Structured `.ea-req-table` with flexible auto layout, distinct column widths, `word-break: break-word;` for names/descriptions, and `white-space: nowrap;` for IDs, badges, and dates.
+    - Styled `.ea-table-actions` with `display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;` so buttons neatly wrap vertically when viewport width decreases.
+    - Added responsive breakpoints (`@media (max-width: 1200px)` and `@media (max-width: 768px)`).
+  - **Portal Frontend (`archive_portal.js`):**
+    - Updated `openAdminManageRequestsModal` toolbar with `.ea-modal-toolbar` and `.ea-modal-toolbar-filters` for natural RTL alignment.
+    - Updated `loadAdminRequests` to output table within `.ea-req-table-wrap` with structured column headers and Persian digits.
+    - Updated `openGroupRequestsModal` with responsive table wrap and RTL-safe column sizing.
+  - **Cache Invalidation:**
+    - Bumped app version in `info.xml` from `1.9.0` to `1.9.1`.
+    - Synchronized with `nextcloud/custom_apps/archive_autotag/` and ran `php occ upgrade` to bust client asset caches.
+- **Verification:**
+    - Full test suite passed 100%: `test_folder_request_governance_v2.py`, `test_folder_request_workflow.py`, `test_archive_portal.py`.
+
+Status: **Completed**
+
+---
 ## Repository Status
 
 - Repository: `maherani/enterprise-archive-system`
