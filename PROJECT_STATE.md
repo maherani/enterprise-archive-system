@@ -270,7 +270,7 @@ Status: **Completed**
 
 ---
 
-### Step 14 — Delegated Folder Creation Workflow & Multi-Tier Governance (v1.8.0)
+### Step 14 — Delegated Folder Creation Workflow & Multi-Tier Governance (v1.8.1)
 - **Problem & Requirements:**
   1. Regular users must never create folders or bypass archive policies.
   2. Group administrators require a formal channel to request new folders within their specific departmental archive scope, without granting them direct unmonitored filesystem creation permissions.
@@ -293,8 +293,10 @@ Status: **Completed**
     - System Admin View: Displays `[ مدیریت درخواست‌های پوشه ]` with glowing orange pending badge counter.
     - Admin Review Dashboard: Status and group filtering toolbar, direct approval prompt, and mandatory rejection prompt.
     - Non-admin regular users: Zero workflow buttons or forms exposed.
-  - **App Version & Assets (v1.8.0):**
-    - Updated `apps/archive_autotag/appinfo/info.xml` to `1.8.0` and completed database migration.
+  - **App Version & Assets (v1.8.1):**
+    - Updated `apps/archive_autotag/appinfo/info.xml` to `1.8.1` and completed database migration.
+    - Integrated dynamic `#ea-workflow-actions` container in portal header (`renderApp`), enabling seamless reactive rendering of action buttons based on user role (`is_group_admin` vs `is_admin`).
+    - Asset cache busting query strings refreshed (`?v=5dbcc382-4` and `?v=da35cf6b-4`) via `occ upgrade`.
 - **Automated Verification:**
   - `tests/test_folder_request_workflow.py`: Passed 100% across all 11 governance checks (regular user block, anti-spoofing, admin exemption, isolation, rejection with reason, atomic folder/tag creation, WebDAV upload, and MKCOL restriction).
 
