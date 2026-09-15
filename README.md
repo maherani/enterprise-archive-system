@@ -19,7 +19,7 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
                     ?   archive_app    ?  (Nextcloud 34 Apache)
                     ?   (Internal:80)  ?  - WebDAV Endpoint: /remote.php/dav/files/
                     ????????????????????  - LDAP & Token Authentication
-                             ?            - Custom App: archive_autotag v1.9.3
+                             ?            - Custom App: archive_autotag v1.9.4
                              ?            - Dynamic Hierarchical Auto-Tagging
                              ?            - Native Multi-Tag Intersection Search (AND)
                              ?            - Granular Per-User File Upload Size Limit
@@ -87,7 +87,7 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
     - Full-width canvas guarantee, instant debounce search, multi-tag faceted chips, and view switching (Card Grid vs. Table List).
     - Dynamic responsive push workspace (Accordion sliding): Opening the right-docked quick-view drawer smoothly compresses the document workspace to the left, guaranteeing that menus never obstruct files or cards.
     - Comprehensive dark theme applied globally to the Top Navigation Header, Files App, and Login page.
-14. **Delegated Folder Creation Workflow & Multi-Tier Governance (`archive_autotag v1.9.3`)**:
+14. **Delegated Folder Creation Workflow & Multi-Tier Governance (`archive_autotag v1.9.4`)**:
     - Regular users are strictly prohibited from creating folders or submitting folder creation requests (`HTTP 403 Forbidden`).
     - Group Administrators (Subadmins) possess dedicated portal controls (`[ + درخواست پوشه جدید ]` and `[ درخواست‌های گروه ]`) to submit folder requests within their departmental archive scope.
     - System Administrators have centralized oversight via `[ مدیریت درخواست‌های پوشه ]` with real-time pending badge counter, multi-criteria filtering, and one-click atomic approval / reasoned rejection.
@@ -111,7 +111,7 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
 - **Step 11 ? Bare-Metal Deployment Automation**: `deploy/deploy_from_scratch.sh`, `.env.example`, and updated runbook.
 - **Step 12 ? Per-User File Access Control & Tag Isolation (v1.4.0)**: Zero-data-leak file and tag isolation, admin grant workflows, and automated E2E test suite `tests/test_archive_acl_and_tag_isolation.py` (100% pass rate).
 - **Step 13 ? Enterprise Archive Portal UI/UX & Obsidian-Orange Design System (v1.7.1)**: Modern enterprise dashboard, dynamic sliding push workspace, global Obsidian-Orange theme, cache busting, and automated test suite `tests/test_archive_portal.py` (100% pass rate).
-- **Step 14 — Delegated Folder Creation Workflow & Advanced Governance (v1.9.3)**: Duplicate physical & pending folder prevention, complete 10-point audit trail (`oc_archive_folder_request_audit`), native Nextcloud notifications, visual audit timeline modal, dynamic parent folder tree dropdown, CSP-safe action button handlers, and automated test suites (100% pass rate).
+- **Step 14 — Delegated Folder Creation Workflow & Advanced Governance (v1.9.4)**: Duplicate physical & pending folder prevention, complete 10-point audit trail (`oc_archive_folder_request_audit`), native Nextcloud notifications, visual audit timeline modal, dynamic parent folder tree dropdown, CSP-safe action button handlers, accurate Files App 'Locate in Folder' deep linking, and automated test suites (100% pass rate).
 
 See [PROJECT_STATE.md](PROJECT_STATE.md) and [docs/DEPLOYMENT_RUNBOOK.md](docs/DEPLOYMENT_RUNBOOK.md) for full operational guides and architectural records.
 

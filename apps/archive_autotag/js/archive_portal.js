@@ -763,7 +763,7 @@
                 '',
                 '<div class="ea-meta-item">',
                 '  <span class="ea-meta-label">مسیر فایل:</span>',
-                '  <span class="ea-meta-val">' + escapeHtml(file.path) + '</span>',
+                '  <span class="ea-meta-val"><a href="' + escapeHtml(file.web_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--ea-primary);text-decoration:none;" title="مشاهده در نمای فایل‌ها">' + escapeHtml(file.path) + ' ↗</a></span>',
                 '</div>',
                 '<div class="ea-meta-item">',
                 '  <span class="ea-meta-label">حجم فایل:</span>',
@@ -794,7 +794,7 @@
                 '  <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
                 '  <span>کپی لینک</span>',
                 '</button>',
-                '<a href="' + escapeHtml(file.web_url) + '" class="ea-btn" title="مشاهده در نمای فایل‌ها">',
+                '<a href="' + escapeHtml(file.web_url) + '" class="ea-btn" id="ea-drawer-locate-btn" target="_blank" rel="noopener noreferrer" title="مشاهده مکان فایل در پوشه">',
                 '  <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
                 '  <span>مکان در پوشه</span>',
                 '</a>'
@@ -804,6 +804,14 @@
             if (copyBtn) {
                 copyBtn.addEventListener('click', function () {
                     copyFileLink(file);
+                });
+            }
+
+            var locateBtn = document.getElementById('ea-drawer-locate-btn');
+            if (locateBtn) {
+                locateBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    window.open(file.web_url, '_blank');
                 });
             }
         }

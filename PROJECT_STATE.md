@@ -401,6 +401,27 @@ Status: **Completed**
 Status: **Completed**
 
 ---
+
+### Step 14.5 — Accurate Files App Navigation & 'Locate in Folder' Deep Linking (v1.9.4)
+- **Problem & Root Cause:**
+  - Clicking "مکان در پوشه" (Locate in Folder) in the Quick View Drawer opened the Files app at the root directory (`/`) instead of the file's containing folder.
+  - Root cause: `TagFilterController.php` previously generated a legacy URL `/apps/files/?dir=...`. In modern Nextcloud (Vue 3 Files App), the route is mounted at `/apps/files/files`. Navigating to `/apps/files/` caused Vue Router to discard query parameters and default to `/`.
+- **Implementation & Architecture:**
+  - **Accurate Nextcloud Deep Linking (`TagFilterController.php`):**
+    - Updated `web_url` to `/apps/files/files/{fileId}?dir={targetDir}&openfile=false`.
+    - Added `folder_url` to `/apps/files/files?dir={targetDir}`.
+    - Path normalization: ensured proper slash formatting (`$targetDir = '/' . ltrim(..., '/')`).
+  - **Drawer UI & Navigation Guarantee (`archive_portal.js`):**
+    - "مکان در پوشه" button now opens in a new tab (`target="_blank" rel="noopener noreferrer"`) with a reliable JavaScript click handler (`window.open(file.web_url, '_blank')`).
+    - The file path in the drawer metadata is now also an interactive clickable link (`📁 مسیر فایل: ... ↗`) opening the parent folder.
+  - **Version & Cache Invalidation:**
+    - Bumped app version to `1.9.4` and executed `occ upgrade`.
+- **Verification:**
+  - All test suites passed 100%: `test_archive_portal.py`, `test_folder_request_governance_v2.py`, `test_folder_request_workflow.py`, `test_group_folders_api.py`.
+
+Status: **Completed**
+
+---
 ## Repository Status
 
 - Repository: `maherani/enterprise-archive-system`

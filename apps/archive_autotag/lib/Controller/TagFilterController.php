@@ -285,6 +285,8 @@ class TagFilterController extends Controller {
             }
 
             $isDir = $node->getType() === FileInfo::TYPE_FOLDER;
+            $targetDir = '/' . ltrim($isDir ? $relPath : $parentDir, '/');
+            $targetDir = preg_replace('#/+#', '/', $targetDir);
 
             $filesResult[] = [
                 'id' => $fileId,
@@ -298,7 +300,8 @@ class TagFilterController extends Controller {
                 'type' => $isDir ? 'folder' : 'file',
                 'is_dir' => $isDir,
                 'tags' => $fileTags,
-                'web_url' => '/apps/files/?dir=' . urlencode('/' . $parentDir) . '&scrollto=' . urlencode($node->getName()),
+                'web_url' => '/apps/files/files/' . $fileId . '?dir=' . urlencode($targetDir) . '&openfile=false',
+                'folder_url' => '/apps/files/files?dir=' . urlencode($targetDir),
                 'download_url' => '/remote.php/webdav/' . str_replace('%2F', '/', rawurlencode($relPath)),
             ];
         }
