@@ -422,6 +422,32 @@ Status: **Completed**
 Status: **Completed**
 
 ---
+
+### Step 14.6 — Multi-Tag Filter In-Page SPA Navigation & Folder Deep-Linking (v1.9.5)
+- **Problem & Root Cause:**
+  - In Nextcloud Files App, clicking "مشاهده در پوشه" (View in Folder) in the embedded Multi-Tag search results table failed to navigate to the target directory.
+  - Root causes identified:
+    1. For directories/folders, `web_url` incorrectly included `/{fileId}` in the path (`/apps/files/files/{fileId}?dir=...`), which conflicted with Vue Router directory resolution for folders.
+    2. In `multi_tag_filter.js`, links were unhandled standard `<a>` tags inside a Vue 3 SPA without explicit event listeners.
+    3. The active tag filter overlay (`#archive-tag-results-container`) kept standard file list hidden (`display: none`), so any directory change behind it was not revealed.
+- **Implementation & Architecture:**
+  - **Directory vs File URL Distinction (`TagFilterController.php`):**
+    - For folders: `web_url` and `folder_url` point directly to `/apps/files/files?dir={targetDir}` (no fileId parameter).
+    - For files: `web_url` points to `/apps/files/files/{fileId}?dir={targetDir}&openfile=false`.
+    - Added `target_dir` field to API file payloads.
+  - **In-Page SPA Navigation & Filter Reset (`multi_tag_filter.js`):**
+    - Attached standard click listeners to `.archive-nav-link` and `.archive-locate-btn`.
+    - On click, clears active tag filter state (`state.selectedTagIds.clear()`), removes the results table container, and un-hides the native Nextcloud file list (`toggleStandardFileList(true)`).
+    - Uses `window.OCP.Files.Router.goToRoute('filelist', { view: 'files' }, { dir: targetDir })` (and `{ fileid: fileId }` for files) for instantaneous in-page Vue Router navigation.
+    - Fallback to `window.location.href = webUrl` and preserved standard new-tab opening for Ctrl/middle clicks.
+  - **Version Bump & Cache Invalidation:**
+    - Bumped app version to `1.9.5` in `info.xml` and executed `occ upgrade`.
+- **Verification:**
+  - All 4 test suites passed 100%: `test_archive_portal.py`, `test_folder_request_governance_v2.py`, `test_folder_request_workflow.py`, `test_group_folders_api.py`.
+
+Status: **Completed**
+
+---
 ## Repository Status
 
 - Repository: `maherani/enterprise-archive-system`

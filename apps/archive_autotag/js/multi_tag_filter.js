@@ -382,18 +382,21 @@
 
             var icon = file.is_dir ? '📁' : '📄';
 
+            var targetDir = file.target_dir || (file.is_dir ? ('/' + file.path.replace(/^\/+/g, '')) : ('/' + (file.parent_dir || '').replace(/^\/+/g, '')));
+            targetDir = targetDir.replace(/\/+/g, '/');
+
             return '<tr>' +
                    '<td>' +
                        '<div class="archive-file-name-cell">' +
                            '<span>' + icon + '</span>' +
-                           '<a href="' + escapeHtml(file.web_url) + '">' + escapeHtml(file.name) + '</a>' +
+                           '<a class="archive-nav-link" href="' + escapeHtml(file.web_url) + '" data-file-id="' + file.id + '" data-is-dir="' + (file.is_dir ? 'true' : 'false') + '" data-target-dir="' + escapeHtml(targetDir) + '">' + escapeHtml(file.name) + '</a>' +
                        '</div>' +
                    '</td>' +
                    '<td><span class="archive-file-path-badge">' + escapeHtml(file.path) + '</span></td>' +
                    '<td>' + escapeHtml(file.human_size) + '</td>' +
                    '<td>' + tagsHtml + '</td>' +
                    '<td>' +
-                       '<a class="archive-action-btn" href="' + escapeHtml(file.web_url) + '" title="مشاهده در پوشه">📂 مشاهده در پوشه</a>' +
+                       '<a class="archive-action-btn archive-locate-btn" href="' + escapeHtml(file.web_url) + '" data-file-id="' + file.id + '" data-is-dir="' + (file.is_dir ? 'true' : 'false') + '" data-target-dir="' + escapeHtml(targetDir) + '" title="مشاهده در پوشه">📂 مشاهده در پوشه</a>' +
                        (!file.is_dir ? '<a class="archive-action-btn" href="' + escapeHtml(file.download_url) + '" download title="دانلود">⬇️ دانلود</a>' : '') +
                    '</td>' +
                    '</tr>';
@@ -424,6 +427,51 @@
                     rowsHtml +
                 '</tbody>' +
             '</table>';
+
+        // Attach reliable click listeners to navigation links
+        var navLinks = container.querySelectorAll('.archive-nav-link, .archive-locate-btn');
+        navLinks.forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                if (e.ctrlKey || e.metaKey || e.button === 1) {
+                    return; // Allow opening in new tab
+                }
+                e.preventDefault();
+                e.stopPropagation();
+
+                var fileId = btn.getAttribute('data-file-id');
+                var isDir = btn.getAttribute('data-is-dir') === 'true';
+                var targetDir = btn.getAttribute('data-target-dir') || '/';
+                var webUrl = btn.getAttribute('href');
+
+                // 1. Clear active tags and remove search results table so standard file list is shown
+                state.selectedTagIds.clear();
+                var resultsContainer = document.querySelector('#archive-tag-results-container');
+                if (resultsContainer) {
+                    resultsContainer.remove();
+                }
+                toggleStandardFileList(true);
+                renderFilterBar();
+
+                // 2. Navigate smoothly using Nextcloud Vue Router if available
+                if (window.OCP && window.OCP.Files && window.OCP.Files.Router) {
+                    try {
+                        if (isDir) {
+                            window.OCP.Files.Router.goToRoute('filelist', { view: 'files' }, { dir: targetDir });
+                        } else {
+                            window.OCP.Files.Router.goToRoute('filelist', { view: 'files', fileid: String(fileId) }, { dir: targetDir, openfile: 'false' });
+                        }
+                        return;
+                    } catch (routerErr) {
+                        console.warn('[ArchiveMultiTagFilter] Router navigation failed:', routerErr);
+                    }
+                }
+
+                // 3. Fallback: window.location
+                if (webUrl) {
+                    window.location.href = webUrl;
+                }
+            });
+        });
     }
 
     function escapeHtml(str) {
