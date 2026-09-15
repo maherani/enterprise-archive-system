@@ -1,667 +1,575 @@
-# مأموریت: مستندسازی جامع، ماژولار و ارتباط‌محور نیازمندی‌ها، تاریخچه معماری و پیاده‌سازی پروژه Enterprise Archive System
+# قانون دائمی مستندسازی Requirementهای جدید — Enterprise Archive System
 
-تو در طول توسعه پروژه **Enterprise Archive System** مجموعه‌ای از نیازمندی‌ها را از من دریافت کرده‌ای. برای هر نیازمندی، ابتدا تحلیل و طراحی ارائه شده، سپس پس از تأیید من، پیاده‌سازی، تست و در نهایت Commit و Push انجام شده است.
+از این لحظه این دستور به‌عنوان **استاندارد دائمی Documentation پروژه Enterprise Archive System** در نظر گرفته شود.
 
-اکنون مأموریت تو این است که **تاریخچه واقعی نیازمندی‌ها، ارتباط میان آن‌ها، معماری نهایی و وضعیت نهایی پیاده‌سازی را به‌صورت مستندات ماژولار و قابل نگهداری در خود Repository ثبت کنی.**
-
-هدف این مستندات این است که در آینده بتوان هر قابلیت سیستم را مستقل از تاریخچه گفتگوها مطالعه کرد و دقیقاً فهمید:
-
-* نیازمندی چه بوده است؟
-* در چه مرحله‌ای مطرح شده است؟
-* آیا بعداً درخواست‌های تکمیلی برای همان نیازمندی مطرح شده‌اند؟
-* معماری نهایی آن چه بوده است؟
-* چه اجزایی برای اجرای آن ایجاد یا تغییر کرده‌اند؟
-* چه Roleها، Permissionها، Tagها، APIها، Serviceها، Database Changeها و Testهایی درگیر هستند؟
-* این Requirement چه ارتباطی با Requirementهای دیگر دارد؟
-* وضعیت نهایی و واقعی آن در Repository چیست؟
+هر زمان از طرف من یک Requirement، Feature، قابلیت، تغییر معماری، الزام امنیتی، تکمیل Workflow یا درخواست جدید برای پروژه مطرح شد، باید قبل از پایان اجرای آن، وضعیت Documentation مربوط به آن نیز تعیین و ثبت شود.
 
 ---
 
-# ⚠️ اصل اول و بسیار مهم: Repository و وضعیت نهایی کد، مرجع حقیقت هستند
+# ⚠️ اصل شماره ۱ — استاندارد Documentation قبلی کاملاً پابرجاست
 
-قبل از تولید هر مستند، ابتدا وضعیت واقعی فعلی پروژه را بررسی کن.
+تمام قواعد تعیین‌شده در مأموریت قبلی بازسازی Documentation همچنان معتبر و اجباری هستند.
 
-منابع بررسی شامل موارد زیر هستند:
+در نتیجه برای هر Requirement جدید باید این اصول رعایت شوند:
 
-1. ساختار فعلی Repository
-2. `PROJECT_STATE.md`
-3. `README.md`
-4. مستندات موجود در `docs/`
-5. Commit History
-6. پیام Commitها
-7. تغییرات مرتبط با Featureها
-8. Backend
-9. Frontend
-10. Database Schema و Migrationها
-11. Testها
-12. Deployment / Backup / Restore Scriptها
-13. Custom Appهای Nextcloud
-14. APIها
-15. Serviceها
-16. Event Listenerها
-17. Commandها
-18. Configurationها
-
-اگر بین تاریخچه توسعه و وضعیت فعلی Repository اختلافی وجود داشت، **نسخه نهایی و موجود فعلی Repository مبنای مستندسازی باشد.**
-
-هیچ ساختار، فایل، API، Table، Class یا قابلیت فرضی را مستند نکن.
+* Documentation باید دقیق، واقعی و قابل اعتماد باشد.
+* اطلاعات فنی نباید حدس زده شوند.
+* Repository و وضعیت فعلی آن مرجع Implementation نهایی است.
+* Requirement، Design/Architecture و Implementation باید از یکدیگر تفکیک شوند.
+* تاریخچه Requirement باید از Debug History جدا باشد.
+* وضعیت تاریخی و وضعیت فعلی نباید با یکدیگر مخلوط شوند.
+* Testهای ذکرشده باید واقعی و قابل اثبات باشند.
+* Architecture نباید بزرگ‌نمایی شود.
+* API، Tool، Service، Script، Command و Architecture Pattern نباید با یکدیگر اشتباه گرفته شوند.
+* ادعاهای امنیتی، پایداری، مقیاس‌پذیری و Production فقط در صورت وجود شواهد واقعی ثبت شوند.
+* تمام متن توضیحی Documentation باید فارسی باشد.
+* نام فایل‌ها و عناصر فنی مانند Class، Function، API، Table، Column، Command و Path می‌توانند انگلیسی باشند.
+* Source Code کامل فقط در صورت ضرورت مستند شود.
+* تمرکز Documentation روی ساختار، منطق، Workflow و ارتباط اجزای سیستم باشد.
 
 ---
 
-# 1. مهم‌ترین اصل این مأموریت: تشخیص ارتباط و ادامه نیازمندی‌ها
+# ⚠️ اصل شماره ۲ — قبل از ایجاد یا تغییر سند، ابتدا Requirement را طبقه‌بندی کن
 
-ممکن است یک Requirement در یک مرحله از پروژه از طرف من مطرح شده باشد، اما **ادامه، تکمیل، اصلاح یا گسترش همان Requirement را در زمان دیگری و در پیام‌ها یا مراحل بعدی مطرح کرده باشم.**
+هر Requirement جدید را ابتدا با تمام Requirementهای ثبت‌شده قبلی مقایسه کن.
 
-همچنین ممکن است:
-
-* Requirement اولیه در یک گفتگو مطرح شده باشد.
-* بخش دیگری از همان Requirement در گفتگویی دیگر مطرح شده باشد.
-* یک قابلیت تکمیلی چند مرحله بعد اضافه شده باشد.
-* من یک ویژگی را بعداً به Requirement قبلی اضافه کرده باشم.
-* یک Requirement اولیه با یک Requirement جدید ظاهری، در واقع ادامه همان قابلیت قبلی باشد.
-
-### بنابراین قبل از تولید فایل‌ها باید:
-
-کل تاریخچه قابل دسترس پروژه، گفتگوها، Commitها، کد و مستندات را بررسی و تحلیل کنی و مشخص کنی:
-
-**کدام درخواست‌ها واقعاً Requirement مستقل هستند و کدام درخواست‌ها ادامه یا تکمیل Requirementهای قبلی هستند.**
-
-### بسیار مهم:
-
-صرفاً به ترتیب زمانی پیام‌ها یا Commitها اعتماد نکن.
-
-ممکن است چند درخواست با فاصله زمانی زیاد، در واقع متعلق به **یک Requirement واحد** باشند.
-
-از طرف دیگر، ممکن است دو درخواست مشابه از نظر ظاهری، در واقع دو Requirement مستقل باشند.
-
-بنابراین باید ارتباط آن‌ها را بر اساس:
-
-* هدف
-* Scope
-* معماری
-* Roleها
-* Permissionها
-* APIها
-* Database
-* Feature dependency
-* کد پیاده‌سازی‌شده
-* Commitها
-* Workflow
-* Testها
-* متن درخواست‌های قبلی
-
-تحلیل کنی.
-
----
-
-# 2. Requirement Lineage و ارتباط تاریخی
-
-برای هر Requirement باید مشخص شود که:
-
-* Requirement از کجا شروع شده است.
-* چه درخواست‌های تکمیلی بعداً به آن اضافه شده‌اند.
-* چه Featureهایی ادامه همان Requirement هستند.
-* آیا Requirement در چند مرحله توسعه پیدا کرده است.
-* آیا درخواست‌های بعدی بخشی از همان Scope هستند یا Requirement مستقل.
-
-در صورت وجود رابطه، آن را به‌صورت واضح ثبت کن.
-
-برای مثال:
+ابتدا مشخص کن:
 
 ```text
-Requirement A
-    ↓
-درخواست تکمیلی A.1
-    ↓
-درخواست تکمیلی A.2
-    ↓
-پیاده‌سازی نهایی A
+آیا این Requirement ادامه یا تکمیل یک Requirement موجود است؟
 ```
 
 یا:
 
 ```text
-Requirement A
-├── Phase 1
-├── Phase 2
-├── تکمیل Permission
-├── تکمیل Audit
-└── تکمیل Notification
+آیا این Requirement یک Requirement مستقل و جدید است؟
+```
+
+این تصمیم را فقط بر اساس عنوان یا شباهت ظاهری نگیرید.
+
+برای تشخیص از موارد زیر استفاده کن:
+
+* هدف
+* Scope
+* Actor
+* Role
+* Permission
+* Workflow
+* Domain / Capability
+* Data Model
+* API
+* Architecture
+* Implementation
+* Test
+* Dependency
+* ارتباط با Featureهای قبلی
+
+---
+
+# ۳. اگر Requirement جدید ادامه Requirement قبلی است
+
+اگر مشخص شد Requirement جدید در واقع:
+
+* ادامه Requirement قبلی،
+* تکمیل Requirement قبلی،
+* توسعه Scope قبلی،
+* تکمیل Security قبلی،
+* تکمیل Permission قبلی،
+* تکمیل UI/UX قبلی،
+* تکمیل Audit قبلی،
+* تکمیل Notification قبلی،
+* یا هر نوع گسترش همان Capability
+
+است:
+
+## ⚠️ سند جدید ایجاد نکن.
+
+باید **سند Requirement قبلی را Update کنی.**
+
+---
+
+# ۴. نحوه Update کردن Requirement قبلی
+
+سند قبلی باید با همان استاندارد قبلی بازبینی و به‌روزرسانی شود.
+
+اطلاعات جدید باید در بخش‌های مناسب قرار بگیرند.
+
+در صورت نیاز این بخش‌ها را به‌روزرسانی کن:
+
+```text id="2x2isf"
+شرح نیازمندی
+Scope
+درخواست‌های تکمیلی
+تاریخچه و تکامل
+Actors / Roles
+Rules
+Scenarios
+Design / Architecture
+Workflow
+Backend
+Frontend
+Database
+API
+Permission / Security
+Audit
+Notification
+Implementation
+Tests
+Dependencies
+Related Requirements
+Final Status
 ```
 
 ---
 
-# 3. اگر چند درخواست در واقع یک Requirement هستند
+# ۵. تاریخچه Requirement در هنگام Update حفظ شود
 
-اگر تشخیص دادی که چند درخواست در مقاطع مختلف، در واقع بخش‌های مختلف یک Requirement واحد هستند:
+هنگام Update کردن یک سند:
 
-**آن‌ها را به‌صورت چند Requirement مصنوعی جداگانه مستند نکن.**
+**اطلاعات قبلی معتبر حذف نشوند.**
 
-بلکه:
+در صورت نیاز، بخش:
 
-* یک Requirement اصلی ایجاد کن.
-* تمام درخواست‌های مرتبط را در همان سند تجمیع کن.
-* تکامل Requirement را به‌صورت Timeline / Evolution ثبت کن.
-* مشخص کن هر بخش در چه مرحله‌ای اضافه شده است.
-* معماری و پیاده‌سازی نهایی را یکپارچه مستند کن.
-* در صورت نیاز، بخش «تاریخچه تکامل Requirement» ایجاد کن.
-
-نمونه:
-
-```markdown
-## تاریخچه تکامل نیازمندی
-
-### مرحله ۱ — نیازمندی اولیه
-...
-
-### مرحله ۲ — درخواست تکمیلی
-...
-
-### مرحله ۳ — تکمیل معماری
-...
-
-### مرحله ۴ — وضعیت نهایی
-...
+```markdown id="0w6a1p"
+## تاریخچه و تکامل Requirement
 ```
 
----
-
-# 4. اگر یک درخواست واقعاً Requirement مستقل است
-
-اگر مشخص شد که درخواست جدید Scope، هدف یا Architecture مستقل دارد، آن را به‌عنوان Requirement مستقل ثبت کن.
-
-در این حالت ارتباط آن با Requirementهای قبلی را در بخش:
-
-```text
-## ارتباط با Requirementهای مرتبط
-```
-
-مشخص کن.
+را گسترش بده تا مشخص شود Requirement چگونه توسعه یافته است.
 
 مثلاً:
 
-```text
-این Requirement مستقل است اما از Permission Model تعریف‌شده در Requirement 02 استفاده می‌کند.
+```text id="pm3dnk"
+Requirement اولیه
+      ↓
+تکمیل Permission
+      ↓
+تکمیل Security
+      ↓
+تکمیل Audit
+      ↓
+قابلیت جدید مرتبط
+      ↓
+وضعیت فعلی
 ```
 
----
-
-# 5. قبل از تولید فایل‌های اصلی، ابتدا Requirement Map ایجاد کن
-
-قبل از تولید مستندات شماره‌دار، ابتدا یک مرحله تحلیل داخلی انجام بده و یک **Requirement Map** از کل پروژه تهیه کن.
-
-این Map باید حداقل مشخص کند:
-
-| شماره | عنوان Requirement | مستقل/ادامه | وابسته به | درخواست‌های تکمیلی |
-| ----- | ----------------- | ----------- | --------- | ------------------ |
-| 01    | ...               | مستقل       | ...       | ...                |
-| 02    | ...               | مستقل       | 01        | ...                |
-| 03    | ...               | ادامه 02    | 02        | ...                |
-
-این Map مبنای تصمیم‌گیری برای شماره‌گذاری و ایجاد فایل‌ها باشد.
-
-### نکته بسیار مهم
-
-Requirement Map نباید بر اساس حدس ساخته شود.
-
-هر ارتباط باید تا حد امکان با شواهد موجود در:
-
-* گفتگوها
-* Commitها
-* کد
-* Tests
-* Documentation
-
-بررسی شود.
+اما Debug History یا تلاش‌های ناموفق وارد این Timeline نشود.
 
 ---
 
-# 6. اگر یک Requirement در چند مرحله توسعه یافته است
+# ۶. Requirement جدید نباید فقط به دلیل Commit جدید ایجاد شود
 
-در فایل نهایی آن Requirement، علاوه بر وضعیت نهایی، تکامل آن نیز ثبت شود.
+وجود موارد زیر به‌تنهایی دلیل ایجاد Requirement جدید نیست:
+
+* Commit جدید
+* Pull Request جدید
+* فایل جدید
+* Service جدید
+* API جدید
+* Refactor
+* Bug Fix
+* تغییر Implementation
+
+ابتدا بررسی کن که این تغییر بخشی از Requirement موجود است یا واقعاً Capability جدیدی ایجاد کرده است.
+
+---
+
+# ۷. اگر Requirement واقعاً جدید است
+
+اگر Requirement جدید واقعاً مستقل است:
+
+**یک سند جدید ایجاد کن.**
+
+شماره آن باید ادامه آخرین شماره Requirement موجود باشد.
+
+مثلاً اگر آخرین سند:
+
+```text id="hkcgwm"
+12_advanced_search.md
+```
+
+باشد، سند جدید:
+
+```text id="7t7eyj"
+13_new_feature.md
+```
+
+خواهد بود.
+
+---
+
+# ۸. سند Requirement جدید باید همان استاندارد قبلی را داشته باشد
+
+Requirement جدید باید از همان ساختار و سطح دقت استفاده کند.
 
 ساختار پیشنهادی:
 
 ```markdown
 # عنوان Requirement
 
-## 1. شرح نیازمندی اولیه
+## ۱. شرح نیازمندی
 
-## 2. درخواست‌های تکمیلی مرتبط
+## ۲. هدف و مسئله
 
-## 3. تاریخچه تکامل Requirement
+## ۳. محدوده Requirement
 
-## 4. Scope نهایی
+## ۴. درخواست‌های تکمیلی مرتبط
 
-## 5. معماری نهایی
+## ۵. تاریخچه و تکامل Requirement
 
-## 6. Workflow نهایی
+## ۶. Actors و Roleها
 
-## 7. Backend
+## ۷. قوانین و محدودیت‌ها
 
-## 8. Frontend
+## ۸. سناریوهای اصلی
 
-## 9. Database
+## ۹. Design و Architecture تأییدشده
 
-## 10. APIها
+## ۱۰. Workflow
 
-## 11. Permission و Security
+## ۱۱. Backend
 
-## 12. Audit و Logging
+## ۱۲. Frontend
 
-## 13. Notification
+## ۱۳. Database
 
-## 14. ساختار فایل‌ها
+## ۱۴. APIها و پروتکل‌ها
 
-## 15. منطق عملکرد
+## ۱۵. Permission و Security
 
-## 16. Testها
+## ۱۶. Audit و Logging
 
-## 17. ارتباط با Requirementهای دیگر
+## ۱۷. Notification
 
-## 18. وضعیت نهایی
+## ۱۸. ساختار فایل‌ها و اجزای پیاده‌سازی
+
+## ۱۹. منطق عملکرد
+
+## ۲۰. Testها و معیارهای پذیرش
+
+## ۲۱. وابستگی‌ها و Integrationها
+
+## ۲۲. ارتباط با Requirementهای دیگر
+
+## ۲۳. وضعیت نهایی
 ```
+
+بخش‌هایی که برای Requirement مربوط نیستند حذف شوند.
 
 ---
 
-# 7. زبان مستندات
+# ۹. Requirement Lineage در Requirementهای جدید
 
-تمام محتوای فایل‌ها باید **کاملاً به زبان فارسی** باشد.
+برای Requirement جدید نیز بررسی کن که آیا پیشینه یا درخواست‌های مرتبطی در تاریخچه پروژه وجود دارد.
 
-این الزام شامل:
+اگر این Requirement در گذشته به‌صورت بخشی از یک درخواست بزرگ‌تر مطرح شده ولی اکنون به‌دلیل Scope مستقل باید سند جداگانه داشته باشد، این رابطه را در:
 
-* عنوان‌ها
-* توضیحات
-* معماری
-* نیازمندی
-* Workflow
+```text id="f4pn31"
+## ارتباط با Requirementهای دیگر
+```
+
+ثبت کن.
+
+---
+
+# ۱۰. وضعیت نهایی همیشه باید بر اساس Repository فعلی باشد
+
+بعد از اجرای Requirement و قبل از نهایی کردن Documentation:
+
+اطلاعات فعلی را با Repository تطبیق بده.
+
+به‌خصوص:
+
+* File Path
+* Version
+* API
 * Database
-* Security
-* Test
-* توضیح کد
-* توضیح API
-* توضیح Permission
-
-است.
-
-فقط مواردی مانند موارد زیر می‌توانند به زبان اصلی باقی بمانند:
-
-* نام فایل
+* Configuration
+* Container
+* Port
+* Mount
+* Service
 * Class
 * Function
-* Method
-* Variable
-* API Endpoint
-* Table
-* Column
-* Command
-* Package
-* Library
-* Git Commit
-* Code
-
----
-
-# 8. بدون خلاصه‌سازی سطحی
-
-مستندات باید دقیق و قابل استفاده برای توسعه آینده باشند.
-
-برای هر Requirement، تا حد امکان موارد زیر ثبت شوند:
-
-* شرح کامل نیازمندی
-* هدف
-* Scope
-* Actors
-* Roleها
-* Groupها
-* Permissionها
-* سناریوهای استفاده
-* Workflow
-* Architecture
-* Backend
-* Frontend
-* Database
-* API
-* Service
-* Event
-* Listener
-* Command
-* Validation
-* Security
-* Audit
-* Notification
+* Script
 * Test
-* Integration
-* Dependency
-* ساختار فایل‌ها
-* منطق عملکرد
-* وضعیت نهایی
+
+باید با وضعیت واقعی فعلی مطابقت داشته باشند.
+
+اگر Implementation در طول زمان تغییر کرده است:
+
+* وضعیت فعلی در Final Implementation ثبت شود.
+* وضعیت تاریخی فقط در صورت ضرورت در History ثبت شود.
 
 ---
 
-# 9. ثبت نیازمندی واقعی و معماری تأییدشده
+# ۱۱. Requirement، Design و Implementation را مخلوط نکن
 
-برای هر Requirement دو بخش اصلی داشته باش:
+در سند همیشه مشخص باشد:
 
-## شرح نیازمندی
+### Requirement
 
-نیازمندی واقعی که از طرف من مطرح شده است.
+چه چیزی از طرف من خواسته شده است.
 
-## معماری و طرح اجرایی نهایی
+### Design / Architecture
 
-طرح فنی و معماری‌ای که مبنای پیاده‌سازی قرار گرفته و در نهایت تأیید شده است.
+چه طرحی برای اجرای آن تأیید شده است.
 
-تمام تصمیم‌های مهم معماری و منطق اجرایی باید حفظ شوند.
+### Final Implementation
 
-هدف بازسازی تحت‌اللفظی مکالمه نیست؛ هدف ثبت **تمام اطلاعات فنی و تصمیم‌های معماری مهم** است.
+الان واقعاً چه چیزی در Repository پیاده‌سازی شده است.
 
----
-
-# 10. فقط نتیجه نهایی موفق
-
-در اسناد اصلی Requirement:
-
-* Bug تاریخی را مستند نکن.
-* Debug Session را مستند نکن.
-* تلاش ناموفق را مستند نکن.
-* راه‌حل‌های کنار گذاشته‌شده را مستند نکن.
-* نسخه‌های آزمایشی را مستند نکن.
-
-فقط معماری و پیاده‌سازی نهایی را ثبت کن.
-
-اما **تکامل Requirement و درخواست‌های تکمیلی موفق** باید ثبت شود، زیرا بخشی از تاریخچه واقعی Requirement هستند.
+اگر چیزی فقط از روی Source Code کشف شده، آن را به‌عنوان «درخواست کاربر» معرفی نکن.
 
 ---
 
-# 11. اتصال هر Requirement به کد واقعی
+# ۱۲. Fact و Derived Information
 
-برای هر Requirement مشخص کن این قابلیت در کدام فایل‌ها، APIها، Serviceها، Migrationها و Testها پیاده‌سازی شده است.
+در Documentation میان:
 
-مثلاً:
+**واقعیت قابل مشاهده**
 
-```text
-Backend:
-- path/to/file.py
+و
 
-Frontend:
-- path/to/page.tsx
+**نتیجه‌گیری مبتنی بر چند شواهد**
 
-Database:
-- migration_name
+تفاوت بگذار.
 
-Tests:
-- tests/test_x.py
+مثلاً اگر چیزی مستقیماً در `docker-compose.yml` وجود دارد، آن را به‌عنوان وضعیت واقعی ثبت کن.
+
+اگر رابطه‌ای از چند فایل و Feature نتیجه‌گیری شده است، آن را به‌عنوان ارتباط یا تحلیل معماری بیان کن.
+
+اگر قابل اثبات نیست، حدس نزن.
+
+---
+
+# ۱۳. Test Documentation
+
+هر Requirement جدید یا Updateشده باید Testهای واقعی خود را مستند کند.
+
+در صورت وجود:
+
+* مسیر Test
+* هدف
+* سناریو
+* معیار پذیرش
+* نتیجه
+
+را ثبت کن.
+
+از ادعاهای کلی و اثبات‌نشده خودداری کن.
+
+---
+
+# ۱۴. Update کردن Index
+
+هر زمان:
+
+### Requirement جدید ایجاد شد:
+
+فایل:
+
+```text id="cntwmt"
+docs/requirements/README.md
 ```
 
-فقط مسیرهای واقعی موجود در Repository را ذکر کن.
+را نیز به‌روزرسانی کن.
+
+### Requirement قبلی Update شد:
+
+در صورت تغییر عنوان، شماره، Scope یا ارتباطات، Index را نیز متناسب با وضعیت جدید اصلاح کن.
+
+Index باید همیشه نماینده ساختار فعلی Requirementها باشد.
 
 ---
 
-# 12. ساختار پوشه مستندات
+# ۱۵. هیچ Requirement جدیدی بدون بررسی Requirementهای قبلی
 
-پوشه زیر را ایجاد کن:
+قبل از ایجاد سند جدید، حتماً Requirementهای مرتبط قبلی را بررسی کن.
 
-```text
-docs/requirements/
-```
+به‌خصوص Requirementهای:
 
-تمام مستندات Requirement باید در این پوشه قرار بگیرند.
+* هم‌حوزه
+* دارای Actor مشترک
+* دارای API مشترک
+* دارای Data Model مشترک
+* دارای Workflow مشترک
+* دارای Permission مشترک
+* دارای Implementation مشترک
 
-نام فایل‌ها:
-
-```text
-01_<short_english_name>.md
-02_<short_english_name>.md
-03_<short_english_name>.md
-...
-```
-
-ویژگی نام فایل:
-
-* انگلیسی
-* کوتاه
-* معنی‌دار
-* شماره‌گذاری پیوسته
-* بدون شماره‌گذاری مصنوعی برای Featureهای غیرمستقل
+چون ممکن است Requirement جدید در واقع ادامه یکی از آن‌ها باشد.
 
 ---
 
-# 13. شماره‌گذاری بر اساس Requirement واقعی
+# ۱۶. چه زمانی Documentation Update شود؟
 
-شماره فایل‌ها را بر اساس **Requirement واقعی** تعیین کن، نه تعداد درخواست‌ها یا Commitها.
+پس از اینکه Requirement:
 
-اگر یک Requirement در پنج مرحله تکمیل شده، الزاماً پنج فایل نساز.
-
-ممکن است همه آن پنج مرحله متعلق به یک Requirement باشند و در یک سند تجمیع شوند.
-
----
-
-# 14. قالب عمومی فایل Requirement
-
-قالب پیشنهادی:
-
-```markdown
-# عنوان نیازمندی
-
-## 1. شرح نیازمندی
-
-## 2. هدف و مسئله
-
-## 3. درخواست‌های تکمیلی مرتبط
-
-## 4. تاریخچه تکامل نیازمندی
-
-## 5. Scope نهایی
-
-## 6. Actors و Roleها
-
-## 7. قوانین و محدودیت‌ها
-
-## 8. سناریوهای اصلی
-
-## 9. معماری نهایی
-
-## 10. Workflow
-
-## 11. Backend
-
-## 12. Frontend
-
-## 13. Database
-
-## 14. APIها
-
-## 15. Permission و Security
-
-## 16. Audit و Logging
-
-## 17. Notification
-
-## 18. ساختار فایل‌ها و اجزای پیاده‌سازی
-
-## 19. منطق عملکرد
-
-## 20. Testها و معیارهای پذیرش
-
-## 21. وابستگی‌ها و Integrationها
-
-## 22. ارتباط با Requirementهای مرتبط
-
-## 23. وضعیت نهایی
-```
-
-در صورت عدم نیاز، بخش‌های غیرمرتبط را ایجاد نکن.
-
----
-
-# 15. استراتژی تولید مرحله‌ای
-
-به دلیل تعداد زیاد Requirementها، مستندات باید مرحله‌ای تولید شوند.
-
-## مرحله اول
-
-ابتدا:
-
-1. کل Repository و Git History را بررسی کن.
-2. تمام Requirementهای واقعی را شناسایی کن.
-3. ارتباط بین Requirementها را پیدا کن.
-4. ادامه‌ها و درخواست‌های تکمیلی هر Requirement را شناسایی کن.
-5. Requirement Map داخلی ایجاد کن.
-6. ترتیب نهایی شماره‌گذاری را تعیین کن.
-
-سپس فقط سه Requirement اول را مستند کن:
-
-```text
-01_*.md
-02_*.md
-03_*.md
-```
-
-و پوشه:
-
-```text
-docs/requirements/
-```
-
-را ایجاد کن.
-
-پس از تولید سه فایل:
-
-* محتوای آن‌ها را بررسی کن.
-* ارتباطات Requirementها را بررسی کن.
-* تطابق آن‌ها با Repository را بررسی کن.
-* هیچ Requirement دیگری ایجاد نکن.
-* Commit نهایی و Push نهایی انجام نده.
-
-سپس متوقف شو و منتظر تأیید من بمان.
-
----
-
-# 16. مراحل بعدی
-
-پس از تأیید من:
-
-```text
-04 - 06
-```
-
-را تولید کن.
-
-سپس:
-
-```text
-07 - 09
-10 - 12
-13 - 15
-...
-```
-
-را مرحله‌به‌مرحله ادامه بده تا تمام Requirementهای واقعی مستند شوند.
-
----
-
-# 17. Commit و Push
-
-تا زمانی که تمام Requirementها مستند نشده‌اند:
-
-**Commit/Push نهایی مستندات انجام نده.**
-
-پس از تکمیل کل مجموعه:
-
-1. تمام فایل‌ها را Review کن.
-2. شماره‌گذاری را Review کن.
-3. ارتباط Requirementها را Review کن.
-4. مسیر فایل‌ها را Review کن.
-5. صحت ارجاع‌ها را بررسی کن.
-6. تطابق با Repository را بررسی کن.
-7. سپس Commit کن.
-8. سپس Push کن.
-
-نمونه پیام Commit:
-
-```text
-docs: add modular requirements documentation
-```
-
----
-
-# 18. قانون دائمی Living Documentation
-
-از این لحظه این یک **قانون دائمی پروژه** است.
-
-هر Requirement جدید باید این چرخه را طی کند:
-
-```text
+```text id="m4ktdw"
 Requirement
 → Design
 → Approval
 → Implementation
 → Test
 → Final Approval
-→ Documentation
-→ Commit/Push
 ```
 
-پس از هر Feature جدید:
+را طی کرد، Documentation نهایی شود.
 
-* بررسی کن آیا Requirement جدید مستقل است یا ادامه Requirement موجود.
-* اگر ادامه Requirement قبلی است، همان سند را به‌روزرسانی کن.
-* اگر مستقل است، شماره بعدی را ایجاد کن.
-* درخواست‌های تکمیلی را داخل همان Requirement ثبت کن.
-* ارتباط با Requirementهای قبلی را مشخص کن.
+Documentation نباید قبل از مشخص شدن وضعیت نهایی Implementation، ادعاهای قطعی درباره وضعیت نهایی سیستم ثبت کند.
 
 ---
 
-# 19. قانون جلوگیری از ایجاد Requirement مصنوعی
+# ۱۷. Commit / Push
 
-هرگز صرفاً به این دلیل که:
+در اجرای معمول Feature:
 
-* یک Commit جدید ایجاد شده،
-* یک PR جدید ایجاد شده،
-* یک فایل جدید اضافه شده،
-* یک Bug Fix انجام شده،
-* یا یک درخواست تکمیلی جداگانه مطرح شده،
+* Documentation متناسب با Requirement ایجاد یا Update شود.
+* Documentation همراه با Feature در فرآیند Git ثبت شود.
 
-یک Requirement جدید ایجاد نکن.
+اما در صورتی که من صراحتاً گفته باشم:
 
-ابتدا بررسی کن که آیا این مورد:
+```text
+فعلاً فقط طراحی و بررسی انجام بده
+```
 
-**ادامه، توسعه یا تکمیل Requirement موجود است یا واقعاً یک Requirement مستقل.**
+هیچ Documentation نهایی یا Commit/Push مربوط به Implementation انجام نده.
 
----
-
-# 20. معیار پذیرش
-
-این مأموریت زمانی موفق است که:
-
-* `docs/requirements/` ایجاد شده باشد.
-* Requirementهای واقعی شناسایی شده باشند.
-* Requirementهای ادامه‌دار به‌درستی با Requirement اصلی مرتبط شده باشند.
-* درخواست‌های تکمیلی گم نشده باشند.
-* یک Requirement واحد به چند فایل مصنوعی تقسیم نشده باشد.
-* Requirementهای مستقل از Requirementهای ادامه‌دار تفکیک شده باشند.
-* مستندات با Repository واقعی منطبق باشند.
-* محتوای اسناد فارسی باشد.
-* جزئیات مهم حذف نشده باشند.
-* اطلاعات ساختگی وجود نداشته باشد.
-* فقط وضعیت نهایی موفق سیستم مستند شده باشد.
-* ارتباط میان Requirementها قابل فهم باشد.
-* سیستم مستندسازی برای Requirementهای آینده نیز قابل ادامه باشد.
+همیشه دستور صریح مرحله فعلی من را اولویت بده.
 
 ---
 
-# دستور شروع
+# ۱۸. قانون دائمی تصمیم‌گیری
 
-اکنون کار را با این ترتیب انجام بده:
+برای هر Requirement جدید این الگوریتم را اجرا کن:
 
-**Inspect Repository → Inspect Git History → Identify Requirements → Detect Requirement Continuations → Build Requirement Map → Determine Final Requirement Boundaries → Document Requirements 01–03**
+```text id="d3ppd1"
+New Requirement
+      ↓
+Search Existing Requirements
+      ↓
+Compare Goal / Scope / Workflow / Architecture / Dependencies
+      ↓
+Is this a continuation?
+      ├── YES
+      │     ↓
+      │  Update Existing Requirement Document
+      │     ↓
+      │  Update Requirement Lineage
+      │     ↓
+      │  Update README.md if needed
+      │
+      └── NO
+            ↓
+         Create Next Requirement Document
+            ↓
+         Update README.md
+```
 
-فقط سه سند اول را ایجاد کن.
+---
 
-بعد از ایجاد و Review آن‌ها:
+# ۱۹. اصل مهم برای جلوگیری از Documentation Drift
 
-**STOP**
+Documentation نباید از وضعیت واقعی کد عقب یا جلو باشد.
 
-و منتظر تأیید من بمان.
+بنابراین پس از هر تغییر نهایی:
 
-در این مرحله هیچ سند دیگری تولید نکن و هیچ Commit/Push انجام نده.
+```text id="6gv3gq"
+Implementation
+        ↓
+Test
+        ↓
+Documentation Update
+        ↓
+Git
+```
+
+باید بررسی شود که Documentation با Implementation فعلی هماهنگ است.
+
+اگر Implementation یک Requirement قبلی تغییر کرد، حتی اگر Requirement جدید محسوب نشود، سند مربوط به آن Requirement باید در صورت نیاز Update شود.
+
+---
+
+# ۲۰. قالب پاسخ تو هنگام پردازش Requirement جدید
+
+پس از بررسی Requirement جدید، قبل از هر تغییر Documentation، نتیجه طبقه‌بندی را مشخص کن:
+
+```text id="twsuio"
+نوع: ادامه Requirement موجود
+Requirement مرتبط: 07
+اقدام Documentation: Update 07_xxx.md
+```
+
+یا:
+
+```text id="13f21h"
+نوع: Requirement مستقل
+شماره جدید: 13
+اقدام Documentation: Create 13_xxx.md
+```
+
+سپس بعد از نهایی شدن Feature، Documentation مربوطه را تولید یا Update کن.
+
+---
+
+# ۲۱. قانون اساسی این سیستم
+
+هیچ Requirement جدیدی نباید بدون پاسخ به این سؤال مستند شود:
+
+> **«آیا این Requirement ادامه یکی از Requirementهای قبلی است یا یک Requirement مستقل؟»**
+
+این تشخیص باید با بررسی واقعی پروژه و تاریخچه آن انجام شود.
+
+---
+
+# معیار نهایی پذیرش
+
+هر بار که Requirement جدیدی اجرا و نهایی شد:
+
+### اگر ادامه Requirement قبلی بود:
+
+* سند قبلی Update شود.
+* Lineage حفظ شود.
+* اطلاعات قبلی معتبر حفظ شود.
+* اطلاعات جدید در بخش مناسب اضافه شود.
+* وضعیت نهایی با Repository فعلی تطبیق داده شود.
+* `README.md` در صورت نیاز Update شود.
+
+### اگر Requirement جدید و مستقل بود:
+
+* شماره بعدی تعیین شود.
+* سند جدید ایجاد شود.
+* تمام استانداردهای Documentation قبلی رعایت شود.
+* `README.md` Update شود.
+* ارتباط آن با Requirementهای قبلی ثبت شود.
+
+در هر دو حالت:
+
+**Documentation باید دقیق، فارسی، مبتنی بر شواهد و منطبق با وضعیت واقعی Repository باشد.**
+
+---
+
+# دستور دائمی
+
+از این لحظه برای هر Requirement جدید دقیقاً این فرآیند را اجرا کن:
+
+```text id="w46g8r"
+Receive Requirement
+        ↓
+Inspect Existing Requirements
+        ↓
+Identify Related Requirements
+        ↓
+Determine Continuation vs Independent
+        ↓
+Design / Approval / Implementation / Test
+        ↓
+Update Existing Document OR Create New Document
+        ↓
+Verify Against Current Repository
+        ↓
+Update README.md
+        ↓
+Git Commit / Push according to current instruction
+```
+
+این دستور از این لحظه **استاندارد دائمی مستندسازی پروژه Enterprise Archive System** است.

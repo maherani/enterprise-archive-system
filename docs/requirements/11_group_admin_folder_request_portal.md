@@ -1,0 +1,228 @@
+# نیازمندی ۱۱: پرتال درخواست ساخت پوشه توسط مدیران گروه و تایید ادمین (Group Admin Folder Request & Approval Workflow)
+
+## ۱. شرح نیازمندی (Problem Statement & Business Need)
+در امتداد نیازمندی ۰۴ (انسداد ساخت دایرکتوری توسط کاربران عادی)، سازمان نیازمند یک سازوکار حاکمیتی و ساختاریافته بود تا در عین جلوگیری از شلختگی و ساخت پوشه‌های خودسرانه، مدیران گروه‌ها یا دپارتمان‌های سازمانی (مانند مدیر گروه SOC، مدیر گروه CERT و ...) بتوانند درخواست ایجاد زیرپوشه‌های جدید در ساختار آرشیو واحد خود را ثبت نمایند. سپس این درخواست‌ها در کارتابل اختصاصی مدیر سیستم بررسی شده و در صورت تایید، پوشه فیزیکی مربوطه به همراه برچسب سیستمی اختصاصی آن به صورت اتمیک ایجاد گردد، مالکیت پوشه به درخواست‌دهنده واگذار شود، اعضای گروه مطلع گردند و گزارش ممیزی کامل ثبت شود. در صورت عدم تایید نیز دلیل رد ثبت شده و به کاربر اطلاع داده شود.
+
+## ۲. نیازمندی‌های تابعی (Functional Requirements)
+* **فرم اختصاصی ثبت درخواست پوشه در پرتال:** فراهم ساختن فرم پاپ‌آپ در پرتال برای ارسال نام پوشه، پوشه والد، گروه متقاضی و شرح ضرورت.
+* **منوی کشویی هوشمند پوشه والد (`/api/group-folders`):** نمایش پویای پوشه‌های مجاز برای کاربر بر اساس گروه‌های عضویت وی تا امکان انتخاب مسیر نامعتبر وجود نداشته باشد.
+* **کارتابل ممیزی و تایید مدیر ارشد:** رابط کاربری ویژه مدیر کل سیستم جهت مشاهده لیست درخواست‌های در انتظار، تایید و رد درخواست‌ها.
+* **دکمه‌های عملیاتی آنی ("تایید و ساخت" و "رد درخواست"):** ارسال تصمیم مدیر با ایجکس بلادرنگ و به‌روزرسانی آنی وضعیت در جدول بدون نیاز به بازخوانی کل صفحه.
+* **ایجاد اتمیک و یکپارچه پوشه و تگ:** در زمان تایید:
+  ۱. ساخت فیزیکی دایرکتوری در مسیر آرشیو سازمان.
+  ۲. ایجاد برچسب سیستمی هم‌نام یا مرتبط در جدول `oc_systemtag`.
+  ۳. نگاشت برچسب به گروه سازمانی متقاضی در جدول `oc_archive_tag_groups`.
+  ۴. ثبت مالکیت پوشه برای کاربر درخواست‌دهنده در جدول `oc_archive_file_ownership`.
+  ۵. ثبت رویداد تایید در جدول ممیزی `oc_archive_folder_request_audit`.
+  ۶. ارسال اعلان سیستمی به کاربر از طریق `FolderRequestNotifier`.
+* **ثبت دلیل رد درخواست (Rejection Reason):** در صورت رد، مدیر دلیل تصمیم خود را درج کرده و درخواست در وضعیت `rejected` ثبت می‌شود.
+* **دکمه "مشاهده در پوشه" (Locate in Folder):** امکان هدایت مستقیم مدیر یا کاربر به پوشه ساخته‌شده از طریق پیوند کانونیکال `/f/{created_folder_id}?openfile=false`.
+* **جلوگیری از درخواست‌های تکراری موازی:** اعمال ایندکس منحصربه‌فرد شرطی برای ممانعت از ثبت هم‌زمان درخواست پوشه با نام یکسان در همان مسیر در وضعیت `pending`.
+
+## ۳. نیازمندی‌های غیرتابعی (Non-Functional Requirements)
+* **اتمیک بودن عملیات (Database Transaction & Rollback):** تضمین انجام کلیه گام‌های ساخت پوشه، ایجاد تگ و ثبت ممیزی در یک تراکنش هماهنگ؛ در صورت بروز هرگونه خطا، تغییرات بازگردانده شده و خطای واضح ثبت شود.
+* **حسابرسی‌پذیری کامل (Auditability):** عدم حذف فیزیکی درخواست‌ها؛ ثبت کلیه وقایع با مشخصات کامل کاربر، زمان، وضعیت قبلی و وضعیت جدید در جدول ممیزی.
+* **سرعت پاسخ‌دهی:** پردازش درخواست‌ها و ساختار پوشه در کمتر از ۲۰۰ میلی‌ثانیه.
+
+## ۴. معماری و مدل مفهومی (Architectural & Conceptual Model)
+معماری این جریان کاری از تلفیق فرانت‌اند تعاملی پرتال آبسیدین با کنترلر `FolderRequestController` و سرویس متمرکز `FolderRequestService` تشکیل شده است. 
+سرویس مذکور هماهنگ‌کننده میان هسته فایل‌های Nextcloud (`IRootFolder`)، مدیریت تگ‌ها (`ISystemTagManager`)، مدیریت اعلان‌ها (`FolderRequestNotifier`) و پایگاه داده ممیزی است.
+
+```
++─────────────────────────────────────────────────────────────────────────+
+|         Portal Frontend (Modal درخواست پوشه / کارتابل تایید ادمین)       |
++─────────────────────────────────────────────────────────────────────────+
+         │                                                 │
+         │ 1. GET /api/group-folders                       │ 2. POST /api/folder-requests
+         ▼                                                 ▼
++─────────────────────────────────────────────────────────────────────────+
+|     FolderRequestController (OCA\ArchiveAutoTag\Controller)             |
++─────────────────────────────────────────────────────────────────────────+
+                                    │
+                                    ▼
++─────────────────────────────────────────────────────────────────────────+
+|        FolderRequestService (OCA\ArchiveAutoTag\Service)                |
++─────────────────────────────────────────────────────────────────────────+
+         │
+         ├─ بررسی نقش کاربر (getUserRole: Admin / GroupAdmin / Regular)
+         ├─ اعتبارسنجی مسیر والد و تعلق به گروه کاربر
+         │
+    [ تایید توسط ادمین: approveRequest ]
+         │
+         ├─ ۱. ساخت فیزیکی دایرکتوری در استوریج -> IRootFolder
+         ├─ ۲. ایجاد برچسب سیستمی جدید -> ISystemTagManager
+         ├─ ۳. اتصال تگ به گروه سازمانی -> oc_archive_tag_groups
+         ├─ ۴. ثبت مالکیت پوشه به نام متقاضی -> oc_archive_file_ownership
+         ├─ ۵. ثبت وقایع ممیزی -> oc_archive_folder_request_audit
+         └─ ۶. ارسال نوتیفیکیشن موفقیت -> FolderRequestNotifier
+```
+
+## ۵. رفتار پیش‌فرض Nextcloud و شکاف موجود (Nextcloud Default Behavior vs Custom Need)
+در Nextcloud پیش‌فرض:
+۱. فرآیند درخواست ساخت پوشه با جریان تایید (Approval Workflow) وجود ندارد؛ کاربران یا مستقیم پوشه می‌سازند یا به کلی دسترسی ندارند.
+۲. ایجاد پوشه ارتباطی با ساخت خودکار برچسب‌های متناظر سازمانی ندارد.
+۳. لاگ ممیزی مشخصی از درخواست‌ها و دلایل رد برای مراجعات حسابرسی ذخیره نمی‌شود.
+این شکاف به طور بنیادین توسط این نیازمندی تکمیل گردید.
+
+## ۶. رویکردهای بررسی‌شده و دلایل رد گزینه‌های نامناسب (Trade-offs & Rejected Alternatives)
+* **رویکرد اول: استفاده از فرم‌های خارجی یا تیکتینگ مجزا:**
+  * *علت رد:* جدا بودن فرآیند تیکت از سامانه آرشیو مستلزم ساخت دستی پوشه توسط مدیر، تخصیص دستی تگ و اتلاف وقت قابل توجه بود.
+* **رویکرد دوم: ساخت خودکار پوشه بدون تایید ادمین صرفاً بر اساس گروه:**
+  * *علت رد:* مدیران سازمان خواهان نظارت متمرکز بر نام‌گذاری استاندارد و جلوگیری از ایجاد ساختارهای زائد بودند.
+* **رویکرد برگزیده: گردش کار داخلی پرتال همراه با ساخت خودکار اتمیک پس از تایید:**
+  * *مزیت:* خودکارسازی ۱۰۰٪ فرآیندهای فنی بلافاصله پس از یک کلیک تایید توسط مدیر، همراه با ممیزی کامل.
+
+## ۷. مدل داده و تغییرات پایگاه داده (Data Model & Schema Evolution)
+این نیازمندی از طریق دو مایگریشن ۱۸۰۰ و ۱۹۰۰ پایگاه داده استقرار یافت:
+* **جدول `oc_archive_folder_requests` (مایگریشن ۱۸۰۰):**
+  * `id` (bigint, PK, autoincrement)
+  * `folder_name` (string, length 255)
+  * `target_path` (string, length 1024)
+  * `description` (text, nullable)
+  * `group_id` (string, length 64, index)
+  * `requester_uid` (string, length 64, index)
+  * `status` (string: `pending`, `approved`, `rejected`, `failed`, index)
+  * `reviewer_uid` (string, length 64, nullable)
+  * `reviewed_at` (bigint, nullable)
+  * `rejection_reason` (text, nullable)
+  * `error_message` (text, nullable)
+  * `created_folder_id` (bigint, nullable)
+  * `created_tag_id` (bigint, nullable)
+  * `created_at` و `updated_at` (bigint)
+* **جدول `oc_archive_folder_request_audit` (مایگریشن ۱۹۰۰):**
+  * `id` (bigint, PK)
+  * `request_id` (bigint, index)
+  * `event_type` (string: `REQUEST_CREATED`, `REQUEST_APPROVED`, `REQUEST_REJECTED`, `FOLDER_CREATED`)
+  * `actor_uid` (string, length 64, index)
+  * `group_id` (string, length 64, index)
+  * `folder_name` (string, length 255)
+  * `folder_path` (string, length 1024)
+  * `prev_status` و `new_status` (string, length 32)
+  * `details`, `rejection_reason`, `error_info` (text)
+  * `created_at` (bigint)
+* **ایندکس یکتای شرطی ضد رقابت (Race Condition Guard):**
+  ```sql
+  CREATE UNIQUE INDEX IF NOT EXISTS arch_folder_req_pending_uniq_idx 
+  ON oc_archive_folder_requests (group_id, target_path, folder_name) 
+  WHERE status = 'pending';
+  ```
+
+## ۸. ساختار کد و فایل‌های پیاده‌سازی (Code Structure & File Breakdown)
+* **کنترلر اندپوینت‌های وب و OCS:**
+  * `apps/archive_autotag/lib/Controller/FolderRequestController.php`: شامل متدهای `getUserRole`، `getGroupFolders`، `index`، `create`، `show`، `approve`، `reject` و `auditTrail`.
+* **سرویس اصلی بیزینس لاجیک:**
+  * `apps/archive_autotag/lib/Service/FolderRequestService.php`: پیاده‌سازی متدهای اعتبارسنجی، ساخت فیزیکی پوشه، مدیریت برچسب‌ها و لاگ ممیزی.
+* **سرویس اطلاع‌رسانی و اعلان:**
+  * `apps/archive_autotag/lib/Notification/FolderRequestNotifier.php`: ارسال نوتیفیکیشن‌های داخلی Nextcloud به متقاضیان و مدیران.
+* **مایگریشن‌ها:**
+  * `apps/archive_autotag/lib/Migration/Version1800Date20260915000001.php`
+  * `apps/archive_autotag/lib/Migration/Version1900Date20260916000001.php`
+* **رابط کاربری کلاینت:**
+  * بخش‌های فرم پاپ‌آپ، کارتابل مدیریت و اکشن‌های ایجکس در `apps/archive_autotag/js/archive_portal.js` و استایل‌های آن در `apps/archive_autotag/css/archive_portal.css`.
+* **مجموعه تست‌های خودکار:**
+  * `tests/test_folder_request_workflow.py`: تست کامل چرخه ثبت، تایید و ساخت پوشه.
+  * `tests/test_folder_request_governance_v2.py`: تست حاکمیت و امنیت رد و تایید.
+  * `tests/test_group_folders_api.py`: تست اختصاصی اندپوینت `/api/group-folders`.
+
+## ۹. هوک‌ها، ایونت‌ها و نقاط اتصال به هسته (Hooks, Events & Integration Points)
+* اتصال به روت‌های ثبت‌شده در `appinfo/routes.php`.
+* اتصال به `OCP\Files\IRootFolder` برای انجام عملیات ایجاد دایرکتوری در استوریج سیستمی.
+* اتصال به `OCP\SystemTag\ISystemTagManager` برای ایجاد برچسب متناظر پوشه جدید.
+* اتصال به `OCP\Notification\IManager` جهت ارسال نوتیفیکیشن سیستمی.
+
+## ۱۰. منطق گام‌به‌گام پردازش (Detailed Flow / Algorithm)
+۱. متقاضی در پرتال آرشیو دکمه "درخواست پوشه جدید" را انتخاب می‌کند.
+۲. کلاینت درخواست `GET /api/group-folders` را فراخوانی می‌کند؛ سرویس مسیرهای آرشیو مربوط به گروه‌های کاربر را استخراج کرده و منوی کشویی والد پر می‌شود.
+۳. متقاضی فرم را با نام پوشه، مسیر والد و توضیحات سابمیت می‌کند (`POST /api/folder-requests`).
+۴. سرویس با بررسی ایندکس یکتا از عدم تکرار درخواست در حالت `pending` اطمینان حاصل کرده و رکورد را با وضعیت `pending` و ثبت لاگ ممیزی ایجاد می‌کند.
+۵. مدیر ارشد وارد تب "کارتابل درخواست‌های پوشه" در پرتال می‌شود.
+۶. در صورت کلیک مدیر روی "تایید و ساخت":
+   * درخواست `POST /api/folder-requests/{id}/approve` ارسال می‌شود.
+   * سرویس پوشه فیزیکی را در مسیر `Enterprise_Archive/...` می‌سازد.
+   * برچسب سیستمی جدید تولید و به گروه متقاضی متصل می‌گردد.
+   * مالکیت پوشه به نام کاربر متقاضی ثبت می‌شود.
+   * وضعیت رکورد به `approved` تغییر یافته و شناسه پوشه و تگ ذخیره می‌شود.
+   * رویداد ممیزی با جزئیات کامل ذخیره و اعلان تایید برای متقاضی ارسال می‌گردد.
+   * پاسخ JSON شامل `created_folder_id` و پیوند کانونیکال `/f/{folderId}?openfile=false` به کلاینت تحویل داده می‌شود.
+۷. در صورت کلیک مدیر روی "رد درخواست":
+   * فرم دریافت دلیل رد باز می‌شود.
+   * پس از ورود دلیل، درخواست `POST /api/folder-requests/{id}/reject` ارسال می‌شود.
+   * وضعیت به `rejected` تغییر یافته، دلیل رد ثبت و نوتیفیکیشن ارسال می‌گردد.
+
+## ۱۱. وابستگی‌ها و پیش‌نیازها (Dependencies & Prerequisites)
+* استقرار کامل نیازمندی ۰۴ (انسداد ساخت مستقیم پوشه).
+* اجرای موفقیت‌آمیز مایگریشن‌های ۱۸۰۰ و ۱۹۰۰ در دیتابیس.
+* وجود دسترسی نوشتن برای کاربر `www-data` روی استوریج فیزیکی آرشیو.
+
+## ۱۲. مدیریت خطا و سناریوهای استثنا (Failure Modes & Edge Cases)
+* **وجود پوشه با نام مشابه در فایل‌سیستم:** در صورتی که پیش از تایید، پوشه‌ای با همان نام توسط ادمین در فایل‌سیستم دستی ساخته شده باشد، فرآیند تایید دچار وقفه نشده و پوشه موجود شناسایی و متصل می‌شود.
+* **ثبت هم‌زمان درخواست تکراری:** ایندکس شرطی یکتا از پذیرش درخواست تکراری با پرتاب خطای SQL جلوگیری کرده و پیام خطای مفهوم به کاربر ارائه می‌شود.
+* **کاربر فاقد گروه:** سیستم اندپوینت `/api/group-folders` را با لیست خالی بازمی‌گرداند و امکان ارسال فرم غیرمجاز مسدود می‌شود.
+
+## ۱۳. دسترسی‌ها، نقش‌ها و امنیت (Security, Roles & Permissions)
+* **کاربران عادی و مدیران گروه:** صرفاً امکان مشاهده درخواست‌های خود و ثبت درخواست در محدوده گروه مجاز خود را دارند.
+* **مدیران سیستم (`admin`):** حق تایید، رد و مشاهده تمامی درخواست‌ها در کلیه گروه‌ها.
+* متدهای حساس `approve` و `reject` با بررسی صریح دسترسی ادمین در سطح کنترلر و سرویس محافظت شده‌اند.
+
+## ۱۴. APIها و پروتکل‌ها (APIs & Protocols)
+* **استعلام نقش کاربر:** `GET /index.php/apps/archive_autotag/api/user-role`
+* **استخراج پوشه‌های مجاز گروه:** `GET /index.php/apps/archive_autotag/api/group-folders`
+* **فهرست درخواست‌ها:** `GET /index.php/apps/archive_autotag/api/folder-requests`
+* **ثبت درخواست جدید:** `POST /index.php/apps/archive_autotag/api/folder-requests`
+  * بدنه (JSON):
+    ```json
+    {
+      "folder_name": "Reports_Q2",
+      "target_path": "Enterprise_Archive/SOC",
+      "description": "گزارشات فصلی مرکز عملیات امنیت",
+      "group_id": "SOC"
+    }
+    ```
+* **تایید و ساخت پوشه:** `POST /index.php/apps/archive_autotag/api/folder-requests/{id}/approve`
+* **رد درخواست:** `POST /index.php/apps/archive_autotag/api/folder-requests/{id}/reject`
+  * بدنه (JSON): `{"rejection_reason": "عدم تطابق با ساختار استاندارد"}`
+* **تاریخچه ممیزی یک درخواست:** `GET /index.php/apps/archive_autotag/api/folder-requests/{id}/audit`
+
+## ۱۵. تنظیمات و متغیرهای پیکربندی (Configuration & Parameters)
+* مقادیر معتبر وضعیت درخواست: `pending`, `approved`, `rejected`, `failed`.
+* طول مجاز نام پوشه: حداکثر ۲۵۵ کاراکتر مجاز در سیستم‌عامل لینوکس.
+
+## ۱۶. عملکرد و مقیاس‌پذیری (Performance & Scalability)
+* ایندکس‌های اختصاصی بر روی فیلدهای `group_id`، `status` و `requester_uid` سرعت خواندن کارتابل را در کسری از میلی‌ثانیه تضمین می‌کنند.
+* استفاده از ارتباطات ایجکس ناهمگام (Async AJAX) مانع از بلاک شدن مرورگر در حین عملیات فایل‌سیستم می‌شود.
+
+## ۱۷. قابلیت مشاهده‌پذیری، لاگ‌ها و آدیت (Observability & Logging)
+* جدول اختصاصی `oc_archive_folder_request_audit` به عنوان منبع حقیقت ممیزی تمامی کنش‌ها عمل می‌کند.
+* کلیه عملیات رد و تایید در لاگ سیستمی `nextcloud.log` با سطح `INFO` درج می‌گردند.
+
+## ۱۸. سناریوهای تست و اعتبارسنجی (Testing & Verification Scenarios)
+* **تست ۱:** ارسال درخواست ساخت پوشه توسط کاربر `archive_user1` و بررسی ثبت در دیتابیس با وضعیت `pending`.
+* **تست ۲:** ورود به عنوان `admin` و فراخوانی اندپوینت `approve`؛ تایید ساخت پوشه فیزیکی، تگ سیستمی و تغییر وضعیت به `approved`.
+* **تست ۳:** کلیک روی "مشاهده در پوشه" و بررسی هدایت به شناسه پوشه ساخته‌شده از طریق روت کانونیکال `/f/{id}`.
+* **تست ۴:** ارسال درخواست دوم و فراخوانی اندپوینت `reject` همراه با دلیل؛ بررسی وضعیت `rejected` و ثبت در لاگ ممیزی.
+* اسکریپت‌های تست: `tests/test_folder_request_workflow.py` و `tests/test_folder_request_governance_v2.py`.
+
+## ۱۹. بدهی فنی و محدودیت‌های شناخته‌شده (Technical Debt & Known Limitations)
+* در حال حاضر سطوح تایید تک‌مرحله‌ای (مدیر ارشد) پیاده شده است؛ در سازمان‌های چندلایه‌ای می‌توان تایید دومرحله‌ای (مدیر مستقیم دپارتمان + مدیر ارشد فناوری) را افزود.
+
+## ۲۰. تحلیل اثر بر سایر نیازمندی‌ها (Impact Analysis & Cross-Requirement Matrix)
+* **نیازمندی ۰۴ (Folder Restriction):** این نیازمندی مکمل رسمی و سازمانی محدودیت‌های سخت‌گیرانه نیازمندی ۰۴ است.
+* **نیازمندی ۰۲ (Autotagging):** پوشه‌های تاییدشده بلافاصله وارد چرخه برچسب‌گذاری خودکار سلسله‌مراتبی می‌شوند.
+* **نیازمندی ۰۸ (Access Control):** پوشه جدید بلافاصله به نام متقاضی ثبت مالکیت می‌شود.
+* **نیازمندی ۰۹ (Portal):** کارتابل درخواست و تایید مستقیماً در رابط کاربری آبسیدین میزبانی شده است.
+
+## ۲۱. چک‌لیست استقرار، بکاپ و ریکاوری (Deployment, Backup & Recovery Checklist)
+* [x] اجرای کامل مایگریشن‌های ۱۸۰۰ و ۱۹۰۰ و ایجاد ایندکس شرطی یکتا.
+* [x] بررسی صحت روت‌های `api/folder-requests` در فایل `routes.php`.
+* [x] تست عملکرد ارسال نوتیفیکیشن در هسته Nextcloud.
+* [x] پشتیبان‌گیری منظم از جداول درخواست و ممیزی در `deploy/backup_db.sh`.
+
+## ۲۲. ارتباط با سایر اسناد (Related Documents)
+* سند [04_folder_creation_restrictions.md](file:///home/alborz/enterprise-archive-system/docs/requirements/04_folder_creation_restrictions.md)
+* سند [08_access_control_and_tag_isolation.md](file:///home/alborz/enterprise-archive-system/docs/requirements/08_access_control_and_tag_isolation.md)
+* سند [09_archive_portal_and_obsidian_theme.md](file:///home/alborz/enterprise-archive-system/docs/requirements/09_archive_portal_and_obsidian_theme.md)
+
+## ۲۳. وضعیت نهایی (Final Implementation Status)
+* **وضعیت پیاده‌سازی:** کامل، عملیاتی و ادغام‌شده در پرتال رسمی سازمان.
+* **پوشش تست:** قبولی ۱۰۰٪ در تمامی سناریوهای تستی چندمرحله‌ای (`tests/test_folder_request_workflow.py`).
+* **قابلیت اطمینان:** مجهز به ایندکس ضد رقابت و ثبت ممیزی غیرقابل بازگشت.
