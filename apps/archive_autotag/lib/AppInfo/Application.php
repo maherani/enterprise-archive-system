@@ -122,6 +122,38 @@ class Application extends App implements IBootstrap {
                 }
                 return false;
             });
+
+            // Provide is_group_admin and subadmin_groups for folder creation workflow
+            $initialStateService->provideLazyInitialState(self::APP_ID, 'is_group_admin', static function () {
+                $container = \OC::$server;
+                $userSession = $container->get(IUserSession::class);
+                $user = $userSession->getUser();
+                if ($user !== null) {
+                    $groupManager = $container->get(IGroupManager::class);
+                    if ($groupManager->isAdmin($user->getUID())) {
+                        return false;
+                    }
+                    $db = $container->get(\OCP\IDBConnection::class);
+                    $qb = $db->getQueryBuilder();
+                    $qb->select('gid')->from('group_admin')->where($qb->expr()->eq('uid', $qb->createNamedParameter($user->getUID())));
+                    return !empty($qb->executeQuery()->fetchAllAssociative());
+                }
+                return false;
+            });
+
+            $initialStateService->provideLazyInitialState(self::APP_ID, 'subadmin_groups', static function () {
+                $container = \OC::$server;
+                $userSession = $container->get(IUserSession::class);
+                $user = $userSession->getUser();
+                if ($user !== null) {
+                    $db = $container->get(\OCP\IDBConnection::class);
+                    $qb = $db->getQueryBuilder();
+                    $qb->select('gid')->from('group_admin')->where($qb->expr()->eq('uid', $qb->createNamedParameter($user->getUID())));
+                    $rows = $qb->executeQuery()->fetchAllAssociative();
+                    return array_map(fn($r) => (string)$r['gid'], $rows);
+                }
+                return [];
+            });
         } catch (\Throwable $t) {
         }
 

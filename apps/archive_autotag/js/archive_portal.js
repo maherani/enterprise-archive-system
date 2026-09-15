@@ -17,6 +17,8 @@
         viewMode: localStorage.getItem('ea_view_mode') || 'grid', // 'grid' or 'table'
         activeDrawerFile: null,
         debounceTimer: null,
+        userRole: null,
+        pendingRequestsCount: 0,
     };
 
     // Helper: Escape HTML to prevent XSS
@@ -343,6 +345,7 @@
         ].join('\n');
 
         attachEventListeners();
+        renderWorkflowActions();
         renderTagBar();
         renderStatsAndRibbon();
         renderDocumentList();
@@ -805,11 +808,496 @@
         }
     }
 
+
+    // -------------------------------------------------------------------------
+    // Delegated Folder Creation Workflow & Modals (Group Admin & System Admin)
+    // -------------------------------------------------------------------------
+
+    function fetchUserRole() {
+        fetch('/index.php/apps/archive_autotag/api/user-role', {
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data && data.status === 'success' && data.role) {
+                state.userRole = data.role;
+                if (state.userRole.is_admin) {
+                    fetchPendingRequestsCount();
+                } else {
+                    renderWorkflowActions();
+                }
+            }
+        })
+        .catch(function () {});
+    }
+
+    function fetchPendingRequestsCount() {
+        fetch('/index.php/apps/archive_autotag/api/folder-requests?status=pending', {
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data && data.status === 'success') {
+                state.pendingRequestsCount = data.count || (data.requests ? data.requests.length : 0);
+            }
+            renderWorkflowActions();
+        })
+        .catch(function () {
+            renderWorkflowActions();
+        });
+    }
+
+    function renderWorkflowActions() {
+        var container = document.getElementById('ea-workflow-actions');
+        if (!container) return;
+
+        if (state.userRole && state.userRole.is_group_admin) {
+            container.innerHTML = [
+                '<button id="ea-create-folder-req-btn" class="ea-btn ea-btn-primary" title="ثبت درخواست ایجاد پوشه جدید در آرشیو گروه">',
+                '  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>',
+                '  <span>+ درخواست پوشه جدید</span>',
+                '</button>',
+                '<button id="ea-view-group-reqs-btn" class="ea-btn" title="مشاهده وضعیت درخواست‌های ثبت شده">',
+                '  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+                '  <span>درخواست‌های گروه</span>',
+                '</button>'
+            ].join('\n');
+
+            var createBtn = document.getElementById('ea-create-folder-req-btn');
+            if (createBtn) createBtn.onclick = openCreateFolderRequestModal;
+
+            var viewBtn = document.getElementById('ea-view-group-reqs-btn');
+            if (viewBtn) viewBtn.onclick = openGroupRequestsModal;
+
+        } else if (state.userRole && state.userRole.is_admin) {
+            var counterBadge = state.pendingRequestsCount > 0
+                ? '<span class="ea-pending-counter">' + toPersianDigits(state.pendingRequestsCount) + '</span>'
+                : '';
+            container.innerHTML = [
+                '<button id="ea-admin-manage-reqs-btn" class="ea-btn ' + (state.pendingRequestsCount > 0 ? 'ea-btn-primary' : '') + '" title="بررسی و مدیریت درخواست‌های ایجاد پوشه">',
+                '  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polyline points="9 11 12 14 22 4"/></svg>',
+                '  ' + counterBadge + '<span>مدیریت درخواست‌های پوشه</span>',
+                '</button>'
+            ].join('\n');
+
+            var adminBtn = document.getElementById('ea-admin-manage-reqs-btn');
+            if (adminBtn) adminBtn.onclick = function () { openAdminManageRequestsModal(); };
+        } else {
+            container.innerHTML = '';
+        }
+    }
+
+    function closeModal() {
+        var modal = document.getElementById('ea-active-modal');
+        if (modal) {
+            modal.remove();
+        }
+    }
+
+    function openCreateFolderRequestModal() {
+        closeModal();
+        if (!state.userRole || !state.userRole.subadmin_groups || state.userRole.subadmin_groups.length === 0) {
+            showToast('شما دسترسی ادمین برای هیچ گروهی ندارید.');
+            return;
+        }
+
+        var groups = state.userRole.subadmin_groups;
+        var groupOptions = groups.map(function (g) {
+            return '<option value="' + escapeHtml(g) + '">' + escapeHtml(g) + '</option>';
+        }).join('');
+
+        var overlay = document.createElement('div');
+        overlay.id = 'ea-active-modal';
+        overlay.className = 'ea-modal-overlay';
+        overlay.innerHTML = [
+            '<div class="ea-modal-card">',
+            '  <div class="ea-modal-header">',
+            '    <div class="ea-modal-title">',
+            '      <svg width="22" height="22" fill="none" stroke="#f97316" stroke-width="2.2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>',
+            '      <span>درخواست ایجاد پوشه جدید در آرشیو</span>',
+            '    </div>',
+            '    <button class="ea-modal-close" id="ea-modal-close-btn" title="بستن">✕</button>',
+            '  </div>',
+            '  <div class="ea-modal-body">',
+            '    <div class="ea-form-group">',
+            '      <label class="ea-form-label">گروه سازمانی درخواست‌دهنده (ثابت و غیرقابل جعل):</label>',
+            '      <select id="ea-form-group-id" class="ea-form-select">' + groupOptions + '</select>',
+            '    </div>',
+            '    <div class="ea-form-group">',
+            '      <label class="ea-form-label">ادمین درخواست‌دهنده:</label>',
+            '      <input type="text" class="ea-form-input" readonly value="' + escapeHtml(state.userRole.user_id) + '">',
+            '    </div>',
+            '    <div class="ea-form-group">',
+            '      <label class="ea-form-label">نام پوشه سازمانی مورد درخواست (اجباری):</label>',
+            '      <input type="text" id="ea-form-folder-name" class="ea-form-input" placeholder="مثال: گزارش_پدافند_۱۴۰۵" required>',
+            '      <div class="ea-form-help">از کاراکترهای مجاز استفاده فرمایید؛ تگ متناظر با همین نام خودکار ساخته خواهد شد.</div>',
+            '    </div>',
+            '    <div class="ea-form-group">',
+            '      <label class="ea-form-label">مسیر والد در آرشیو (اختیاری):</label>',
+            '      <input type="text" id="ea-form-target-path" class="ea-form-input" placeholder="مثال: افتا (در صورت خالی بودن، در ریشه گروه ایجاد می‌شود)">',
+            '    </div>',
+            '    <div class="ea-form-group">',
+            '      <label class="ea-form-label">توضیحات و ضرورت اداری (اجباری):</label>',
+            '      <textarea id="ea-form-description" class="ea-form-textarea" rows="3" placeholder="تشریح لزوم ایجاد پوشه جهت ارزیابی و تأیید ادمین کل..." required></textarea>',
+            '    </div>',
+            '    <div id="ea-form-error" class="ea-rejection-box" style="display:none;"></div>',
+            '  </div>',
+            '  <div class="ea-modal-footer">',
+            '    <button class="ea-btn" id="ea-form-cancel-btn">انصراف</button>',
+            '    <button class="ea-btn ea-btn-primary" id="ea-form-submit-btn">ارسال درخواست برای مدیریت</button>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.appendChild(overlay);
+
+        document.getElementById('ea-modal-close-btn').onclick = closeModal;
+        document.getElementById('ea-form-cancel-btn').onclick = closeModal;
+
+        overlay.onclick = function (e) {
+            if (e.target === overlay) closeModal();
+        };
+
+        var submitBtn = document.getElementById('ea-form-submit-btn');
+        submitBtn.onclick = function () {
+            var folderName = document.getElementById('ea-form-folder-name').value.trim();
+            var targetPath = document.getElementById('ea-form-target-path').value.trim();
+            var desc = document.getElementById('ea-form-description').value.trim();
+            var groupId = document.getElementById('ea-form-group-id').value;
+            var errEl = document.getElementById('ea-form-error');
+
+            errEl.style.display = 'none';
+
+            if (!folderName) {
+                errEl.innerText = 'لطفاً نام پوشه را وارد فرمایید.';
+                errEl.style.display = 'block';
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'در حال ارسال...';
+
+            fetch('/index.php/apps/archive_autotag/api/folder-requests', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    folder_name: folderName,
+                    target_path: targetPath,
+                    description: desc,
+                    group_id: groupId
+                })
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'ارسال درخواست برای مدیریت';
+                if (data && data.status === 'success') {
+                    closeModal();
+                    showToast('درخواست ایجاد پوشه با موفقیت ثبت شد و در انتظار بررسی ادمین کل است.');
+                } else {
+                    errEl.innerText = (data && data.message) ? data.message : 'خطا در ثبت درخواست.';
+                    errEl.style.display = 'block';
+                }
+            })
+            .catch(function (err) {
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'ارسال درخواست برای مدیریت';
+                errEl.innerText = 'خطای ارتباط با سرور: ' + err.message;
+                errEl.style.display = 'block';
+            });
+        };
+    }
+
+    function openGroupRequestsModal() {
+        closeModal();
+        var overlay = document.createElement('div');
+        overlay.id = 'ea-active-modal';
+        overlay.className = 'ea-modal-overlay';
+        overlay.innerHTML = [
+            '<div class="ea-modal-card ea-modal-card-lg">',
+            '  <div class="ea-modal-header">',
+            '    <div class="ea-modal-title">',
+            '      <svg width="22" height="22" fill="none" stroke="#f97316" stroke-width="2.2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+            '      <span>درخواست‌های ایجاد پوشه گروه شما</span>',
+            '    </div>',
+            '    <button class="ea-modal-close" id="ea-modal-close-btn" title="بستن">✕</button>',
+            '  </div>',
+            '  <div class="ea-modal-body" id="ea-group-reqs-body">',
+            '    <div style="text-align:center;padding:30px;color:var(--ea-text-muted);">در حال دریافت اطلاعات...</div>',
+            '  </div>',
+            '  <div class="ea-modal-footer">',
+            '    <button class="ea-btn" id="ea-group-reqs-close-btn">بستن</button>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.appendChild(overlay);
+        document.getElementById('ea-modal-close-btn').onclick = closeModal;
+        document.getElementById('ea-group-reqs-close-btn').onclick = closeModal;
+        overlay.onclick = function (e) {
+            if (e.target === overlay) closeModal();
+        };
+
+        fetch('/index.php/apps/archive_autotag/api/folder-requests', {
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            var body = document.getElementById('ea-group-reqs-body');
+            if (!body) return;
+
+            var list = (data && data.requests) ? data.requests : [];
+            if (list.length === 0) {
+                body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--ea-text-muted);">هنوز هیچ درخواستی برای گروه شما ثبت نشده است.</div>';
+                return;
+            }
+
+            var rows = list.map(function (req) {
+                var statusHtml = getStatusBadgeHtml(req.status);
+                var reasonHtml = req.rejection_reason
+                    ? '<div class="ea-rejection-box"><strong>دلیل رد درخواست:</strong> ' + escapeHtml(req.rejection_reason) + '</div>'
+                    : '';
+                var pathDisplay = req.target_path ? escapeHtml(req.target_path) : 'ریشه گروه';
+
+                return [
+                    '<tr>',
+                    '  <td><strong style="color:#ffffff;">' + escapeHtml(req.folder_name) + '</strong></td>',
+                    '  <td>' + pathDisplay + '</td>',
+                    '  <td>' + escapeHtml(req.group_id) + '</td>',
+                    '  <td>' + formatDate(req.created_at) + '</td>',
+                    '  <td>' + statusHtml + reasonHtml + '</td>',
+                    '</tr>'
+                ].join('\n');
+            }).join('\n');
+
+            body.innerHTML = [
+                '<table class="ea-req-table">',
+                '  <thead>',
+                '    <tr>',
+                '      <th>نام پوشه</th>',
+                '      <th>مسیر والد</th>',
+                '      <th>گروه</th>',
+                '      <th>تاریخ ثبت</th>',
+                '      <th>وضعیت</th>',
+                '    </tr>',
+                '  </thead>',
+                '  <tbody>' + rows + '</tbody>',
+                '</table>'
+            ].join('\n');
+        })
+        .catch(function (err) {
+            var body = document.getElementById('ea-group-reqs-body');
+            if (body) body.innerHTML = '<div class="ea-rejection-box">خطا در بارگذاری درخواست‌ها: ' + escapeHtml(err.message) + '</div>';
+        });
+    }
+
+    function getStatusBadgeHtml(status) {
+        if (status === 'approved') {
+            return '<span class="ea-status-badge ea-status-approved">✔ تأیید شده</span>';
+        }
+        if (status === 'rejected') {
+            return '<span class="ea-status-badge ea-status-rejected">✖ رد شده</span>';
+        }
+        if (status === 'failed') {
+            return '<span class="ea-status-badge ea-status-failed">⚠ خطا در ایجاد</span>';
+        }
+        return '<span class="ea-status-badge ea-status-pending">⏳ در انتظار بررسی</span>';
+    }
+
+    function openAdminManageRequestsModal(filterStatus) {
+        closeModal();
+        var overlay = document.createElement('div');
+        overlay.id = 'ea-active-modal';
+        overlay.className = 'ea-modal-overlay';
+        overlay.innerHTML = [
+            '<div class="ea-modal-card ea-modal-card-lg">',
+            '  <div class="ea-modal-header">',
+            '    <div class="ea-modal-title">',
+            '      <svg width="22" height="22" fill="none" stroke="#f97316" stroke-width="2.2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polyline points="9 11 12 14 22 4"/></svg>',
+            '      <span>پنل مدیریت و بررسی درخواست‌های پوشه آرشیو</span>',
+            '    </div>',
+            '    <button class="ea-modal-close" id="ea-modal-close-btn" title="بستن">✕</button>',
+            '  </div>',
+            '  <div style="padding:14px 24px;background:var(--ea-surface-elevated);border-bottom:1px solid var(--ea-border-subtle);display:flex;gap:12px;align-items:center;">',
+            '    <span style="font-size:0.85rem;color:var(--ea-text-muted);font-weight:700;">فیلتر وضعیت:</span>',
+            '    <select id="ea-admin-filter-status" class="ea-form-select" style="width:auto;padding:6px 12px;">',
+            '      <option value="all">همه وضعیت‌ها</option>',
+            '      <option value="pending"' + (filterStatus === 'pending' ? ' selected' : '') + '>در انتظار بررسی</option>',
+            '      <option value="approved"' + (filterStatus === 'approved' ? ' selected' : '') + '>تأیید شده</option>',
+            '      <option value="rejected"' + (filterStatus === 'rejected' ? ' selected' : '') + '>رد شده</option>',
+            '      <option value="failed"' + (filterStatus === 'failed' ? ' selected' : '') + '>خطا</option>',
+            '    </select>',
+            '    <button id="ea-admin-refresh-list" class="ea-btn ea-btn-sm" style="margin-right:auto;">تازه سازی لیست</button>',
+            '  </div>',
+            '  <div class="ea-modal-body" id="ea-admin-reqs-body">',
+            '    <div style="text-align:center;padding:30px;color:var(--ea-text-muted);">در حال بارگذاری اطلاعات...</div>',
+            '  </div>',
+            '  <div class="ea-modal-footer">',
+            '    <button class="ea-btn" id="ea-admin-reqs-close-btn">بستن</button>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.appendChild(overlay);
+        document.getElementById('ea-modal-close-btn').onclick = closeModal;
+        document.getElementById('ea-admin-reqs-close-btn').onclick = closeModal;
+        overlay.onclick = function (e) {
+            if (e.target === overlay) closeModal();
+        };
+
+        var statusSelect = document.getElementById('ea-admin-filter-status');
+        statusSelect.onchange = function () {
+            loadAdminRequests(statusSelect.value);
+        };
+        document.getElementById('ea-admin-refresh-list').onclick = function () {
+            loadAdminRequests(statusSelect.value);
+        };
+
+        loadAdminRequests(filterStatus || 'all');
+    }
+
+    function loadAdminRequests(statusFilter) {
+        var body = document.getElementById('ea-admin-reqs-body');
+        if (!body) return;
+        body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--ea-text-muted);">در حال بارگذاری اطلاعات...</div>';
+
+        var url = '/index.php/apps/archive_autotag/api/folder-requests';
+        if (statusFilter && statusFilter !== 'all') {
+            url += '?status=' + encodeURIComponent(statusFilter);
+        }
+
+        fetch(url, { headers: { 'Accept': 'application/json' } })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            var list = (data && data.requests) ? data.requests : [];
+            if (list.length === 0) {
+                body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--ea-text-muted);">هیچ درخواستی با این فیلتر یافت نشد.</div>';
+                return;
+            }
+
+            var rows = list.map(function (req) {
+                var statusHtml = getStatusBadgeHtml(req.status);
+                var actionsHtml = '';
+
+                if (req.status === 'pending') {
+                    actionsHtml = [
+                        '<div style="display:flex;gap:6px;">',
+                        '  <button class="ea-btn ea-btn-sm ea-btn-approve" onclick="window._eaApproveReq(' + req.id + ', \'' + escapeHtml(req.folder_name) + '\', \'' + escapeHtml(req.group_id) + '\')">تأیید و ساخت</button>',
+                        '  <button class="ea-btn ea-btn-sm ea-btn-reject" onclick="window._eaRejectReq(' + req.id + ', \'' + escapeHtml(req.folder_name) + '\')">رد درخواست</button>',
+                        '</div>'
+                    ].join('\n');
+                } else if (req.status === 'rejected' && req.rejection_reason) {
+                    actionsHtml = '<span style="font-size:0.75rem;color:#f87171;" title="' + escapeHtml(req.rejection_reason) + '">دلیل: ' + escapeHtml(req.rejection_reason.substring(0, 30)) + '...</span>';
+                } else if (req.status === 'approved') {
+                    actionsHtml = '<span style="font-size:0.75rem;color:#34d399;">پوشه و تگ فعال شد</span>';
+                } else if (req.status === 'failed' && req.error_message) {
+                    actionsHtml = '<span style="font-size:0.75rem;color:#fca5a5;" title="' + escapeHtml(req.error_message) + '">خطا در اجرا</span>';
+                }
+
+                return [
+                    '<tr>',
+                    '  <td>#' + req.id + '</td>',
+                    '  <td><strong style="color:#ffffff;">' + escapeHtml(req.folder_name) + '</strong><br><span style="font-size:0.75rem;color:var(--ea-text-dim);">' + escapeHtml(req.description || '') + '</span></td>',
+                    '  <td><span class="ea-meta-tag-chip" style="margin:0;">' + escapeHtml(req.group_id) + '</span></td>',
+                    '  <td>' + escapeHtml(req.requester_uid) + '</td>',
+                    '  <td>' + formatDate(req.created_at) + '</td>',
+                    '  <td>' + statusHtml + '</td>',
+                    '  <td>' + actionsHtml + '</td>',
+                    '</tr>'
+                ].join('\n');
+            }).join('\n');
+
+            body.innerHTML = [
+                '<table class="ea-req-table">',
+                '  <thead>',
+                '    <tr>',
+                '      <th>شناسه</th>',
+                '      <th>نام پوشه و توضیحات</th>',
+                '      <th>گروه</th>',
+                '      <th>ادمین متقاضی</th>',
+                '      <th>تاریخ ثبت</th>',
+                '      <th>وضعیت</th>',
+                '      <th>عملیات</th>',
+                '    </tr>',
+                '  </thead>',
+                '  <tbody>' + rows + '</tbody>',
+                '</table>'
+            ].join('\n');
+        })
+        .catch(function (err) {
+            body.innerHTML = '<div class="ea-rejection-box">خطا در بارگذاری اطلاعات: ' + escapeHtml(err.message) + '</div>';
+        });
+    }
+
+    // Global Action Handlers for Admin Table
+    window._eaApproveReq = function (id, folderName, groupId) {
+        if (!confirm('آیا از تأیید درخواست ایجاد پوشه «' + folderName + '» برای گروه «' + groupId + '» اطمینان دارید؟\nاین عملیات پوشه را در ساختار آرشیو ساخته و تگ متناظر را خودکار ثبت و مقید می‌کند.')) {
+            return;
+        }
+
+        fetch('/index.php/apps/archive_autotag/api/folder-requests/' + id + '/approve', {
+            method: 'POST',
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data && data.status === 'success') {
+                showToast('پوشه «' + folderName + '» با موفقیت ایجاد و تگ اختصاصی گروه الصاق شد.');
+                fetchPendingRequestsCount();
+                openAdminManageRequestsModal();
+            } else {
+                alert('خطا در تأیید درخواست: ' + ((data && data.message) ? data.message : 'نامشخص'));
+            }
+        })
+        .catch(function (err) {
+            alert('خطای ارتباط با سرور: ' + err.message);
+        });
+    };
+
+    window._eaRejectReq = function (id, folderName) {
+        var reason = prompt('لطفاً دلیل رد درخواست «' + folderName + '» را وارد فرمایید (اجباری - به ادمین گروه نمایش داده می‌شود):');
+        if (reason === null) return;
+        reason = reason.trim();
+        if (!reason) {
+            alert('ورود دلیل رد درخواست الزامی است.');
+            return;
+        }
+
+        fetch('/index.php/apps/archive_autotag/api/folder-requests/' + id + '/reject', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ reason: reason })
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data && data.status === 'success') {
+                showToast('درخواست رد شد و دلیل ثبت گردید.');
+                fetchPendingRequestsCount();
+                openAdminManageRequestsModal();
+            } else {
+                alert('خطا در رد درخواست: ' + ((data && data.message) ? data.message : 'نامشخص'));
+            }
+        })
+        .catch(function (err) {
+            alert('خطای ارتباط با سرور: ' + err.message);
+        });
+    };
+
     // Keyboard Shortcuts (e.g. Escape to close drawer)
     function setupKeyboardListeners() {
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape' && state.activeDrawerFile) {
-                closeDrawer();
+            if (e.key === 'Escape') {
+                if (document.getElementById('ea-active-modal')) {
+                    closeModal();
+                } else if (state.activeDrawerFile) {
+                    closeDrawer();
+                }
             }
         });
     }
@@ -819,6 +1307,7 @@
         setupKeyboardListeners();
         var root = document.getElementById('archive-portal-root');
         if (root) {
+            fetchUserRole();
             fetchTags();
         }
     }

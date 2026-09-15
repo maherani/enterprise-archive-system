@@ -270,11 +270,42 @@ Status: **Completed**
 
 ---
 
+### Step 14 — Delegated Folder Creation Workflow & Multi-Tier Governance (v1.8.0)
+- **Problem & Requirements:**
+  1. Regular users must never create folders or bypass archive policies.
+  2. Group administrators require a formal channel to request new folders within their specific departmental archive scope, without granting them direct unmonitored filesystem creation permissions.
+  3. System Administrators (`admin` group) must retain centralized oversight, review pending requests with full context, and have sole authority to approve or reject requests.
+  4. Atomic & Rollback Guarantees: When approved, folder provisioning, group share inheritance (Read + Create), and restricted system tag generation must execute atomically. If any component fails, the request is marked as failed with a detailed audit trace and state is safely rolled back.
+  5. Rejection Transparency: Rejections require a mandatory recorded reason visible to the requesting group administrator.
+  6. Strict Backend & Frontend Boundary Isolation: Regular members cannot view or submit requests (HTTP 403). Cross-group spoofing between group administrators is prevented.
+- **Implementation & Architecture:**
+  - **Database Migration (`Version1800Date20260915000001.php`):**
+    - Created `oc_archive_folder_requests` with fields: `id`, `folder_name`, `target_path`, `description`, `group_id`, `requester_uid`, `status`, timestamps, reviewer information, `rejection_reason`, `error_message`, and created IDs.
+  - **Backend Service & Controller (`FolderRequestService.php`, `FolderRequestController.php`, `SecurityPermissionException.php`):**
+    - `POST /api/folder-requests`: Validates group subadmin status, sanitizes folder names, enforces non-empty justifications, and sets status to `pending`.
+    - `GET /api/folder-requests`: Enforces role-based filtering (regular users: 403, group admins: own group only, system admin: full access with filters).
+    - `POST /api/folder-requests/{id}/approve`: Restricted exclusively to system administrators. Provisioning occurs under master archive tree (`admin` ownership), verifies group share on `Enterprise_Archive/<groupId>/...`, generates restricted system tag via `AutoTagService`, and binds tag to group via `TagOwnershipService`.
+    - `POST /api/folder-requests/{id}/reject`: Validates mandatory justification and records reviewer audit log.
+    - `GET /api/user-role`: Returns authenticated role profile (`is_admin`, `is_group_admin`, `subadmin_groups`, `member_groups`).
+  - **Portal Frontend UI/UX (`apps/archive_autotag/js/archive_portal.js` & `apps/archive_portal.css`):**
+    - Implemented Obsidian-Orange modal workflow.
+    - Group Admin View: Action bar displays `[ + درخواست پوشه جدید ]` and `[ درخواست‌های گروه ]`.
+    - System Admin View: Displays `[ مدیریت درخواست‌های پوشه ]` with glowing orange pending badge counter.
+    - Admin Review Dashboard: Status and group filtering toolbar, direct approval prompt, and mandatory rejection prompt.
+    - Non-admin regular users: Zero workflow buttons or forms exposed.
+  - **App Version & Assets (v1.8.0):**
+    - Updated `apps/archive_autotag/appinfo/info.xml` to `1.8.0` and completed database migration.
+- **Automated Verification:**
+  - `tests/test_folder_request_workflow.py`: Passed 100% across all 11 governance checks (regular user block, anti-spoofing, admin exemption, isolation, rejection with reason, atomic folder/tag creation, WebDAV upload, and MKCOL restriction).
+
+Status: **Completed**
+
+---
 ## Repository Status
 
 - Repository: `maherani/enterprise-archive-system`
 - Branch: `main`
-- Current Checkpoint: **Steps 1 through 13 fully completed, verified, and synchronized.**
+- Current Checkpoint: **Steps 1 through 14 fully completed, verified, and synchronized.**
 
 ### 5. Dynamic Folder-Driven Tag Lifecycle & Reconciliation (`tests/test_tag_lifecycle_reconciliation.py`)
 - **Step 1**: Folder creation triggers automatic tag registration & hierarchy tagging.

@@ -849,3 +849,276 @@ body[theme="dark"] :root,
 .ea-toast.show {
   transform: translateX(-50%) translateY(0);
 }
+
+/* -------------------------------------------------------------------------
+   Delegated Folder Creation Workflow & Modals (Obsidian-Orange)
+   ------------------------------------------------------------------------- */
+.ea-btn-primary {
+  background: var(--ea-primary-gradient) !important;
+  color: #ffffff !important;
+  border: 1px solid var(--ea-primary-border) !important;
+  box-shadow: 0 4px 14px var(--ea-primary-glow) !important;
+  font-weight: 700 !important;
+}
+
+.ea-btn-primary:hover {
+  background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%) !important;
+  box-shadow: 0 6px 20px rgba(249, 115, 22, 0.45) !important;
+  transform: translateY(-1px);
+}
+
+.ea-pending-counter {
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 1px 7px;
+  border-radius: 12px;
+  margin-right: 6px;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+}
+
+/* Modal System */
+.ea-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 11, 14, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: 20px;
+  animation: eaFadeIn 0.2s ease;
+}
+
+.ea-modal-card {
+  background: var(--ea-surface-card);
+  border: 1px solid var(--ea-border-subtle);
+  border-radius: var(--ea-radius-lg);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 25px rgba(249, 115, 22, 0.12);
+  width: 100%;
+  max-width: 620px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: eaSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ea-modal-card-lg {
+  max-width: 880px;
+}
+
+.ea-modal-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--ea-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--ea-surface-elevated);
+}
+
+.ea-modal-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--ea-text-main);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ea-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--ea-text-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.ea-modal-close:hover {
+  background: var(--ea-surface-hover);
+  color: var(--ea-primary);
+}
+
+.ea-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.ea-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--ea-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  background: var(--ea-surface-elevated);
+}
+
+/* Form Elements */
+.ea-form-group {
+  margin-bottom: 18px;
+}
+
+.ea-form-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ea-text-muted);
+  margin-bottom: 8px;
+}
+
+.ea-form-input,
+.ea-form-select,
+.ea-form-textarea {
+  width: 100%;
+  background: var(--ea-surface-elevated);
+  border: 1px solid var(--ea-border-card);
+  color: var(--ea-text-main);
+  border-radius: var(--ea-radius-md);
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.ea-form-input:focus,
+.ea-form-select:focus,
+.ea-form-textarea:focus {
+  outline: none;
+  border-color: var(--ea-primary);
+  background: var(--ea-surface-hover);
+  box-shadow: 0 0 0 3px var(--ea-primary-glow);
+}
+
+.ea-form-input[readonly] {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--ea-text-muted);
+  cursor: not-allowed;
+  border-color: var(--ea-border-subtle);
+}
+
+.ea-form-help {
+  font-size: 0.78rem;
+  color: var(--ea-text-dim);
+  margin-top: 6px;
+}
+
+/* Status Badges */
+.ea-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--ea-radius-full);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.ea-status-pending {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.ea-status-approved {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.ea-status-rejected {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.ea-status-failed {
+  background: rgba(153, 27, 27, 0.2);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+/* Requests Table */
+.ea-req-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: right;
+  font-size: 0.88rem;
+}
+
+.ea-req-table th {
+  background: var(--ea-surface-elevated);
+  color: var(--ea-text-muted);
+  font-weight: 700;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ea-border-subtle);
+}
+
+.ea-req-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: var(--ea-text-main);
+  vertical-align: middle;
+}
+
+.ea-req-table tr:hover td {
+  background: var(--ea-surface-hover);
+}
+
+.ea-btn-sm {
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  border-radius: 6px;
+}
+
+.ea-btn-approve {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.ea-btn-approve:hover {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.ea-btn-reject {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.ea-btn-reject:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.ea-rejection-box {
+  margin-top: 8px;
+  padding: 10px 14px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--ea-radius-md);
+  font-size: 0.82rem;
+  color: #fca5a5;
+}
+
+@keyframes eaFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes eaSlideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
