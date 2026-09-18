@@ -455,11 +455,7 @@
                 // 2. Navigate smoothly using Nextcloud Vue Router if available
                 if (window.OCP && window.OCP.Files && window.OCP.Files.Router) {
                     try {
-                        if (isDir) {
-                            window.OCP.Files.Router.goToRoute('filelist', { view: 'files' }, { dir: targetDir });
-                        } else {
-                            window.OCP.Files.Router.goToRoute('filelist', { view: 'files', fileid: String(fileId) }, { dir: targetDir, openfile: 'false' });
-                        }
+                        window.OCP.Files.Router.goToRoute('filelist', { view: 'files' }, { dir: targetDir });
                         return;
                     } catch (routerErr) {
                         console.warn('[ArchiveMultiTagFilter] Router navigation failed:', routerErr);
@@ -483,6 +479,21 @@
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
     }
+
+    // Check if navigated from Enterprise Archive Portal with target directory
+    try {
+        var pendingTargetDir = sessionStorage.getItem('ea_target_dir');
+        if (pendingTargetDir) {
+            sessionStorage.removeItem('ea_target_dir');
+            if (window.OCP && window.OCP.Files && window.OCP.Files.Router) {
+                setTimeout(function () {
+                    try {
+                        window.OCP.Files.Router.goToRoute('filelist', { view: 'files' }, { dir: pendingTargetDir });
+                    } catch (rErr) {}
+                }, 100);
+            }
+        }
+    } catch (e) {}
 
     // Startup and continuous watcher
     fetchTags();

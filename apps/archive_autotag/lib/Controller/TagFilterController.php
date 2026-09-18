@@ -288,9 +288,10 @@ class TagFilterController extends Controller {
             $targetDir = '/' . ltrim($isDir ? $relPath : $parentDir, '/');
             $targetDir = preg_replace('#/+#', '/', $targetDir);
 
-            // Canonical Nextcloud server-side deep link: resolves storage, relative user paths, and encoding
-            $webUrl = '/f/' . $fileId . '?openfile=false';
-            $folderUrl = '/f/' . $fileId . '?openfile=false';
+            // Canonical Nextcloud Files directory navigation link
+            $encodedTargetDir = str_replace('%2F', '/', rawurlencode($targetDir));
+            $folderUrl = '/index.php/apps/files/files?dir=' . $encodedTargetDir;
+            $webUrl = $folderUrl;
 
             $filesResult[] = [
                 'id' => $fileId,

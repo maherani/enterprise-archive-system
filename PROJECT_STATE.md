@@ -20,7 +20,7 @@ This document serves as the persistent memory and operational reference for the 
                 +------------------+
                 |   archive_app    ?  (Nextcloud 34 Apache)
                 |   (Internal:80)  ?  - WebDAV Endpoint: /remote.php/dav/files/
-                +--------+---------+  - Custom App: archive_autotag v1.5.0
+                +--------+---------+  - Custom App: archive_autotag v2.0.1
                          |            - PSR-14 Hierarchical Event Engine
                          |            - SabreDAV Upload Limit & Folder Protection
                          |            - Native Multi-Tag Intersection Filter (AND)
@@ -42,9 +42,9 @@ This document serves as the persistent memory and operational reference for the 
 ```text
 enterprise-archive-system/
 ??? apps/
-?   ??? archive_autotag/              # Custom native Nextcloud app (v1.4.0)
+?   ??? archive_autotag/              # Custom native Nextcloud app (v2.0.1)
 ?       ??? appinfo/
-?       ?   ??? info.xml              # App metadata (v1.4.0)
+?       ?   ??? info.xml              # App metadata (v2.0.1)
 ?       ?   ??? routes.php            # REST API endpoints for tags and filter
 ?       ??? css/
 ?       ?   ??? multi_tag_filter.css  # Full-width RTL-aware UI styling for tag filter
@@ -61,6 +61,9 @@ enterprise-archive-system/
 ?           ?   ??? TagReconcileCommand.php    # occ archive:tag:reconcile / sync
 ?           ?   ??? UserLimitCommand.php       # occ archive:user:limit
 ?           ??? Controller/
+?           ?   ??? AiRetrievalController.php  # Zero-RAM chunked binary stream & AI retrieval API
+?           ?   ??? FolderRequestController.php# Delegated folder creation workflow API
+?           ?   ??? SwaggerController.php      # On-premise offline Swagger UI & OpenAPI 3.0 spec
 ?           ?   ??? TagFilterController.php    # Tag query & multi-tag intersection API with ACL
 ?           ??? Listener/             # PSR-14 event listeners
 ?           ?   ??? BeforeNodeCreatedListener.php
@@ -75,9 +78,12 @@ enterprise-archive-system/
 ?           ??? Migration/
 ?           ?   ??? Version1400Date20260913000001.php # DB schema migration for ACL & Tag isolation
 ?           ??? Service/
+?           ?   ??? AiAuditService.php         # Immutable AI audit logger & verification
 ?           ?   ??? AutoTagService.php         # Recursive hierarchical tagging logic
 ?           ?   ??? FileOwnershipService.php   # File ACL and admin grant manager
 ?           ?   ??? FolderPolicyService.php    # Folder creation decoupling policy
+?           ?   ??? FolderRequestNotifier.php  # Native Nextcloud notification dispatcher
+?           ?   ??? FolderRequestService.php   # Atomic folder & tag provisioning engine
 ?           ?   ??? TagOwnershipService.php    # Tag visibility & isolation filter
 ?           ?   ??? UploadLimitService.php     # Per-user streaming upload size enforcement
 ?           ??? SystemTag/
@@ -470,11 +476,68 @@ Status: **Completed**
 Status: **Completed**
 
 ---
+### Step 15 — Secure AI File Retrieval API & On-Premise AI Gateway (v2.0.0)
+- **Problem & Requirement (Requirement 13):**
+  - External local AI agents (e.g. running on CPU Intel i7) require programmatic, secure, and performant access to archived organizational files without exposing internal file paths or overloading server memory.
+- **Implementation & Architecture:**
+  - **Zero-RAM Chunked Binary Streaming:**
+    - Implemented `AiRetrievalController::download()` using PHP stream wrappers (`fopen('php://output', 'wb')`) directly piped from Nextcloud's storage layer in 64KB chunks ($O(1)$ memory consumption regardless of file size).
+  - **Dual-Mode Authentication & Subject-Bound Authorization:**
+    - Supports standard HTTP Basic Auth and long-lived Bearer tokens.
+    - Implemented `X-On-Behalf-Of` impersonation header with strict admin authorization (`UserSession` validation) preventing horizontal privilege escalation.
+  - **Tamper-Evident Audit Trail (`oc_archive_ai_audit`):**
+    - Every retrieval attempt (successful or rejected) is logged with SHA-256 integrity digest, timestamp, actor UID, target file ID, client IP, and response code.
+  - **Interactive On-Premise Swagger UI & OpenAPI Spec:**
+    - Embedded offline Swagger UI accessible at `/index.php/apps/archive_autotag/api/docs` with auto-configured CSRF token injection and dynamic endpoint definitions.
+- **Verification:**
+  - Comprehensive automated test suite `tests/test_ai_file_retrieval_api.py` passed 10/10 tests (Metadata, Content streaming, Audit logging, ACL enforcement, Bearer auth, Swagger UI).
+
+Status: **Completed**
+
+---
+
+### Step 16 — Resolving Nextcloud 34 Exact Parent Folder Navigation & URL Masking Exclusions (v2.0.1)
+- **Problem & Root Cause:**
+  - Clicking "مکان در پوشه" (Locate in Folder) or the file path link in the quick-view drawer opened the Files app at the root directory (`/apps/files`) instead of the file's exact parent folder, especially for deep nested folders and non-ASCII (Persian) names (e.g., `/Enterprise_Archive/SOC/افتا/عملیات_امنیتی_۱۴۰۵`).
+  - Deep architectural investigation identified two root causes:
+    1. **Nextcloud 34 Core Controller Redirect Loop:**
+       `OCA\Files\Controller\ViewController::index()` contains a check: `if ($fileid && $dir !== '')`. It compares `$relativePath !== $dir`. Because `$relativePath` has no leading slash and is decoded, while `$dir` has a leading slash and is URL-encoded, they never match. Calling `/f/{fileId}` caused an infinite 303 redirect loop with `openfile=true`, collapsing Vue Router back to root (`/apps/files/`).
+    2. **Stealth URL Masking Interception:**
+       `apps/archive_autotag/js/url_mask.js` previously executed a blanket `history.replaceState(..., '/')` every 150ms. When opening a new tab to `/index.php/apps/files/files?dir=...`, `url_mask.js` stripped the `?dir=...` query parameter before Vue Router finished mounting, causing it to fall back to the root folder.
+- **Implementation & Architecture:**
+  - **Direct Canonical Directory Deep-Linking (`TagFilterController.php`):**
+    - Updated `folder_url` and `web_url` to bypass `/f/{fileId}` and directly output:
+      `/index.php/apps/files/files?dir=` + `rawurlencode($targetDir)`.
+    - Omitting `fileid` completely circumvents Nextcloud's buggy core check while delivering an instant HTTP 200 destination.
+  - **Smart Navigation Route Guard in URL Masking (`url_mask.js`):**
+    - Added explicit guard:
+      ```javascript
+      if (window.location.pathname.includes('/apps/files') && window.location.search.includes('dir=')) {
+          return; // Do not mask address bar; preserve directory navigation parameter for Vue Router
+      }
+      ```
+  - **Dual Client Navigation & State Persistence (`archive_portal.js` & `multi_tag_filter.js`):**
+    - Click handlers for `#ea-drawer-locate-btn` and `.ea-drawer-path-link` store the target directory in `sessionStorage.setItem('ea_target_dir', targetDir)`.
+    - If in the same window/SPA, cleanly invokes `window.OCP.Files.Router.goToRoute('filelist', { view: 'files' }, { dir: targetDir })`.
+    - Fallback and native tab links point directly to `file.folder_url`.
+    - In `multi_tag_filter.js`, on mount inside the Files app, reads `sessionStorage.getItem('ea_target_dir')` and navigates smoothly if arriving via SPA transition.
+  - **Container Synchronization & Cache Invalidation:**
+    - Synced changes to `/var/www/html/custom_apps/archive_autotag/` in Docker container `archive_app`.
+    - Bumped app version to `2.0.1` in `appinfo/info.xml` and executed `occ upgrade` (updating asset hash buster).
+- **Verification:**
+  - Validated with both Administrator and standard users for deeply nested Persian directories (`/Enterprise_Archive/SOC/افتا/عملیات_امنیتی_۱۴۰۵`).
+  - Automated test suite `tests/test_file_location_navigation.py` passed 5/5 tests with 100% success.
+  - Regression verified: `test_url_masking.py` (5/5 passed), `test_ai_file_retrieval_api.py` (10/10 passed), `test_archive_portal.py` (4/4 passed).
+
+Status: **Completed**
+
+---
+
 ## Repository Status
 
 - Repository: `maherani/enterprise-archive-system`
 - Branch: `main`
-- Current Checkpoint: **Steps 1 through 14 fully completed, verified, and synchronized.**
+- Current Checkpoint: **Steps 1 through 16 fully completed, verified, and synchronized (v2.0.1).**
 
 ### 5. Dynamic Folder-Driven Tag Lifecycle & Reconciliation (`tests/test_tag_lifecycle_reconciliation.py`)
 - **Step 1**: Folder creation triggers automatic tag registration & hierarchy tagging.
@@ -483,3 +546,20 @@ Status: **Completed**
 - **Step 4**: Folder deletion automatically reconciles tags and purges surplus/orphaned tag.
 - **Step 5**: CLI command `occ archive:tag:reconcile` executes cleanly with full audit table.
 - **Result**: 100% Passed.
+
+### 6. Secure AI File Retrieval API Test Suite (`tests/test_ai_file_retrieval_api.py`)
+- **Metadata API**: Verifies document metadata, permissions, tags, and human-readable sizes.
+- **Binary Stream Download**: Validates O(1) memory chunked streaming and byte-level payload integrity.
+- **Audit Logging**: Confirms tamper-evident recording in `oc_archive_ai_audit` with SHA-256 verification.
+- **ACL Enforcement**: Ensures unauthorized or unpermitted users receive strict 403 Forbidden.
+- **Bearer Token Auth**: Validates programmatic machine-to-machine authentication.
+- **Swagger UI**: Validates interactive documentation and OpenAPI 3.0 specification delivery.
+- **Result**: 10/10 Passed (100%).
+
+### 7. File Location Navigation & Deep Linking (`tests/test_file_location_navigation.py`)
+- **Folder URL Endpoint Structure**: Validates canonical `/index.php/apps/files/files?dir=...` format.
+- **Persian & Special Characters URL Encoding**: Validates correct `rawurlencode` handling for deep Persian paths.
+- **HTTP Status 200 OK**: Verifies that navigating to folder URL returns 200 OK without redirect loop.
+- **URL Masking Exclusion**: Verifies `url_mask.js` contains the guard preserving `dir=` in `/apps/files`.
+- **Portal Drawer Binding**: Verifies `archive_portal.js` connects locate button and path link to `folder_url`.
+- **Result**: 5/5 Passed (100%).

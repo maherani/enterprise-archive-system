@@ -7,6 +7,13 @@
 
     function maskAddressBar() {
         try {
+            // Never mask if user is navigating in Files app or has active dir query
+            if (window.location.search.includes('dir=') || 
+                window.location.search.includes('fileid=') ||
+                window.location.pathname.includes('/apps/files')) {
+                return;
+            }
+
             // Check if current path, search, or hash is not already root '/'
             if (window.location.pathname !== '/' || window.location.search !== '' || window.location.hash !== '') {
                 const fullCurrentPath = window.location.pathname + window.location.search + window.location.hash;
