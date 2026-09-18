@@ -378,11 +378,22 @@ class AutoTagService {
                 // Count active file mappings in oc_filecache using raw SQL to prevent Doctrine casting error
                 $activeMappingsCount = (int)$this->db->executeQuery($sqlCheckMappings, [$tagId])->fetchOne();
 
+                // Protect group admin custom tags from being pruned
+                $owner = $this->tagOwnershipService->getTagOwner($tagId);
+                $isGroupAdminTag = !empty($this->tagOwnershipService->getTagGroups($tagId)) && $owner !== null && $owner !== 'system';
+
                 if ($isFolder) {
                     $report['tags_retained'][] = [
                         'id' => $tagId,
                         'name' => $tagName,
                         'reason' => 'active_folder',
+                        'active_mappings' => $activeMappingsCount,
+                    ];
+                } elseif ($isGroupAdminTag) {
+                    $report['tags_retained'][] = [
+                        'id' => $tagId,
+                        'name' => $tagName,
+                        'reason' => 'group_admin_tag',
                         'active_mappings' => $activeMappingsCount,
                     ];
                 } elseif ($activeMappingsCount > 0) {

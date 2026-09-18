@@ -18,7 +18,34 @@ USER_PASS = "User_Password_123!"
 admin_auth = HTTPBasicAuth(ADMIN_USER, ADMIN_PASS)
 user_auth = HTTPBasicAuth(USER, USER_PASS)
 
+def setup_environment():
+    folders = [
+        "Enterprise_Archive",
+        "Enterprise_Archive/Finance",
+        "Enterprise_Archive/Finance/2026",
+        "Enterprise_Archive/Finance/2026/Invoices_Archive"
+    ]
+    for folder in folders:
+        url = f"{NEXTCLOUD_URL}/remote.php/dav/files/{ADMIN_USER}/{folder}"
+        requests.request("MKCOL", url, auth=admin_auth)
+
+    share_url = f"{NEXTCLOUD_URL}/ocs/v2.php/apps/files_sharing/api/v1/shares"
+    share_data = {
+        "path": "/Enterprise_Archive",
+        "shareType": 1,
+        "shareWith": "Compliance_Unit",
+        "permissions": 7
+    }
+    requests.post(
+        share_url,
+        data=share_data,
+        headers={"OCS-APIRequest": "true", "Accept": "application/json"},
+        auth=admin_auth
+    )
+
+
 def run_tests():
+    setup_environment()
     print("==================================================================")
     print(" TESTING ENTERPRISE FOLDER CREATION RESTRICTION POLICY")
     print("==================================================================")

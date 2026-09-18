@@ -1340,3 +1340,29 @@ body[theme="dark"] :root,
   border-radius: var(--ea-radius-sm);
   font-family: monospace;
 }
+
+
+/* Group Admin Tag Governance Enhancements */
+.ea-modal-card-lg {
+  max-width: 680px;
+  width: 92%;
+}
+
+.ea-tag-del-btn {
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  line-height: 1;
+}
+
+.ea-tag-del-btn:hover {
+  transform: scale(1.25);
+  opacity: 0.9;
+}
+
+.ea-drawer-tag-mgmt-card {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: border-color 0.2s ease;
+}
+
+.ea-drawer-tag-mgmt-card:hover {
+  border-color: rgba(249, 115, 22, 0.4);
+}

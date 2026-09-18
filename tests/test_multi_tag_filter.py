@@ -39,7 +39,46 @@ def filter_by_tags(tag_names=None, tag_ids=None):
     return r.json()
 
 
+def setup_environment():
+    admin_auth = HTTPBasicAuth("admin", "Secure_Admin_Password_123!")
+    folders = [
+        "Enterprise_Archive",
+        "Enterprise_Archive/Finance",
+        "Enterprise_Archive/Finance/2026",
+        "Enterprise_Archive/Finance/2026/Invoices_Archive"
+    ]
+    for folder in folders:
+        url = f"{NEXTCLOUD_URL}/remote.php/dav/files/admin/{folder}"
+        requests.request("MKCOL", url, auth=admin_auth)
+
+    share_url = f"{NEXTCLOUD_URL}/ocs/v2.php/apps/files_sharing/api/v1/shares"
+    share_data = {
+        "path": "/Enterprise_Archive",
+        "shareType": 1,
+        "shareWith": "Compliance_Unit",
+        "permissions": 7
+    }
+    requests.post(
+        share_url,
+        data=share_data,
+        headers={"OCS-APIRequest": "true", "Accept": "application/json"},
+        auth=admin_auth
+    )
+
+    sample_files = [
+        "e2e_invoice_99.pdf",
+        "financial_summary.pdf",
+        "quarterly_audit.xlsx",
+        "tax_report.docx"
+    ]
+    for sf in sample_files:
+        file_url = f"{NEXTCLOUD_URL}/remote.php/dav/files/admin/Enterprise_Archive/Finance/2026/Invoices_Archive/{sf}"
+        requests.put(file_url, data=b"Sample content for multi-tag test.", auth=admin_auth)
+    subprocess.run(["docker", "exec", "-u", "www-data", "archive_app", "php", "occ", "archive:retag"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def test_multi_tag_filtering():
+    setup_environment()
     print("==================================================================")
     print(" STARTING MULTI-TAG INTERSECTION FILTERING VERIFICATION (METHOD 1)")
     print("==================================================================")

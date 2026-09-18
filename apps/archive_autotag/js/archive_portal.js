@@ -747,8 +747,34 @@
 
         var meta = getFileMeta(file.name, file.mimetype);
 
+        var matchedSubadminGroup = null;
+        if (state.userRole && state.userRole.is_group_admin && state.userRole.subadmin_groups) {
+            var fPath = (file.path || '').toLowerCase();
+            for (var gi = 0; gi < state.userRole.subadmin_groups.length; gi++) {
+                var cand = state.userRole.subadmin_groups[gi];
+                var candLower = cand.toLowerCase();
+                if (fPath.indexOf(candLower + '/') === 0 || fPath.indexOf('/' + candLower + '/') !== -1 || fPath.indexOf('enterprise_archive/' + candLower) !== -1) {
+                    matchedSubadminGroup = cand;
+                    break;
+                }
+            }
+        }
+
         var tagsBadges = (file.tags || []).map(function (t) {
-            return '<span class="ea-mini-tag" style="background: var(--ea-primary-glow); color: var(--ea-primary); font-size: 0.8rem; padding: 4px 10px;">🏷️ ' + escapeHtml(t.name) + '</span>';
+            var rawName = t.name || '';
+            var canRemove = false;
+            var cleanDisplay = rawName;
+            if (matchedSubadminGroup) {
+                var pfx = '[' + matchedSubadminGroup + '] ';
+                if (rawName.indexOf(pfx) === 0) {
+                    canRemove = true;
+                    cleanDisplay = rawName.substring(pfx.length);
+                }
+            }
+            var removeBtn = canRemove
+                ? ' <button class="ea-tag-del-btn" onclick="window._eaRemoveTagFromFile(\'' + escapeHtml(matchedSubadminGroup) + '\', ' + t.id + ', ' + file.id + ', \'' + escapeHtml(cleanDisplay) + '\')" title="حذف این تگ از سند" style="background:none; border:none; color:#ef4444; font-weight:bold; cursor:pointer; font-size:12px; padding:0 2px; margin-right:4px;">✕</button>'
+                : '';
+            return '<span class="ea-mini-tag" style="background: var(--ea-primary-glow); color: var(--ea-primary); font-size: 0.8rem; padding: 4px 10px; display:inline-flex; align-items:center;">🏷️ ' + escapeHtml(cleanDisplay) + removeBtn + '</span>';
         }).join(' ');
 
         var targetDir = file.target_dir || (file.is_dir ? ('/' + file.path.replace(/^\/+/g, '')) : ('/' + (file.parent_dir || '').replace(/^\/+/g, '')));
@@ -766,7 +792,18 @@
                 '<div style="margin-bottom: 20px;">',
                 '  <div style="font-size: 0.85rem; font-weight: 700; color: var(--ea-text-muted); margin-bottom: 8px;">برچسب‌های متصل سازمانی:</div>',
                 '  <div style="display: flex; flex-wrap: wrap; gap: 6px;">' + (tagsBadges || '<span style="color: var(--ea-text-subtle);">فاقد برچسب</span>') + '</div>',
-                '</div>',
+                '</div>','' + (matchedSubadminGroup ? [
+                '<div class="ea-drawer-tag-mgmt-card" style="margin-bottom: 20px; padding: 12px 14px; border-radius: var(--ea-radius); background: var(--ea-surface-elevated); border: 1px solid var(--ea-border);">',
+                '  <div style="font-size: 0.84rem; font-weight: 700; color: var(--ea-text-main); margin-bottom: 8px;">🏷️ الصاق تگ اختصاصی گروه [' + escapeHtml(matchedSubadminGroup) + ']:</div>',
+                '  <div style="display: flex; gap: 8px;">',
+                '    <select id="ea-drawer-tag-select" class="ea-form-select" style="flex: 1; font-size: 0.82rem; padding: 4px 8px;">',
+                '      <option value="">⏳ در حال دریافت تگ‌های گروه...</option>',
+                '    </select>',
+                '    <button id="ea-drawer-add-tag-btn" class="ea-btn ea-btn-primary" style="padding: 4px 12px; font-size: 0.82rem; white-space: nowrap;">+ الصاق به سند</button>',
+                '  </div>',
+                '  <div id="ea-drawer-tag-msg" style="display:none; font-size: 0.8rem; margin-top: 6px;"></div>',
+                '</div>'
+                ].join('\n') : '') + '',
                 '',
                 '<div class="ea-meta-item">',
                 '  <span class="ea-meta-label">مسیر فایل:</span>',
@@ -831,6 +868,10 @@
             if (locateBtn) {
                 locateBtn.addEventListener('click', onLocateClick);
             }
+
+            if (matchedSubadminGroup) {
+                setupDrawerTagActions(file, matchedSubadminGroup);
+            }
             var pathLink = document.querySelector('.ea-drawer-path-link');
             if (pathLink) {
                 pathLink.addEventListener('click', onLocateClick);
@@ -890,6 +931,10 @@
                 '<button id="ea-view-group-reqs-btn" class="ea-btn" title="مشاهده وضعیت درخواست‌های ثبت شده">',
                 '  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
                 '  <span>درخواست‌های گروه</span>',
+                '</button>',
+                '<button id="ea-manage-group-tags-btn" class="ea-btn" title="مدیریت تگ‌های اختصاصی گروه">',
+                '  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
+                '  <span>🏷️ تگ‌های گروه</span>',
                 '</button>'
             ].join('\n');
 
@@ -898,6 +943,9 @@
 
             var viewBtn = document.getElementById('ea-view-group-reqs-btn');
             if (viewBtn) viewBtn.onclick = openGroupRequestsModal;
+
+            var groupTagsBtn = document.getElementById('ea-manage-group-tags-btn');
+            if (groupTagsBtn) groupTagsBtn.onclick = openGroupTagManagementModal;
 
         } else if (state.userRole && state.userRole.is_admin) {
             var counterBadge = state.pendingRequestsCount > 0
@@ -1577,6 +1625,333 @@
     window._eaRejectReq = function (id, folderName) {
         handleRejectRequest(null, id, folderName);
     };
+
+
+    function setupDrawerTagActions(file, grp) {
+        var selectEl = document.getElementById('ea-drawer-tag-select');
+        var addBtn = document.getElementById('ea-drawer-add-tag-btn');
+        var msgEl = document.getElementById('ea-drawer-tag-msg');
+        if (!selectEl || !addBtn) return;
+
+        fetch('/index.php/apps/archive_autotag/api/group-tags?group_id=' + encodeURIComponent(grp), {
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data && data.status === 'success' && data.tags) {
+                var currentTagIds = (file.tags || []).map(function (t) { return t.id; });
+                var unassigned = data.tags.filter(function (t) { return currentTagIds.indexOf(t.id) === -1; });
+                if (unassigned.length === 0) {
+                    selectEl.innerHTML = '<option value="">(همه تگ‌های گروه روی سند اعمال شده‌اند)</option>';
+                    addBtn.disabled = true;
+                } else {
+                    selectEl.innerHTML = '<option value="">-- انتخاب تگ گروه --</option>' + unassigned.map(function (t) {
+                        return '<option value="' + t.id + '">' + escapeHtml(t.clean_name || t.name) + '</option>';
+                    }).join('');
+                    addBtn.disabled = false;
+                }
+            } else {
+                selectEl.innerHTML = '<option value="">(عدم دریافت تگ‌ها)</option>';
+            }
+        })
+        .catch(function () {
+            selectEl.innerHTML = '<option value="">(خطای شبکه)</option>';
+        });
+
+        addBtn.onclick = function () {
+            var selectedTagId = selectEl.value;
+            if (!selectedTagId) {
+                if (msgEl) {
+                    msgEl.style.display = 'block';
+                    msgEl.style.color = '#ef4444';
+                    msgEl.innerText = 'لطفاً یک تگ را انتخاب کنید.';
+                }
+                return;
+            }
+            addBtn.disabled = true;
+            addBtn.innerText = '⏳...';
+
+            var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+            if (window.OC && window.OC.requestToken) headers['requesttoken'] = window.OC.requestToken;
+
+            fetch('/index.php/apps/archive_autotag/api/group-tags/assign', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({ group_id: grp, tag_id: parseInt(selectedTagId, 10), file_id: file.id })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data && data.status === 'success') {
+                    showToast('تگ با موفقیت به سند الصاق شد.');
+                    // Refresh file tags in state and reload drawer
+                    var assignedTagId = parseInt(selectedTagId, 10);
+                    var fullTagName = '[' + grp + '] ' + (selectEl.options[selectEl.selectedIndex].text || '');
+                    if (!file.tags) file.tags = [];
+                    file.tags.push({ id: assignedTagId, name: fullTagName });
+                    renderDrawer();
+                    renderDocumentList();
+                    fetchTags();
+                } else {
+                    addBtn.disabled = false;
+                    addBtn.innerText = '+ الصاق به سند';
+                    if (msgEl) {
+                        msgEl.style.display = 'block';
+                        msgEl.style.color = '#ef4444';
+                        msgEl.innerText = 'خطا: ' + ((data && data.message) ? data.message : 'نامشخص');
+                    }
+                }
+            })
+            .catch(function (err) {
+                addBtn.disabled = false;
+                addBtn.innerText = '+ الصاق به سند';
+                if (msgEl) {
+                    msgEl.style.display = 'block';
+                    msgEl.style.color = '#ef4444';
+                    msgEl.innerText = 'خطای ارتباط: ' + err.message;
+                }
+            });
+        };
+    }
+
+    window._eaRemoveTagFromFile = function (grp, tagId, fileId, cleanName) {
+        if (!confirm('آیا مایلید تگ «' + cleanName + '» از این سند جدا شود؟')) {
+            return;
+        }
+        var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+        if (window.OC && window.OC.requestToken) headers['requesttoken'] = window.OC.requestToken;
+
+        fetch('/index.php/apps/archive_autotag/api/group-tags/remove', {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({ group_id: grp, tag_id: tagId, file_id: fileId })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data && data.status === 'success') {
+                showToast('تگ «' + cleanName + '» از سند جدا گردید.');
+                if (state.activeDrawerFile && state.activeDrawerFile.id === fileId) {
+                    state.activeDrawerFile.tags = (state.activeDrawerFile.tags || []).filter(function (t) { return t.id !== tagId; });
+                    renderDrawer();
+                }
+                // Update file in state.files as well
+                for (var i = 0; i < state.files.length; i++) {
+                    if (state.files[i].id === fileId) {
+                        state.files[i].tags = (state.files[i].tags || []).filter(function (t) { return t.id !== tagId; });
+                        break;
+                    }
+                }
+                renderDocumentList();
+                fetchTags();
+            } else {
+                alert('خطا در جداسازی تگ: ' + ((data && data.message) ? data.message : 'نامشخص'));
+            }
+        })
+        .catch(function (err) {
+            alert('خطای ارتباط: ' + err.message);
+        });
+    };
+
+    function openGroupTagManagementModal() {
+        closeModal();
+        if (!state.userRole || !state.userRole.subadmin_groups || state.userRole.subadmin_groups.length === 0) {
+            showToast('شما دسترسی ادمین برای هیچ گروهی ندارید.');
+            return;
+        }
+
+        var groups = state.userRole.subadmin_groups;
+        var selectedGroup = groups[0];
+
+        var overlay = document.createElement('div');
+        overlay.id = 'ea-active-modal';
+        overlay.className = 'ea-modal-overlay';
+        overlay.innerHTML = [
+            '<div class="ea-modal-card ea-modal-card-lg" style="max-width: 650px;">',
+            '  <div class="ea-modal-header">',
+            '    <div class="ea-modal-title">',
+            '      <svg width="22" height="22" fill="none" stroke="#3b82f6" stroke-width="2.2" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
+            '      <span>مدیریت تگ‌های اختصاصی گروه</span>',
+            '    </div>',
+            '    <button class="ea-modal-close" id="ea-modal-close-btn" title="بستن">✕</button>',
+            '  </div>',
+            '  <div class="ea-modal-body">',
+            '    <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px; background: var(--ea-surface); padding: 12px 16px; border-radius: var(--ea-radius); border: 1px solid var(--ea-border);">',
+            '      <label style="font-weight: 700; font-size: 0.9rem; color: var(--ea-text-main);">گروه سازمانی:</label>',
+            '      <select id="ea-gtag-group-select" class="ea-form-select" style="max-width: 250px;">' + groups.map(function (g) {
+                        return '<option value="' + escapeHtml(g) + '">' + escapeHtml(g) + '</option>';
+                   }).join('') + '</select>',
+            '      <div style="font-size: 0.8rem; color: var(--ea-text-muted); margin-right: auto;">تگ‌های تعریف‌شده صرفاً توسط اعضای همین گروه قابل مشاهده و جستجو هستند.</div>',
+            '    </div>',
+            '    <!-- Create New Tag Form -->',
+            '    <div style="background: var(--ea-surface-elevated); padding: 14px 16px; border-radius: var(--ea-radius); border: 1px solid var(--ea-border); margin-bottom: 20px;">',
+            '      <div style="font-weight: 700; font-size: 0.88rem; margin-bottom: 10px; color: var(--ea-text-main);">+ ایجاد تگ اختصاصی جدید:</div>',
+            '      <div style="display: flex; gap: 10px;">',
+            '        <input type="text" id="ea-gtag-name-input" class="ea-form-input" placeholder="نام تگ جدید سازمانی (مثال: محرمانه_سطح۱، گزارش_دوره)..." style="flex: 1;">',
+            '        <button id="ea-gtag-create-btn" class="ea-btn ea-btn-primary" style="white-space: nowrap;">',
+            '          <span>+ ایجاد تگ</span>',
+            '        </button>',
+            '      </div>',
+            '      <div id="ea-gtag-create-msg" style="margin-top: 8px; font-size: 0.82rem; display: none;"></div>',
+            '    </div>',
+            '    <!-- Group Tags Table / List -->',
+            '    <div style="font-weight: 700; font-size: 0.9rem; margin-bottom: 8px; color: var(--ea-text-main);">فهرست تگ‌های ثبت‌شده برای گروه:</div>',
+            '    <div id="ea-gtag-list-container" style="max-height: 320px; overflow-y: auto; border: 1px solid var(--ea-border); border-radius: var(--ea-radius); background: var(--ea-surface);">',
+            '      <div style="padding: 24px; text-align: center; color: var(--ea-text-muted);">⏳ در حال بارگذاری تگ‌ها...</div>',
+            '    </div>',
+            '  </div>',
+            '  <div class="ea-modal-footer">',
+            '    <button class="ea-btn" id="ea-gtag-close-bottom-btn">بستن</button>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.appendChild(overlay);
+
+        var closeBtn = document.getElementById('ea-modal-close-btn');
+        if (closeBtn) closeBtn.onclick = closeModal;
+        var closeBottomBtn = document.getElementById('ea-gtag-close-bottom-btn');
+        if (closeBottomBtn) closeBottomBtn.onclick = closeModal;
+        overlay.onclick = function (e) { if (e.target === overlay) closeModal(); };
+
+        var groupSelect = document.getElementById('ea-gtag-group-select');
+        if (groupSelect) {
+            groupSelect.onchange = function () {
+                selectedGroup = groupSelect.value;
+                loadGroupTags(selectedGroup);
+            };
+        }
+
+        var createBtn = document.getElementById('ea-gtag-create-btn');
+        var inputEl = document.getElementById('ea-gtag-name-input');
+        var msgEl = document.getElementById('ea-gtag-create-msg');
+
+        if (createBtn) {
+            createBtn.onclick = function () {
+                var tagName = (inputEl.value || '').trim();
+                if (!tagName) {
+                    msgEl.style.display = 'block';
+                    msgEl.style.color = '#ef4444';
+                    msgEl.innerText = 'لطفاً نام تگ را وارد نمایید.';
+                    return;
+                }
+                createBtn.disabled = true;
+                createBtn.innerText = '⏳ در حال ثبت...';
+                msgEl.style.display = 'none';
+
+                var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+                if (window.OC && window.OC.requestToken) headers['requesttoken'] = window.OC.requestToken;
+
+                fetch('/index.php/apps/archive_autotag/api/group-tags/create', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({ group_id: selectedGroup, tag_name: tagName })
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    createBtn.disabled = false;
+                    createBtn.innerText = '+ ایجاد تگ';
+                    if (data && data.status === 'success') {
+                        inputEl.value = '';
+                        msgEl.style.display = 'block';
+                        msgEl.style.color = '#10b981';
+                        msgEl.innerText = 'تگ «' + tagName + '» با موفقیت برای گروه تعریف گردید.';
+                        loadGroupTags(selectedGroup);
+                        fetchTags();
+                    } else {
+                        msgEl.style.display = 'block';
+                        msgEl.style.color = '#ef4444';
+                        msgEl.innerText = 'خطا: ' + ((data && data.message) ? data.message : 'نامشخص');
+                    }
+                })
+                .catch(function (err) {
+                    createBtn.disabled = false;
+                    createBtn.innerText = '+ ایجاد تگ';
+                    msgEl.style.display = 'block';
+                    msgEl.style.color = '#ef4444';
+                    msgEl.innerText = 'خطای ارتباط: ' + err.message;
+                });
+            };
+        }
+
+        function loadGroupTags(grp) {
+            var container = document.getElementById('ea-gtag-list-container');
+            if (!container) return;
+            container.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--ea-text-muted);">⏳ در حال بارگذاری تگ‌ها...</div>';
+
+            fetch('/index.php/apps/archive_autotag/api/group-tags?group_id=' + encodeURIComponent(grp), {
+                headers: { 'Accept': 'application/json' }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data && data.status === 'success' && data.tags) {
+                    if (data.tags.length === 0) {
+                        container.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--ea-text-muted);">هنوز هیچ تگ اختصاصی برای این گروه تعریف نشده است.</div>';
+                        return;
+                    }
+                    var html = [
+                        '<table style="width: 100%; border-collapse: collapse; text-align: right; font-size: 0.88rem;">',
+                        '  <thead>',
+                        '    <tr style="border-bottom: 1px solid var(--ea-border); background: rgba(255,255,255,0.03);">',
+                        '      <th style="padding: 10px 14px;">نام تگ اختصاصی</th>',
+                        '      <th style="padding: 10px 14px;">اسناد متصل</th>',
+                        '      <th style="padding: 10px 14px; text-align: center;">عملیات</th>',
+                        '    </tr>',
+                        '  </thead>',
+                        '  <tbody>'
+                    ];
+
+                    data.tags.forEach(function (t) {
+                        html.push(
+                            '<tr style="border-bottom: 1px solid var(--ea-border); transition: background 0.2s;" onmouseover="this.style.background=\'rgba(255,255,255,0.02)\'" onmouseout="this.style.background=\'transparent\'">',
+                            '  <td style="padding: 10px 14px; font-weight: 700; color: var(--ea-text-main);"><span class="ea-mini-tag" style="font-size: 0.82rem;">🏷️ ' + escapeHtml(t.clean_name || t.name) + '</span></td>',
+                            '  <td style="padding: 10px 14px; color: var(--ea-text-muted);">' + toPersianDigits(t.file_count || 0) + ' سند</td>',
+                            '  <td style="padding: 10px 14px; text-align: center;">',
+                            '    <button class="ea-btn" style="padding: 4px 10px; font-size: 0.8rem; color: #ef4444; border-color: rgba(239,68,68,0.3);" onclick="window._eaDeleteGroupTag(\'' + escapeHtml(grp) + '\', ' + t.id + ', \'' + escapeHtml(t.clean_name || t.name) + '\')">🗑️ حذف</button>',
+                            '  </td>',
+                            '</tr>'
+                        );
+                    });
+
+                    html.push('  </tbody></table>');
+                    container.innerHTML = html.join('\n');
+                } else {
+                    container.innerHTML = '<div style="padding: 24px; text-align: center; color: #ef4444;">خطا در دریافت تگ‌های گروه.</div>';
+                }
+            })
+            .catch(function (err) {
+                container.innerHTML = '<div style="padding: 24px; text-align: center; color: #ef4444;">خطای شبکه: ' + err.message + '</div>';
+            });
+        }
+
+        window._eaDeleteGroupTag = function (grp, tagId, tagName) {
+            if (!confirm('آیا از حذف تگ اختصاصی «' + tagName + '» اطمینان دارید؟ این تگ از تمامی فایل‌های این گروه جدا خواهد شد.')) {
+                return;
+            }
+            var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+            if (window.OC && window.OC.requestToken) headers['requesttoken'] = window.OC.requestToken;
+
+            fetch('/index.php/apps/archive_autotag/api/group-tags/delete', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({ group_id: grp, tag_id: tagId })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data && data.status === 'success') {
+                    showToast('تگ اختصاصی «' + tagName + '» حذف گردید.');
+                    loadGroupTags(grp);
+                    fetchTags();
+                    fetchFiles();
+                } else {
+                    alert('خطا در حذف تگ: ' + ((data && data.message) ? data.message : 'نامشخص'));
+                }
+            })
+            .catch(function (err) {
+                alert('خطای ارتباط: ' + err.message);
+            });
+        };
+
+        loadGroupTags(selectedGroup);
+    }
 
     // Keyboard Shortcuts (e.g. Escape to close drawer)
     function setupKeyboardListeners() {
