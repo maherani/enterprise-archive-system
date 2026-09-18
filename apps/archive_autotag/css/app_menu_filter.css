@@ -10,6 +10,8 @@
 body[theme="dark"],
 #body-user,
 #body-login {
+    --body-container-margin: 0px !important;
+    --body-container-radius: 0px !important;
     --color-primary: #f97316 !important;
     --color-primary-text: #ffffff !important;
     --color-primary-element: #f97316 !important;
@@ -54,6 +56,17 @@ body,
     background-color: #090b0e !important;
     background-image: none !important;
     color: #f8fafc !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+}
+
+#content {
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    position: static !important;
+    border-radius: 0 !important;
+    box-sizing: border-box !important;
 }
 
 /* -------------------------------------------------------------------------

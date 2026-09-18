@@ -72,7 +72,12 @@ body[theme="dark"] :root,
 }
 
 
-/* Full-Width Canvas Guarantee */
+:root {
+  --body-container-margin: 0px !important;
+  --body-container-radius: 0px !important;
+}
+
+/* Full-Width Canvas Guarantee for ALL users */
 #content.app-archive_autotag,
 #content,
 #app-content,
@@ -81,6 +86,14 @@ body[theme="dark"] :root,
   background-color: #090b0e !important;
   background-image: none !important;
   min-height: calc(100vh - 50px) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  position: static !important;
+  border-radius: 0 !important;
+  box-sizing: border-box !important;
+  display: block !important;
 }
 
 /* Base Portal Container */
@@ -93,18 +106,22 @@ body[theme="dark"] :root,
   color: var(--ea-text-main);
   background: var(--ea-bg-canvas);
   min-height: calc(100vh - 50px);
-  padding: 32px 24px 80px 24px;
-  box-sizing: border-box;
+  padding: 32px 28px 80px 28px !important;
+  margin: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  flex: 1 1 100% !important;
+  box-sizing: border-box !important;
   overflow-x: hidden;
   position: relative;
 }
 
 .ea-container {
-  max-width: 100%;
-  width: 100%;
-  margin: 0 auto;
-  padding: 0 12px;
-  box-sizing: border-box;
+  max-width: 100% !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 12px !important;
+  box-sizing: border-box !important;
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 

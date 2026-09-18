@@ -20,7 +20,7 @@ This document serves as the persistent memory and operational reference for the 
                 +------------------+
                 |   archive_app    ?  (Nextcloud 34 Apache)
                 |   (Internal:80)  ?  - WebDAV Endpoint: /remote.php/dav/files/
-                +--------+---------+  - Custom App: archive_autotag v2.0.1
+                +--------+---------+  - Custom App: archive_autotag v2.0.2
                          |            - PSR-14 Hierarchical Event Engine
                          |            - SabreDAV Upload Limit & Folder Protection
                          |            - Native Multi-Tag Intersection Filter (AND)
@@ -42,9 +42,9 @@ This document serves as the persistent memory and operational reference for the 
 ```text
 enterprise-archive-system/
 ??? apps/
-?   ??? archive_autotag/              # Custom native Nextcloud app (v2.0.1)
+?   ??? archive_autotag/              # Custom native Nextcloud app (v2.0.2)
 ?       ??? appinfo/
-?       ?   ??? info.xml              # App metadata (v2.0.1)
+?       ?   ??? info.xml              # App metadata (v2.0.2)
 ?       ?   ??? routes.php            # REST API endpoints for tags and filter
 ?       ??? css/
 ?       ?   ??? multi_tag_filter.css  # Full-width RTL-aware UI styling for tag filter
@@ -533,11 +533,36 @@ Status: **Completed**
 
 ---
 
+### Step 17 — Full-Width Canvas Harmonization & Multi-User Layout Guarantee (v2.0.2)
+- **Problem & Root Cause:**
+  - Standard users (e.g. `Bakbari`) experienced a boxed/narrow container with large left and right empty spaces in the Archive Portal, showing only 3 cards per row, whereas `admin` had a full-width edge-to-edge canvas with 4 cards per row.
+  - Root causes identified:
+    1. **Per-User Nextcloud Theming Overrides:** User `Bakbari` had personal theming preferences stored in `oc_preferences` (`background_image: hannah-maclean-soft-floral.jpg`, `primary_color: #9f652f`, `background_color: #e4d2c1`). When a custom background image or theme is active, Nextcloud core injects `--body-container-margin` and applies floating-card constraints on `#content` (`position: fixed; width: calc(100% - var(--body-container-margin) * 2)`), creating huge artificial margins.
+    2. **CSS Specificity & Flexbox Shrinking:** `#content` and `#archive-portal-root` lacked absolute full-width overrides (`width: 100% !important; max-width: 100% !important; margin: 0 !important; position: static !important;`), allowing Nextcloud's core container rules to constrict the layout.
+- **Implementation & Architecture:**
+  - **Full-Width Canvas Guarantee (`archive_portal.css` & `app_menu_filter.css`):**
+    - Enforced `:root { --body-container-margin: 0px !important; --body-container-radius: 0px !important; }`.
+    - Overrode `#content.app-archive_autotag`, `#content`, `#app-content` to `width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; position: static !important; border-radius: 0 !important; display: block !important;`.
+    - Set `#archive-portal-root.archive-portal-app` to `flex: 1 1 100% !important; width: 100% !important; max-width: 100% !important; padding: 32px 28px 80px 28px !important;`.
+    - Updated `.ea-container` to `width: 100% !important; max-width: 100% !important; margin: 0 !important;`.
+  - **Theming & Color Unification:**
+    - Purged per-user `oc_preferences` theming overrides for non-admin accounts, ensuring all users inherit the unified Obsidian & Industrial Orange corporate identity (`#f97316` / `#090b0e`).
+  - **Cache Invalidation & Upgrade:**
+    - Bumped app version to `2.0.2` in `appinfo/info.xml` and executed `occ upgrade`.
+- **Verification:**
+  - Verified `initial-state-theming-data` for Bakbari returns exact admin values (`primaryColor: #f97316`, `backgroundColor: #090b0e`, `inverted: true`).
+  - Validated edge-to-edge layout, responsive 4-column card grid, and identical visual appearance across both standard and administrator users.
+  - Regression verified: `test_file_location_navigation.py` (5/5), `test_url_masking.py` (5/5), `test_archive_portal.py` (5/5).
+
+Status: **Completed**
+
+---
+
 ## Repository Status
 
 - Repository: `maherani/enterprise-archive-system`
 - Branch: `main`
-- Current Checkpoint: **Steps 1 through 16 fully completed, verified, and synchronized (v2.0.1).**
+- Current Checkpoint: **Steps 1 through 17 fully completed, verified, and synchronized (v2.0.2).**
 
 ### 5. Dynamic Folder-Driven Tag Lifecycle & Reconciliation (`tests/test_tag_lifecycle_reconciliation.py`)
 - **Step 1**: Folder creation triggers automatic tag registration & hierarchy tagging.
