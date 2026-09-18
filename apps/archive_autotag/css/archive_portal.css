@@ -86,11 +86,14 @@ body[theme="dark"] :root,
   background-color: #090b0e !important;
   background-image: none !important;
   min-height: calc(100vh - 50px) !important;
-  margin: 0 !important;
+  margin-top: 50px !important;
+  margin-right: 0 !important;
+  margin-bottom: 0 !important;
+  margin-left: 0 !important;
   padding: 0 !important;
   width: 100% !important;
   max-width: 100% !important;
-  position: static !important;
+  position: relative !important;
   border-radius: 0 !important;
   box-sizing: border-box !important;
   display: block !important;
