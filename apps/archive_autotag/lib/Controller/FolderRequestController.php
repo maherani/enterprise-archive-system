@@ -259,4 +259,57 @@ class FolderRequestController extends Controller {
             'folders' => $folders,
         ]);
     }
+
+    /**
+     * Get all folders in Enterprise_Archive for Admin parent directory selection.
+     */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function getAllFolders(): DataResponse {
+        $user = $this->userSession->getUser();
+        if ($user === null) {
+            return new DataResponse(['status' => 'error', 'message' => 'Unauthenticated.'], Http::STATUS_UNAUTHORIZED);
+        }
+
+        $roleInfo = $this->folderRequestService->getUserRoleInfo($user->getUID());
+        if (!$roleInfo['is_admin']) {
+            return new DataResponse(['status' => 'error', 'message' => 'تنها مدیر سیستم مجاز به دریافت لیست کامل پوشه‌های آرشیو است.'], Http::STATUS_FORBIDDEN);
+        }
+
+        $folders = $this->folderRequestService->getAllArchiveFolders();
+        return new DataResponse([
+            'status' => 'success',
+            'folders' => $folders,
+        ]);
+    }
+
+    /**
+     * Directly create a folder in Enterprise_Archive by System Admin.
+     */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function createDirect(string $folder_name = '', string $parent_path = '', string $group_id = ''): DataResponse {
+        $user = $this->userSession->getUser();
+        if ($user === null) {
+            return new DataResponse(['status' => 'error', 'message' => 'Unauthenticated.'], Http::STATUS_UNAUTHORIZED);
+        }
+
+        try {
+            $folderName = $folder_name !== '' ? $folder_name : (string)$this->request->getParam('folder_name', '');
+            $parentPath = $parent_path !== '' ? $parent_path : (string)$this->request->getParam('parent_path', '');
+            $groupId = $group_id !== '' ? $group_id : (string)$this->request->getParam('group_id', '');
+
+            $result = $this->folderRequestService->createFolderDirectly($folderName, $parentPath, $groupId, $user->getUID());
+            return new DataResponse($result);
+        } catch (SecurityPermissionException $e) {
+            return new DataResponse(['status' => 'error', 'message' => $e->getMessage()], Http::STATUS_FORBIDDEN);
+        } catch (\InvalidArgumentException $e) {
+            return new DataResponse(['status' => 'error', 'message' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+        } catch (\DomainException $e) {
+            return new DataResponse(['status' => 'error', 'message' => $e->getMessage()], Http::STATUS_CONFLICT);
+        } catch (\Throwable $t) {
+            return new DataResponse(['status' => 'error', 'message' => $t->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+        }
+    }
+
 }

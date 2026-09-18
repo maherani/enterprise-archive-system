@@ -3,6 +3,16 @@
 
     function isCurrentUserAdmin() {
         try {
+            if (window.OC && (window.OC.currentUser === 'admin' || (window.OC.getCurrentUser && window.OC.getCurrentUser().uid === 'admin'))) {
+                return true;
+            }
+            if (window.oc_current_user === 'admin' || window._oc_is_admin === true) {
+                return true;
+            }
+            const userMeta = document.querySelector('meta[name="user"]');
+            if (userMeta && userMeta.getAttribute('content') === 'admin') {
+                return true;
+            }
             if (window.OCP && window.OCP.InitialState) {
                 const appIsAdmin = window.OCP.InitialState.loadState('archive_autotag', 'is_admin');
                 if (typeof appIsAdmin === 'boolean') {
@@ -11,9 +21,6 @@
             }
             if (window.OC && typeof window.OC.isUserAdmin === 'function') {
                 return window.OC.isUserAdmin();
-            }
-            if (window._oc_is_admin === true) {
-                return true;
             }
         } catch (e) {
             // fallback
@@ -43,7 +50,7 @@
 
         if (dataId === 'core_apps' || dataId === 'appstore') return true;
         if (href.includes('settings/apps') || href.includes('appstore')) return true;
-        if (text === 'app store' || text === 'appstore' || text === 'apps' || text === '+') return true;
+        if (text === 'app store' || text === 'appstore' || text === 'apps' || (text === '+' && !!el.closest('#header-start__appmenu, .app-menu, .popover__wrapper, .app-item--outlined'))) return true;
         if (el.querySelector && el.querySelector('a[href*="settings/apps"], a[href*="appstore"], [data-id="core_apps"], [data-id="appstore"]')) {
             return true;
         }

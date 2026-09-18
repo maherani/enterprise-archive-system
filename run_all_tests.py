@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Enterprise Archive System - Master Test Suite Runner
-Executes all 17 automated test suites and produces a unified audit matrix.
+Executes all 18 automated test suites and produces a unified audit matrix.
 """
 
 import os
@@ -27,11 +27,12 @@ TESTS = [
     ("test_archive_portal.py", "Frontend: Portal UI Components, Search, Filter & Drawer"),
     ("test_file_location_navigation.py", "Navigation: Deep-Folder Resolution & Direct Directory Links"),
     ("test_url_masking.py", "Hardening: WebDAV URL Obfuscation & Path Masking"),
+    ("test_admin_folder_creation.py", "Admin: Direct Folder Creation via API, OCC and Portal UI"),
 ]
 
 def main():
     print("=" * 80)
-    print(" ENTERPRISE ARCHIVE SYSTEM - COMPREHENSIVE 17-SUITE AUDIT")
+    print(" ENTERPRISE ARCHIVE SYSTEM - COMPREHENSIVE 18-SUITE AUDIT")
     print("=" * 80)
 
     results = []

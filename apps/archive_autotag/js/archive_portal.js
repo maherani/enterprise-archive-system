@@ -904,11 +904,18 @@
                 ? '<span class="ea-pending-counter">' + toPersianDigits(state.pendingRequestsCount) + '</span>'
                 : '';
             container.innerHTML = [
+                '<button id="ea-admin-create-folder-btn" class="ea-btn ea-btn-primary" title="ساخت مستقیم پوشه سازمانی جدید در ساختار آرشیو">',
+                '  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>',
+                '  <span>+ ساخت پوشه جدید</span>',
+                '</button>',
                 '<button id="ea-admin-manage-reqs-btn" class="ea-btn ' + (state.pendingRequestsCount > 0 ? 'ea-btn-primary' : '') + '" title="بررسی و مدیریت درخواست‌های ایجاد پوشه">',
                 '  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polyline points="9 11 12 14 22 4"/></svg>',
                 '  ' + counterBadge + '<span>مدیریت درخواست‌های پوشه</span>',
                 '</button>'
             ].join('\n');
+
+            var createBtn = document.getElementById('ea-admin-create-folder-btn');
+            if (createBtn) createBtn.onclick = openAdminCreateFolderModal;
 
             var adminBtn = document.getElementById('ea-admin-manage-reqs-btn');
             if (adminBtn) adminBtn.onclick = function () { openAdminManageRequestsModal(); };
@@ -922,6 +929,138 @@
         if (modal) {
             modal.remove();
         }
+    }
+
+
+    function openAdminCreateFolderModal() {
+        closeModal();
+
+        var overlay = document.createElement('div');
+        overlay.id = 'ea-active-modal';
+        overlay.className = 'ea-modal-overlay';
+        overlay.innerHTML = [
+            '<div class="ea-modal-card" style="max-width:540px;">',
+            '  <div class="ea-modal-header">',
+            '    <div class="ea-modal-title">',
+            '      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>',
+            '      <span>ساخت مستقیم پوشه سازمانی جدید در آرشیو (مدیر کل)</span>',
+            '    </div>',
+            '    <button class="ea-modal-close" id="ea-modal-close-btn">&times;</button>',
+            '  </div>',
+            '  <div class="ea-modal-body">',
+            '    <div id="ea-form-error" class="ea-form-error" style="display:none;"></div>',
+            '    <form id="ea-admin-create-folder-form">',
+            '      <label class="ea-form-label">نام پوشه سازمانی جدید (اجباری):</label>',
+            '      <input type="text" id="ea-admin-folder-name" class="ea-form-input" placeholder="مثال: قراردادها_1405 یا مستندات_فنی" required autocomplete="off">',
+            '      <label class="ea-form-label">مسیر والد در آرشیو (پوشه والد):</label>',
+            '      <select id="ea-admin-parent-path" class="ea-form-select">',
+            '        <option value="">⏳ در حال دریافت ساختار پوشه‌های آرشیو...</option>',
+            '      </select>',
+            '      <div class="ea-form-help">پوشه‌ای که مایلید پوشه جدید درون آن ساخته شود را انتخاب نمایید (جهت ساخت در بالاترین سطح، «ریشه آرشیو سازمانی» را انتخاب فرمایید).</div>',
+            '      <label class="ea-form-label">تخصیص دسترسی دپارتمان / گروه (اختیاری):</label>',
+            '      <select id="ea-admin-group-id" class="ea-form-select">',
+            '        <option value="">🏛️ عمومی سازمانی (کلیه کاربران و دپارتمان‌ها)</option>',
+            '        <option value="SOC">🛡️ دپارتمان SOC (مرکز عملیات امنیت)</option>',
+            '        <option value="CERT">🚨 دپارتمان CERT (امداد و واکنش به رخداد)</option>',
+            '        <option value="Compliance_Unit">📋 واحد تطبیق و مقررات (Compliance Unit)</option>',
+            '        <option value="Network">🌐 دپارتمان شبکه (Network)</option>',
+            '        <option value="Finance">💰 امور مالی و حسابداری (Finance)</option>',
+            '      </select>',
+            '      <div class="ea-form-help">در صورت انتخاب یک دپارتمان، دسترسی و برچسب‌های سلسله‌مراتبی به صورت ایزوله به اعضای آن گروه تخصیص می‌یابد.</div>',
+            '      <div class="ea-modal-footer">',
+            '        <button type="button" class="ea-btn" id="ea-form-cancel-btn">انصراف</button>',
+            '        <button type="submit" class="ea-btn ea-btn-primary" id="ea-form-submit-btn">ایجاد پوشه آرشیو</button>',
+            '      </div>',
+            '    </form>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.appendChild(overlay);
+
+        document.getElementById('ea-modal-close-btn').onclick = closeModal;
+        document.getElementById('ea-form-cancel-btn').onclick = closeModal;
+
+        // Fetch all archive folders for parent selection
+        var parentSelect = document.getElementById('ea-admin-parent-path');
+        fetch('/index.php/apps/archive_autotag/api/folders', {
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.status === 'success' && data.folders && data.folders.length > 0) {
+                parentSelect.innerHTML = data.folders.map(function (f) {
+                    return '<option value="' + escapeHtml(f.path) + '">' + escapeHtml(f.display || f.name) + '</option>';
+                }).join('');
+            } else {
+                parentSelect.innerHTML = '<option value="">🏛️ ریشه آرشیو سازمانی (Enterprise_Archive)</option>';
+            }
+        })
+        .catch(function () {
+            parentSelect.innerHTML = '<option value="">🏛️ ریشه آرشیو سازمانی (Enterprise_Archive)</option>';
+        });
+
+        // Form submission
+        var form = document.getElementById('ea-admin-create-folder-form');
+        form.onsubmit = function (e) {
+            e.preventDefault();
+            var folderNameInput = document.getElementById('ea-admin-folder-name');
+            var folderName = folderNameInput ? folderNameInput.value.trim() : '';
+            var parentPath = parentSelect ? parentSelect.value : '';
+            var groupSelect = document.getElementById('ea-admin-group-id');
+            var groupId = groupSelect ? groupSelect.value : '';
+
+            var errEl = document.getElementById('ea-form-error');
+            errEl.style.display = 'none';
+
+            if (!folderName) {
+                errEl.innerText = 'لطفاً نام پوشه را وارد فرمایید.';
+                errEl.style.display = 'block';
+                return;
+            }
+
+            var submitBtn = document.getElementById('ea-form-submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.innerText = '⏳ در حال ساخت پوشه...';
+
+            fetch('/index.php/apps/archive_autotag/api/folders/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'OCS-APIRequest': 'true'
+                },
+                body: JSON.stringify({
+                    folder_name: folderName,
+                    parent_path: parentPath,
+                    group_id: groupId
+                })
+            })
+            .then(function (r) {
+                return r.json().then(function (data) {
+                    return { ok: r.ok, data: data };
+                });
+            })
+            .then(function (res) {
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'ایجاد پوشه آرشیو';
+                if (!res.ok || res.data.status !== 'success') {
+                    errEl.innerText = res.data.message || 'خطا در ایجاد پوشه.';
+                    errEl.style.display = 'block';
+                } else {
+                    closeModal();
+                    showToast(res.data.message || ('پوشه «' + folderName + '» با موفقیت ایجاد شد.'));
+                    fetchFiles();
+                    fetchTags();
+                }
+            })
+            .catch(function (err) {
+                submitBtn.disabled = false;
+                submitBtn.innerText = 'ایجاد پوشه آرشیو';
+                errEl.innerText = 'خطای ارتباط با سرور: ' + err.message;
+                errEl.style.display = 'block';
+            });
+        };
     }
 
     function openCreateFolderRequestModal() {

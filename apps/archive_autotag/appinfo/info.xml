@@ -28,5 +28,6 @@
 		<command>OCA\ArchiveAutoTag\Command\FileGrantCommand</command>
 		<command>OCA\ArchiveAutoTag\Command\TagGovernanceCommand</command>
 		<command>OCA\ArchiveAutoTag\Command\TagReconcileCommand</command>
+		<command>OCA\ArchiveAutoTag\Command\FolderCreateCommand</command>
 	</commands>
 </info>

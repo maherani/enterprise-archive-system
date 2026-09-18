@@ -775,4 +775,157 @@ class FolderRequestService {
             'created_tag_id' => $row['created_tag_id'] ? (int)$row['created_tag_id'] : null,
         ];
     }
+
+    /**
+     * Get all folders within Enterprise_Archive recursively for system administration.
+     *
+     * @return array<int, array{path: string, name: string, display: string, level: int}>
+     */
+    public function getAllArchiveFolders(): array {
+        $folders = [
+            [
+                'path' => '',
+                'name' => 'ریشه آرشیو سازمانی',
+                'display' => '🏛️ ریشه آرشیو سازمانی (Enterprise_Archive)',
+                'level' => 0,
+            ]
+        ];
+
+        try {
+            $adminUser = $this->userManager->get('admin');
+            if ($adminUser === null) {
+                return $folders;
+            }
+
+            $adminHome = $this->rootFolder->getUserFolder($adminUser->getUID());
+            if (!$adminHome->nodeExists('Enterprise_Archive')) {
+                return $folders;
+            }
+
+            $archiveRoot = $adminHome->get('Enterprise_Archive');
+            if (!($archiveRoot instanceof Folder)) {
+                return $folders;
+            }
+
+            $scan = function (Folder $dir, string $relativePrefix, int $level) use (&$scan, &$folders) {
+                $nodes = $dir->getDirectoryListing();
+                usort($nodes, function ($a, $b) {
+                    return strcmp($a->getName(), $b->getName());
+                });
+
+                foreach ($nodes as $node) {
+                    if ($node instanceof Folder) {
+                        $name = $node->getName();
+                        $relPath = $relativePrefix === '' ? $name : $relativePrefix . '/' . $name;
+                        $indent = str_repeat("  ", $level - 1);
+                        $folders[] = [
+                            'path' => $relPath,
+                            'name' => $name,
+                            'display' => ($level > 1 ? $indent . '↳ ' : '') . '📁 ' . ($level > 1 ? str_replace('/', ' / ', $relPath) : $name),
+                            'level' => $level,
+                        ];
+                        $scan($node, $relPath, $level + 1);
+                    }
+                }
+            };
+
+            $scan($archiveRoot, '', 1);
+        } catch (\Throwable $t) {
+            $this->logger->error("archive_autotag: Failed to get all archive folders: " . $t->getMessage(), ['exception' => $t]);
+        }
+
+        return $folders;
+    }
+
+    /**
+     * Directly create a folder in Enterprise_Archive by Administrator.
+     * Atomically creates the directory on disk, applies permissions, binds group tag, and reconciles system tags.
+     */
+    public function createFolderDirectly(string $folderName, string $parentPath, ?string $groupId, string $adminUid): array {
+        if (!$this->isSystemAdmin($adminUid)) {
+            throw new SecurityPermissionException("Forbidden: Only System Administrators can directly create archive folders.");
+        }
+
+        $folderName = trim($folderName);
+        if ($folderName === '') {
+            throw new \InvalidArgumentException("نام پوشه نمی‌تواند خالی باشد.");
+        }
+
+        if (preg_match('[/\\\\]', $folderName)) {
+            throw new \InvalidArgumentException("نام پوشه نمی‌تواند حاوی کاراکترهای اسلش باشد.");
+        }
+
+        $adminUser = $this->userManager->get('admin') ?? $this->userManager->get($adminUid);
+        if ($adminUser === null) {
+            throw new \RuntimeException("حساب کاربری مدیر سیستم یافت نشد.");
+        }
+
+        $adminHome = $this->rootFolder->getUserFolder($adminUser->getUID());
+        $archiveRoot = $adminHome->nodeExists('Enterprise_Archive')
+            ? $adminHome->get('Enterprise_Archive')
+            : $adminHome->newFolder('Enterprise_Archive');
+
+        if (!($archiveRoot instanceof Folder)) {
+            throw new \RuntimeException("Enterprise_Archive یک پوشه معتبر نیست.");
+        }
+
+        // Navigate to target parent directory
+        $currentDir = $archiveRoot;
+        $parentPath = trim($parentPath, '/');
+        if (str_starts_with($parentPath, 'Enterprise_Archive')) {
+            $parentPath = trim(substr($parentPath, strlen('Enterprise_Archive')), '/');
+        }
+
+        if ($parentPath !== '') {
+            $segments = explode('/', $parentPath);
+            foreach ($segments as $seg) {
+                $seg = trim($seg);
+                if ($seg === '') {
+                    continue;
+                }
+                $currentDir = $currentDir->nodeExists($seg)
+                    ? $currentDir->get($seg)
+                    : $currentDir->newFolder($seg);
+
+                if (!($currentDir instanceof Folder)) {
+                    throw new \RuntimeException("مسیر والد '{$seg}' یک پوشه نیست.");
+                }
+            }
+        }
+
+        if ($currentDir->nodeExists($folderName)) {
+            throw new \DomainException("پوشه‌ای با نام «{$folderName}» در این مسیر از قبل وجود دارد.");
+        }
+
+        $createdFolder = $currentDir->newFolder($folderName);
+        $folderId = $createdFolder->getId();
+
+        // If groupId specified, ensure group share exists and tag is bound
+        if ($groupId !== null && $groupId !== '' && $groupId !== 'all') {
+            $groupBase = $archiveRoot->nodeExists($groupId)
+                ? $archiveRoot->get($groupId)
+                : $archiveRoot->newFolder($groupId);
+            $this->ensureGroupShareExists($groupBase, $groupId, $createdFolder);
+
+            $createdTag = $this->autoTagService->getOrCreateRestrictedTag($folderName);
+            $tagId = (int)$createdTag->getId();
+            $this->tagOwnershipService->assignTagToGroup($tagId, $groupId, $adminUid);
+        } else {
+            // General system tag
+            $createdTag = $this->autoTagService->getOrCreateRestrictedTag($folderName);
+        }
+
+        // Reconcile tags for the hierarchy
+        $this->autoTagService->handleFolderCreated($createdFolder);
+
+        $this->logger->info("archive_autotag: Admin '{$adminUid}' directly created archive folder '{$folderName}' under '{$parentPath}'.");
+
+        return [
+            'status' => 'success',
+            'message' => "پوشه «{$folderName}» با موفقیت در ساختار آرشیو ایجاد شد.",
+            'folder_id' => $folderId,
+            'path' => $createdFolder->getPath(),
+        ];
+    }
+
 }

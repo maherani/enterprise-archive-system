@@ -340,7 +340,7 @@ body.ea-non-admin .app-menu-entry:not([data-id="archive_autotag"]):not(:has(a[hr
 html.ea-non-admin .app-item--outlined,
 html.ea-non-admin a[href*="apps.nextcloud.com"],
 html.ea-non-admin a[href*="/settings/apps"],
-.app-menu__grid .app-item:not([href*="archive_autotag"]),
+html.ea-non-admin .app-menu__grid .app-item:not([href*="archive_autotag"]),
 html.ea-non-admin a[title*="App store"],
 html.ea-non-admin a[title*="فروشگاه"] {
     display: none !important;

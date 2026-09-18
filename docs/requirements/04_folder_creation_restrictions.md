@@ -146,6 +146,20 @@
 * سند [02_hierarchical_autotagging.md](file:///home/alborz/enterprise-archive-system/docs/requirements/02_hierarchical_autotagging.md)
 * سند [11_group_admin_folder_request_portal.md](file:///home/alborz/enterprise-archive-system/docs/requirements/11_group_admin_folder_request_portal.md)
 
+## ۲۲.۱. قابلیت‌های ساخت مستقیم پوشه توسط مدیر سیستم (Admin Direct Folder Creation)
+به منظور تسهیل مدیریت ساختار بایگانی، ابزارهای جامع زیر برای کاربر مدیر ارشد (`admin`) پیاده‌سازی شده‌اند:
+1. **دکمه اختصاصی در پرتال آرشیو (UI):** مدیر سیستم دارای دکمه «+ ساخت پوشه جدید» در نوار ابزار بالا بوده که با باز کردن یک مدال مدرن، امکان انتخاب پوشه والد و الصاق گروه کاربری را بدون نیاز به ارسال درخواست تایید فراهم می‌کند.
+2. **فرمان اختصاصی خط فرمان (CLI / OCC):**
+   ```bash
+   docker compose exec -u www-data app php occ archive:folder:create <folder_name> -p <parent_path> -g <group_id>
+   ```
+   این دستور پوشه فیزیکی را در مسیر معین ایجاد کرده، تگ‌های سیستمی والد را به ارث برده و پوشه را به گروه دپارتمان تخصیص می‌دهد.
+3. **اندپوینت‌های امن REST API:**
+   - `GET /apps/archive_autotag/api/folders`: استخراج سلسله‌مراتب تمام پوشه‌های آرشیو سازمانی (مخصوص ادمین).
+   - `POST /apps/archive_autotag/api/folders/create`: ایجاد مستقیم پوشه با پارامترهای `folder_name`، `parent_path` و `group_id`.
+4. **سوئیت آزمون تخصصی:**
+   - پیاده‌سازی `tests/test_admin_folder_creation.py` و الحاق به رانر جامع ۱۸گانه `run_all_tests.py` با قبولی ۱۰۰٪.
+
 ## ۲۳. وضعیت نهایی (Final Implementation Status)
 * **وضعیت پیاده‌سازی:** کامل، عملیاتی و فعال در محیط واقعی.
 * **تست‌های امنیتی:** قبولی ۱۰۰٪ در آزمون‌های نفوذ و شبیه‌سازی متدهای HTTP.

@@ -6,3 +6,6 @@ venv/
 
 deploy/backups/
 *.sql
+
+__pycache__/
+*.pyc
