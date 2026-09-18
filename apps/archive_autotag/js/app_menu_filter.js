@@ -121,6 +121,23 @@
                 });
             });
 
+            // 3. Air-Gapped Isolation: Purge External Links, Help, and FirstRunWizard
+            const externalLinks = document.querySelectorAll('a[href^="http://"], a[href^="https://"]');
+            externalLinks.forEach(link => {
+                const href = link.getAttribute('href') || '';
+                if (!href.startsWith(window.location.origin) && !href.startsWith('/') && !href.startsWith('#')) {
+                    link.style.display = 'none';
+                    link.style.setProperty('display', 'none', 'important');
+                    link.onclick = function(e) { e.preventDefault(); e.stopPropagation(); return false; };
+                }
+            });
+
+            const helpItems = document.querySelectorAll('[data-id="help"], [data-id="firstrunwizard_about"], a[href*="settings/help"]');
+            helpItems.forEach(item => {
+                item.style.display = 'none';
+                item.style.setProperty('display', 'none', 'important');
+            });
+
             // Specifically search by text or link for "App store" across all elements
             const allLinks = document.querySelectorAll('a, button, li');
             allLinks.forEach(el => {

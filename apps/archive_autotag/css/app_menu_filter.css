@@ -345,3 +345,23 @@ html.ea-non-admin a[title*="App store"],
 html.ea-non-admin a[title*="فروشگاه"] {
     display: none !important;
 }
+
+/* -------------------------------------------------------------------------
+   8. Air-Gapped Isolation: Eliminate External Links, Social, and Help
+   ------------------------------------------------------------------------- */
+html.ea-non-admin a[href*="docs.nextcloud.com"],
+html.ea-non-admin a[href*="help.nextcloud.com"],
+html.ea-non-admin a[href*="apps.nextcloud.com"],
+html.ea-non-admin a[href*="nextcloud.com"],
+html.ea-non-admin a[href*="github.com"],
+html.ea-non-admin a[href*="facebook.com"],
+html.ea-non-admin a[href*="mastodon"],
+html.ea-non-admin a[href*="bsky.app"],
+html.ea-non-admin [data-id="help"],
+html.ea-non-admin [data-id="firstrunwizard_about"],
+html.ea-non-admin a[href*="/settings/help"],
+html.ea-non-admin .social-links,
+html.ea-non-admin #firstrunwizard {
+    display: none !important;
+    pointer-events: none !important;
+}
