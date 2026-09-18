@@ -1,4 +1,4 @@
-﻿(function() {
+(function() {
     'use strict';
 
     function isCurrentUserAdmin() {
@@ -44,13 +44,17 @@
 
     function isAppStoreItem(el) {
         if (!el) return false;
+        // Never treat files app action buttons (+ / new / upload / folders) as app store!
+        if (el.closest && el.closest('#app-content, #controls, #app-navigation, .files-new-action-menu, .new-file-menu, #app-content-files')) {
+            return false;
+        }
         const href = (el.getAttribute && el.getAttribute('href')) || '';
         const dataId = (el.getAttribute && el.getAttribute('data-id')) || '';
         const text = (el.textContent || '').trim().toLowerCase();
 
         if (dataId === 'core_apps' || dataId === 'appstore') return true;
         if (href.includes('settings/apps') || href.includes('appstore')) return true;
-        if (text === 'app store' || text === 'appstore' || text === 'apps' || (text === '+' && !!el.closest('#header-start__appmenu, .app-menu, .popover__wrapper, .app-item--outlined'))) return true;
+        if (text === 'app store' || text === 'appstore' || text === 'apps' || text.includes('فروشگاه') || (text === '+' && !!el.closest('#header-start__appmenu, .app-item--outlined'))) return true;
         if (el.querySelector && el.querySelector('a[href*="settings/apps"], a[href*="appstore"], [data-id="core_apps"], [data-id="appstore"]')) {
             return true;
         }
@@ -96,12 +100,16 @@
             }
         } catch (err) {}
 
-        // 2. Filter All App Menus & Waffle Popovers (.app-menu, popovers, modals)
+        // 2. Filter App Switcher Waffle Menu (.app-menu, .app-menu-main, [data-cy-app-menu])
         try {
             const menuContainers = document.querySelectorAll(
-                '.app-menu, .app-menu-main, [data-cy-app-menu], .popover__wrapper, .popover, .menu'
+                '#header-start__appmenu, .app-menu-main, [data-cy-app-menu], .header-appmenu, #appmenu'
             );
             menuContainers.forEach(container => {
+                // Skip if container is inside files app content or controls
+                if (container.closest && container.closest('#app-content, #controls, #app-navigation, #app-content-files')) {
+                    return;
+                }
                 const elements = container.querySelectorAll('li, a, div.app-menu-entry, button');
                 elements.forEach(item => {
                     if (isArchiveItem(item)) {
@@ -138,19 +146,15 @@
                 item.style.setProperty('display', 'none', 'important');
             });
 
-            // Specifically search by text or link for "App store" across all elements
-            const allLinks = document.querySelectorAll('a, button, li');
-            allLinks.forEach(el => {
-                if (isArchiveItem(el)) return;
-                if (isAppStoreItem(el)) {
-                    el.style.display = 'none';
-                    el.style.setProperty('display', 'none', 'important');
-                }
+            // Specifically search by text or link for "App store" across app elements (excluding files content)
+            const appStoreItems = document.querySelectorAll('.app-item--outlined, [data-id="core_apps"], [data-id="appstore"], a[href*="/settings/apps"], a[href*="apps.nextcloud.com"]');
+            appStoreItems.forEach(el => {
+                el.style.display = 'none';
+                el.style.setProperty('display', 'none', 'important');
             });
         } catch (err) {}
     }
 
-    
     // Legacy purge function alias for backwards compatibility and test verification
     function purgeNonAdminApps() {
         // Purge outlined '+' app store buttons (.app-item--outlined)

@@ -1366,3 +1366,175 @@ body[theme="dark"] :root,
 .ea-drawer-tag-mgmt-card:hover {
   border-color: rgba(249, 115, 22, 0.4);
 }
+
+/* -------------------------------------------------------------------------
+   Native Document Upload Modal & Dropzone Styles
+   ------------------------------------------------------------------------- */
+.ea-dropzone-box {
+  border: 2px dashed #f97316;
+  background: rgba(249, 115, 22, 0.04);
+  border-radius: 12px;
+  padding: 26px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  margin-top: 6px;
+  margin-bottom: 14px;
+}
+
+.ea-dropzone-box:hover,
+.ea-dropzone-box.ea-dragover {
+  background: rgba(249, 115, 22, 0.12);
+  border-color: #ff8a3d;
+  box-shadow: 0 0 20px rgba(249, 115, 22, 0.2);
+  transform: translateY(-1px);
+}
+
+.ea-dropzone-icon {
+  color: #f97316;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ea-dropzone-prompt {
+  font-weight: 700;
+  font-size: 0.96rem;
+  color: #f8fafc;
+  margin-bottom: 4px;
+}
+
+.ea-dropzone-subprompt {
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.ea-upload-file-card {
+  background: #141923;
+  border: 1px solid #283344;
+  border-radius: 10px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+  animation: eaFadeIn 0.2s ease;
+}
+
+.ea-upload-file-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.ea-upload-file-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.ea-upload-file-name {
+  font-weight: 700;
+  color: #f8fafc;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: ltr;
+  text-align: right;
+}
+
+.ea-upload-file-size {
+  font-size: 0.8rem;
+  color: #f97316;
+  margin-top: 2px;
+}
+
+.ea-upload-progress-wrap {
+  margin-top: 10px;
+  margin-bottom: 14px;
+}
+
+.ea-upload-progress-bar {
+  background: #181d27;
+  border: 1px solid #2d3647;
+  border-radius: 6px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.ea-upload-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f97316 0%, #ea580c 100%);
+  border-radius: 6px;
+  transition: width 0.15s ease;
+  box-shadow: 0 0 8px rgba(249, 115, 22, 0.6);
+}
+
+.ea-upload-progress-text {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  margin-top: 6px;
+  text-align: center;
+}
+
+.ea-upload-projected-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+
+.ea-upload-tag-pill {
+  background: rgba(249, 115, 22, 0.15);
+  color: #f97316;
+  border: 1px solid rgba(249, 115, 22, 0.35);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+/* Fullscreen Global Drag & Drop Overlay */
+.ea-global-drop-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 11, 14, 0.92);
+  z-index: 100000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  pointer-events: none;
+  animation: eaFadeIn 0.15s ease;
+}
+
+.ea-global-drop-box {
+  border: 3px dashed #f97316;
+  border-radius: 20px;
+  padding: 50px 80px;
+  text-align: center;
+  background: rgba(249, 115, 22, 0.08);
+  box-shadow: 0 0 60px rgba(249, 115, 22, 0.25);
+  animation: eaSlideUp 0.2s ease;
+}
+
+.ea-global-drop-box svg {
+  color: #f97316;
+  margin-bottom: 16px;
+}
+
+.ea-global-drop-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+
+.ea-global-drop-subtitle {
+  font-size: 0.95rem;
+  color: #cbd5e1;
+}

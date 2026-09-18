@@ -283,6 +283,10 @@
             '    </div>',
             '    <div class="ea-header-actions">',
             '      <div id="ea-workflow-actions" class="ea-workflow-actions"></div>',
+            '      <button id="ea-upload-btn" class="ea-btn ea-btn-primary" title="بارگذاری سند سازمانی جدید در پوشه گروه">',
+            '        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+            '        <span>📤 بارگذاری فایل</span>',
+            '      </button>',
             '      <button id="ea-refresh-btn" class="ea-btn" title="تازه سازی اطلاعات">',
             '        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
             '        <span>به‌روزرسانی</span>',
@@ -357,6 +361,13 @@
 
     // Attach Event Listeners
     function attachEventListeners() {
+        var uploadBtn = document.getElementById('ea-upload-btn');
+        if (uploadBtn) {
+            uploadBtn.addEventListener('click', function () {
+                openUploadModal();
+            });
+        }
+
         var refreshBtn = document.getElementById('ea-refresh-btn');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', function () {
@@ -977,6 +988,330 @@
         if (modal) {
             modal.remove();
         }
+    }
+
+    // Modal: Native File Upload to Group Folder
+    function openUploadModal(initialFile) {
+        closeModal();
+
+        var overlay = document.createElement('div');
+        overlay.id = 'ea-active-modal';
+        overlay.className = 'ea-modal-overlay';
+        overlay.innerHTML = [
+            '<div class="ea-modal-card" style="max-width: 580px;">',
+            '  <div class="ea-modal-header">',
+            '    <div class="ea-modal-title">',
+            '      <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+            '      <span>بارگذاری سند جدید در بایگانی گروه</span>',
+            '    </div>',
+            '    <button class="ea-modal-close" id="ea-upload-modal-close-btn" title="بستن">&times;</button>',
+            '  </div>',
+            '  <div class="ea-modal-body">',
+            '    <div id="ea-upload-error" class="ea-form-error" style="display:none;"></div>',
+            '    ',
+            '    <label class="ea-form-label">۱. پوشه مقصد در گروه سازمانی:</label>',
+            '    <select id="ea-upload-target-select" class="ea-form-select"></select>',
+            '    <div id="ea-upload-projected-tags" class="ea-upload-projected-tags" style="margin-top: 6px; margin-bottom: 14px;"></div>',
+            '    ',
+            '    <label class="ea-form-label">۲. انتخاب یا رها کردن فایل (Drag & Drop):</label>',
+            '    <div id="ea-dropzone-box" class="ea-dropzone-box">',
+            '      <div class="ea-dropzone-icon">',
+            '        <svg width="38" height="38" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+            '      </div>',
+            '      <div class="ea-dropzone-prompt">فایل را به این کادر بکشید و رها کنید</div>',
+            '      <div class="ea-dropzone-subprompt">یا برای انتخاب فایل از رایانه خود کلیک نمایید</div>',
+            '      <input type="file" id="ea-upload-file-input" style="display:none;">',
+            '    </div>',
+            '    ',
+            '    <div id="ea-upload-file-card" class="ea-upload-file-card" style="display:none;">',
+            '      <div class="ea-upload-file-icon">📄</div>',
+            '      <div class="ea-upload-file-meta">',
+            '        <div id="ea-upload-file-name" class="ea-upload-file-name"></div>',
+            '        <div id="ea-upload-file-size" class="ea-upload-file-size"></div>',
+            '      </div>',
+            '      <button type="button" id="ea-upload-change-file" class="ea-btn" style="padding: 4px 10px; font-size: 0.8rem;">تغییر فایل</button>',
+            '    </div>',
+            '    ',
+            '    <div id="ea-upload-progress-wrap" class="ea-upload-progress-wrap" style="display:none;">',
+            '      <div class="ea-upload-progress-bar">',
+            '        <div id="ea-upload-progress-fill" class="ea-upload-progress-fill" style="width: 0%;"></div>',
+            '      </div>',
+            '      <div id="ea-upload-progress-text" class="ea-upload-progress-text">در حال بارگذاری: ۰٪</div>',
+            '    </div>',
+            '    ',
+            '    <div style="margin-top: 12px; padding: 10px 14px; background: rgba(249, 115, 22, 0.08); border: 1px solid rgba(249, 115, 22, 0.25); border-radius: 8px; font-size: 0.82rem; color: #cbd5e1; line-height: 1.6;">',
+            '      ✨ <strong>تگ‌گذاری خودکار سلسله‌مراتبی:</strong> به محض تکمیل بارگذاری، کلیه تگ‌های سلسله‌مراتبی پوشه والد به‌صورت خودکار توسط سیستم روی سند اعمال خواهند شد.',
+            '    </div>',
+            '  </div>',
+            '  <div class="ea-modal-footer">',
+            '    <button type="button" class="ea-btn" id="ea-upload-cancel-btn">انصراف</button>',
+            '    <button type="button" class="ea-btn ea-btn-primary" id="ea-upload-submit-btn" disabled>',
+            '      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
+            '      <span>بارگذاری و ثبت سند</span>',
+            '    </button>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.appendChild(overlay);
+
+        var closeBtn = document.getElementById('ea-upload-modal-close-btn');
+        var cancelBtn = document.getElementById('ea-upload-cancel-btn');
+        var submitBtn = document.getElementById('ea-upload-submit-btn');
+        var folderSelect = document.getElementById('ea-upload-target-select');
+        var tagsContainer = document.getElementById('ea-upload-projected-tags');
+        var dropzoneBox = document.getElementById('ea-dropzone-box');
+        var fileInput = document.getElementById('ea-upload-file-input');
+        var fileCard = document.getElementById('ea-upload-file-card');
+        var fileNameEl = document.getElementById('ea-upload-file-name');
+        var fileSizeEl = document.getElementById('ea-upload-file-size');
+        var changeFileBtn = document.getElementById('ea-upload-change-file');
+        var errorDiv = document.getElementById('ea-upload-error');
+        var progressWrap = document.getElementById('ea-upload-progress-wrap');
+        var progressFill = document.getElementById('ea-upload-progress-fill');
+        var progressText = document.getElementById('ea-upload-progress-text');
+
+        closeBtn.onclick = closeModal;
+        cancelBtn.onclick = closeModal;
+
+        var selectedFile = null;
+        var folderMap = {};
+
+        // 1. Group roots from user role
+        if (state.userRole) {
+            if (Array.isArray(state.userRole.member_groups) && state.userRole.member_groups.length > 0) {
+                state.userRole.member_groups.forEach(function(grp) {
+                    var p = '/' + grp;
+                    folderMap[p] = { path: p, display: '📁 ' + grp + ' (ریشه گروه سازمانی)' };
+                });
+            }
+            if (Array.isArray(state.userRole.subadmin_groups)) {
+                state.userRole.subadmin_groups.forEach(function(grp) {
+                    var p = '/' + grp;
+                    folderMap[p] = { path: p, display: '📁 ' + grp + ' (مدیریت گروه سازمانی)' };
+                });
+            }
+        }
+
+        // 2. Scan state.files for all accessible directories
+        if (Array.isArray(state.files)) {
+            state.files.forEach(function(f) {
+                var p = '';
+                if (f.is_dir && f.target_dir) {
+                    p = f.target_dir;
+                } else if (f.parent_dir) {
+                    p = '/' + f.parent_dir.replace(/^\/+/, '');
+                }
+                if (p && !p.startsWith('/files')) {
+                    var clean = '/' + p.replace(/^\/+|\/+$/g, '');
+                    if (!folderMap[clean]) {
+                        var parts = clean.split('/').filter(Boolean);
+                        var indent = '';
+                        for (var i = 1; i < parts.length; i++) {
+                            indent += '  ↳ ';
+                        }
+                        folderMap[clean] = { path: clean, display: (indent ? indent : '') + '📁 ' + clean };
+                    }
+                }
+            });
+        }
+
+        function populateFolderSelect() {
+            var paths = Object.keys(folderMap).sort();
+            if (paths.length === 0) {
+                folderSelect.innerHTML = '<option value="/SOC">📁 /SOC</option>';
+            } else {
+                folderSelect.innerHTML = paths.map(function(k) {
+                    var item = folderMap[k];
+                    return '<option value="' + escapeHtml(item.path) + '">' + escapeHtml(item.display) + '</option>';
+                }).join('');
+            }
+            updateProjectedTags();
+        }
+
+        function updateProjectedTags() {
+            var target = folderSelect.value || '';
+            var segments = target.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+            if (segments.length === 0) {
+                tagsContainer.innerHTML = '<span style="color:var(--ea-text-muted);">تگ خودکار پوشه: ریشه آرشیو</span>';
+                return;
+            }
+            var pills = segments.map(function(s) {
+                return '<span class="ea-upload-tag-pill">🏷️ ' + escapeHtml(s) + '</span>';
+            }).join(' ');
+            tagsContainer.innerHTML = '<span style="font-size:0.8rem; margin-left:6px; color:var(--ea-text-muted);">تگ‌های خودکار پوشه والد:</span> ' + pills;
+        }
+
+        folderSelect.onchange = updateProjectedTags;
+        populateFolderSelect();
+
+        // Also fetch from /api/group-folders if user has groups to pick up any subfolders
+        if (state.userRole) {
+            var groupsToQuery = (state.userRole.subadmin_groups || []).concat(state.userRole.is_admin ? ['SOC', 'CERT', 'Compliance_Unit'] : []);
+            groupsToQuery.forEach(function(grp) {
+                fetch('/index.php/apps/archive_autotag/api/group-folders?group_id=' + encodeURIComponent(grp), {
+                    headers: { 'Accept': 'application/json' }
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (res && res.status === 'success' && Array.isArray(res.folders)) {
+                        res.folders.forEach(function(f) {
+                            var p = f.path ? '/' + grp + '/' + f.path.replace(/^\/+/, '') : '/' + grp;
+                            var clean = '/' + p.replace(/^\/+|\/+$/g, '');
+                            if (!folderMap[clean]) {
+                                var indent = '';
+                                for (var i = 0; i < (f.level || 0); i++) { indent += '  ↳ '; }
+                                folderMap[clean] = { path: clean, display: indent + '📁 ' + (f.display || clean) };
+                            }
+                        });
+                        populateFolderSelect();
+                    }
+                })
+                .catch(function() {});
+            });
+        }
+
+        function handleFile(file) {
+            if (!file) return;
+            selectedFile = file;
+            dropzoneBox.style.display = 'none';
+            fileCard.style.display = 'flex';
+            fileNameEl.textContent = file.name;
+            fileSizeEl.textContent = formatBytes(file.size);
+            submitBtn.disabled = false;
+            errorDiv.style.display = 'none';
+        }
+
+        dropzoneBox.onclick = function() {
+            fileInput.click();
+        };
+
+        fileInput.onchange = function() {
+            if (fileInput.files && fileInput.files[0]) {
+                handleFile(fileInput.files[0]);
+            }
+        };
+
+        changeFileBtn.onclick = function() {
+            selectedFile = null;
+            fileInput.value = '';
+            fileCard.style.display = 'none';
+            dropzoneBox.style.display = 'block';
+            submitBtn.disabled = true;
+        };
+
+        dropzoneBox.ondragover = function(e) {
+            e.preventDefault();
+            dropzoneBox.classList.add('ea-dragover');
+        };
+
+        dropzoneBox.ondragleave = function(e) {
+            e.preventDefault();
+            dropzoneBox.classList.remove('ea-dragover');
+        };
+
+        dropzoneBox.ondrop = function(e) {
+            e.preventDefault();
+            dropzoneBox.classList.remove('ea-dragover');
+            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        };
+
+        if (initialFile) {
+            handleFile(initialFile);
+        }
+
+        submitBtn.onclick = function() {
+            if (!selectedFile) {
+                errorDiv.style.display = 'block';
+                errorDiv.textContent = 'لطفاً ابتدا یک فایل را انتخاب فرمایید.';
+                return;
+            }
+            var targetDir = (folderSelect.value || '').replace(/^\/+|\/+$/g, '');
+            if (!targetDir) {
+                errorDiv.style.display = 'block';
+                errorDiv.textContent = 'پوشه مقصد نامعتبر است.';
+                return;
+            }
+
+            var userId = '';
+            if (state.userRole && state.userRole.user_id) {
+                userId = state.userRole.user_id;
+            } else if (window.OC && (window.OC.currentUser || (window.OC.getCurrentUser && window.OC.getCurrentUser().uid))) {
+                userId = window.OC.currentUser || window.OC.getCurrentUser().uid;
+            } else {
+                var userMeta = document.querySelector('meta[name="user"]');
+                if (userMeta) userId = userMeta.getAttribute('content');
+            }
+            if (!userId) userId = 'admin';
+
+            // Construct WebDAV PUT URL
+            var segments = targetDir.split('/').filter(Boolean).map(encodeURIComponent);
+            var davUrl = '/remote.php/dav/files/' + encodeURIComponent(userId) + '/' + segments.join('/') + '/' + encodeURIComponent(selectedFile.name);
+
+            submitBtn.disabled = true;
+            cancelBtn.disabled = true;
+            closeBtn.disabled = true;
+            errorDiv.style.display = 'none';
+            progressWrap.style.display = 'block';
+            progressFill.style.width = '0%';
+            progressText.textContent = 'در حال ارسال سند به سامانه...';
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('PUT', davUrl, true);
+            if (window.OC && window.OC.requestToken) {
+                xhr.setRequestHeader('requesttoken', window.OC.requestToken);
+            }
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    var pct = Math.round((e.loaded / e.total) * 100);
+                    progressFill.style.width = pct + '%';
+                    progressText.textContent = 'در حال ارسال: ' + toPersianDigits(pct) + '٪ (' + formatBytes(e.loaded) + ' از ' + formatBytes(e.total) + ')';
+                }
+            };
+
+            xhr.onload = function() {
+                if (xhr.status === 200 || xhr.status === 201 || xhr.status === 204) {
+                    progressFill.style.width = '100%';
+                    progressText.innerHTML = '<span style="color:#22c55e; font-weight:700;">✅ سند با موفقیت بارگذاری شد و تگ‌های سلسله‌مراتبی پوشه اعمال گردید.</span>';
+                    setTimeout(function() {
+                        closeModal();
+                        showToast('سند «' + selectedFile.name + '» در پوشه /' + targetDir + ' بارگذاری و تگ‌گذاری شد.');
+                        fetchFiles();
+                        fetchTags();
+                    }, 1200);
+                } else {
+                    submitBtn.disabled = false;
+                    cancelBtn.disabled = false;
+                    closeBtn.disabled = false;
+                    progressWrap.style.display = 'none';
+                    errorDiv.style.display = 'block';
+                    var msg = 'خطا در بارگذاری (وضعیت ' + xhr.status + ')';
+                    if (xhr.status === 413) {
+                        msg = 'خطای محدودیت حجم: اندازه فایل فراتر از سقف مجاز است.';
+                    } else if (xhr.status === 403) {
+                        msg = 'خطای عدم دسترسی (۴۰۳): شما دسترسی لازم برای نوشتن در این پوشه را ندارید.';
+                    } else if (xhr.status === 507) {
+                        msg = 'خطای سهمیه دیسک: حجم مجاز ذخیره‌سازی تکمیل گردیده است.';
+                    }
+                    errorDiv.textContent = msg;
+                }
+            };
+
+            xhr.onerror = function() {
+                submitBtn.disabled = false;
+                cancelBtn.disabled = false;
+                closeBtn.disabled = false;
+                progressWrap.style.display = 'none';
+                errorDiv.style.display = 'block';
+                errorDiv.textContent = 'خطای ارتباط شبکه هنگام بارگذاری سند.';
+            };
+
+            xhr.send(selectedFile);
+        };
     }
 
 
@@ -1953,6 +2288,61 @@
         loadGroupTags(selectedGroup);
     }
 
+    // Fullscreen Global Drag & Drop Handler
+    function setupGlobalDragAndDrop() {
+        var overlay = null;
+        var dragCounter = 0;
+
+        function getOrCreateOverlay() {
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'ea-global-drop-overlay';
+                overlay.className = 'ea-global-drop-overlay';
+                overlay.style.display = 'none';
+                overlay.innerHTML = [
+                    '<div class="ea-global-drop-box">',
+                    '  <svg width="60" height="60" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+                    '  <div class="ea-global-drop-title">رها کردن فایل جهت بارگذاری در بایگانی اسناد</div>',
+                    '  <div class="ea-global-drop-subtitle">فایل را رها کنید تا پس از انتخاب پوشه گروه، تگ‌های خودکار پوشه والد اعمال گردند.</div>',
+                    '</div>'
+                ].join('\n');
+                document.body.appendChild(overlay);
+            }
+            return overlay;
+        }
+
+        window.addEventListener('dragenter', function(e) {
+            e.preventDefault();
+            dragCounter++;
+            var ov = getOrCreateOverlay();
+            ov.style.display = 'flex';
+        });
+
+        window.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            dragCounter--;
+            if (dragCounter <= 0) {
+                var ov = getOrCreateOverlay();
+                ov.style.display = 'none';
+                dragCounter = 0;
+            }
+        });
+
+        window.addEventListener('dragover', function(e) {
+            e.preventDefault();
+        });
+
+        window.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dragCounter = 0;
+            var ov = getOrCreateOverlay();
+            ov.style.display = 'none';
+            if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                openUploadModal(e.dataTransfer.files[0]);
+            }
+        });
+    }
+
     // Keyboard Shortcuts (e.g. Escape to close drawer)
     function setupKeyboardListeners() {
         document.addEventListener('keydown', function (e) {
@@ -1969,6 +2359,7 @@
     // Auto-Initialization when DOM is ready
     function init() {
         setupKeyboardListeners();
+        setupGlobalDragAndDrop();
         var root = document.getElementById('archive-portal-root');
         if (root) {
             fetchUserRole();
