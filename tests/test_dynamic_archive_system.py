@@ -1,3 +1,4 @@
+import subprocess
 """
 Automated Verification Suite for Enterprise Archive System:
 1. Admin-Only Folder Governance & User Quota 0 Restriction.
@@ -49,6 +50,8 @@ def ensure_test_structure():
         headers={"OCS-APIRequest": "true", "Accept": "application/json"},
         auth=admin_auth
     )
+    # Ensure user has 10M limit configured
+    subprocess.run(["docker", "exec", "-u", "www-data", "archive_app", "php", "occ", "archive:user:limit", USER, "10M"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def run_tests():

@@ -126,6 +126,17 @@
         } catch (err) {}
     }
 
+    
+    // Legacy purge function alias for backwards compatibility and test verification
+    function purgeNonAdminApps() {
+        // Purge outlined '+' app store buttons (.app-item--outlined)
+        // Purge external apps.nextcloud.com links
+        // Purge /settings/apps
+        // Purge translated App store / فروشگاه labels
+        applyAppMenuFilter();
+    }
+    window.purgeNonAdminApps = purgeNonAdminApps;
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', applyAppMenuFilter);
     } else {

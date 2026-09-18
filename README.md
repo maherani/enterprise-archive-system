@@ -212,6 +212,11 @@ python3 tests/test_archive_portal.py
 # Test 7: Delegated Folder Creation Workflow & Multi-Tier Governance
 python3 tests/test_folder_request_workflow.py
 
+# Test 8: Vertical Scroll & Non-Destructive Layout Isolation
+python3 tests/test_vertical_scroll_and_layout.py
+
+# --- Master Test Suite Runner (All 17 Automated Suites) ---
+python3 run_all_tests.py
 ```
 
 ---

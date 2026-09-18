@@ -60,14 +60,13 @@ body,
     border-radius: 0 !important;
 }
 
-#content {
+#content.app-archive_autotag {
     margin-top: 50px !important;
     margin-right: 0 !important;
     margin-bottom: 0 !important;
     margin-left: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
-    position: relative !important;
     border-radius: 0 !important;
     box-sizing: border-box !important;
 }
@@ -335,4 +334,14 @@ body.ea-non-admin .app-menu-entry:not([data-id="archive_autotag"]):not(:has(a[hr
 #body-login input[type="password"]:focus {
     border-color: #f97316 !important;
     box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.28) !important;
+}
+
+/* App Store and Non-Archive App Elimination Rule Set */
+html.ea-non-admin .app-item--outlined,
+html.ea-non-admin a[href*="apps.nextcloud.com"],
+html.ea-non-admin a[href*="/settings/apps"],
+.app-menu__grid .app-item:not([href*="archive_autotag"]),
+html.ea-non-admin a[title*="App store"],
+html.ea-non-admin a[title*="فروشگاه"] {
+    display: none !important;
 }

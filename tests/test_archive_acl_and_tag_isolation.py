@@ -12,7 +12,7 @@ USER_A = "archive_user1"
 USER_A_PASS = "User_Password_123!"
 
 USER_B = "api_worker"
-USER_B_PASS = "5NJ8SmJLllNypBwaus3TmQwhdbjDdYQ4PFwbUz6h4LJtiMbA14QwyvCazozux7lh8aOKc72b"
+USER_B_PASS = "User_Password_123!"
 
 admin_auth = (ADMIN_USER, ADMIN_PASS)
 user_a_auth = (USER_A, USER_A_PASS)
@@ -42,6 +42,8 @@ def run_tests():
     folder_url_user_a = f"{NEXTCLOUD_URL}/remote.php/dav/files/{USER_A}/{folder_rel}/"
     folder_url_admin = f"{NEXTCLOUD_URL}/remote.php/dav/files/{ADMIN_USER}/{folder_rel}/"
 
+    # Ensure folder structure exists
+    requests.request("MKCOL", folder_url_admin, auth=admin_auth)
     # Cleanup any pre-existing test file
     requests.delete(url_admin, auth=admin_auth)
 

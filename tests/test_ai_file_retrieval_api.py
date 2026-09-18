@@ -37,7 +37,19 @@ CERT_PASS = "User_Password_123!"
 cert_auth = HTTPBasicAuth(CERT_USER, CERT_PASS)
 
 AI_SERVICE_TOKEN = "ai_sec_token_7021824a20719a37d5433ba2f96832d28edf57d81d307a8468d2864601e29d08"
-TEST_FILE_ID = 693  # Known SOC incident report file
+
+def get_dynamic_soc_file_id():
+    try:
+        r = requests.get(f"{NEXTCLOUD_URL}/index.php/apps/archive_autotag/api/files", auth=soc_auth)
+        if r.status_code == 200:
+            for f in r.json().get("files", []):
+                if not f.get("is_dir", False) and f.get("mimetype", "").startswith("text/"):
+                    return f["id"]
+    except Exception:
+        pass
+    return 923
+
+TEST_FILE_ID = get_dynamic_soc_file_id()
 
 
 def run_db_query(query: str) -> str:

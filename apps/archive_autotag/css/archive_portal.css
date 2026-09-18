@@ -77,15 +77,13 @@ body[theme="dark"] :root,
   --body-container-radius: 0px !important;
 }
 
-/* Full-Width Canvas Guarantee for ALL users */
-#content.app-archive_autotag,
-#content,
-#app-content,
-#app-content-wrapper {
+/* Full-Width Canvas & High-Performance Vertical Scroll Guarantee */
+#content.app-archive_autotag {
   background: #090b0e !important;
   background-color: #090b0e !important;
   background-image: none !important;
-  min-height: calc(100vh - 50px) !important;
+  height: calc(100vh - 50px) !important;
+  max-height: calc(100vh - 50px) !important;
   margin-top: 50px !important;
   margin-right: 0 !important;
   margin-bottom: 0 !important;
@@ -97,6 +95,29 @@ body[theme="dark"] :root,
   border-radius: 0 !important;
   box-sizing: border-box !important;
   display: block !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ea-border-medium) transparent;
+}
+
+#content.app-archive_autotag::-webkit-scrollbar {
+  width: 8px;
+}
+
+#content.app-archive_autotag::-webkit-scrollbar-track {
+  background: #090b0e;
+}
+
+#content.app-archive_autotag::-webkit-scrollbar-thumb {
+  background: #202632;
+  border-radius: 4px;
+}
+
+#content.app-archive_autotag::-webkit-scrollbar-thumb:hover {
+  background: var(--ea-primary);
 }
 
 /* Base Portal Container */
@@ -108,14 +129,14 @@ body[theme="dark"] :root,
   font-family: var(--ea-font-family);
   color: var(--ea-text-main);
   background: var(--ea-bg-canvas);
-  min-height: calc(100vh - 50px);
+  min-height: 100%;
   padding: 32px 28px 80px 28px !important;
   margin: 0 !important;
   width: 100% !important;
   max-width: 100% !important;
   flex: 1 1 100% !important;
   box-sizing: border-box !important;
-  overflow-x: hidden;
+  overflow: visible;
   position: relative;
 }
 
