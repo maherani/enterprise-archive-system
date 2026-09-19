@@ -374,12 +374,6 @@
         }
 
         var rowsHtml = data.files.map(function (file) {
-            var tagsHtml = (file.tags || []).map(function (t) {
-                var isMatched = state.selectedTagIds.has(t.id);
-                var style = isMatched ? 'font-weight: bold; background: rgba(0, 130, 201, 0.2); border-color: var(--color-primary, #0082c9);' : '';
-                return '<span class="archive-file-tag-pill" style="' + style + '">' + escapeHtml(t.name) + '</span>';
-            }).join('');
-
             var icon = file.is_dir ? '📁' : '📄';
 
             var targetDir = file.target_dir || (file.is_dir ? ('/' + file.path.replace(/^\/+/g, '')) : ('/' + (file.parent_dir || '').replace(/^\/+/g, '')));
@@ -394,7 +388,6 @@
                    '</td>' +
                    '<td><span class="archive-file-path-badge">' + escapeHtml(file.path) + '</span></td>' +
                    '<td>' + escapeHtml(file.human_size) + '</td>' +
-                   '<td>' + tagsHtml + '</td>' +
                    '<td>' +
                        '<a class="archive-action-btn archive-locate-btn" href="' + escapeHtml(file.web_url) + '" data-file-id="' + file.id + '" data-is-dir="' + (file.is_dir ? 'true' : 'false') + '" data-target-dir="' + escapeHtml(targetDir) + '" title="مشاهده در پوشه">📂 مشاهده در پوشه</a>' +
                        (!file.is_dir ? '<a class="archive-action-btn" href="' + escapeHtml(file.download_url) + '" download title="دانلود">⬇️ دانلود</a>' : '') +
@@ -408,18 +401,16 @@
             '</div>' +
             '<table class="archive-results-table">' +
                 '<colgroup>' +
-                    '<col style="width: 24%;">' +
                     '<col style="width: 28%;">' +
-                    '<col style="width: 10%;">' +
+                    '<col style="width: 40%;">' +
+                    '<col style="width: 12%;">' +
                     '<col style="width: 20%;">' +
-                    '<col style="width: 18%;">' +
                 '</colgroup>' +
                 '<thead>' +
                     '<tr>' +
                         '<th>نام سند</th>' +
                         '<th>مسیر در بایگانی</th>' +
                         '<th>حجم</th>' +
-                        '<th>برچسب‌ها</th>' +
                         '<th>عملیات</th>' +
                     '</tr>' +
                 '</thead>' +
