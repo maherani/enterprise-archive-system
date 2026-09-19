@@ -629,3 +629,14 @@ Status: **Completed**
   - Redesigned "مسیر در بایگانی" and "نام سند" with multi-line natural wrapping (`white-space: normal; word-break: break-word; overflow-wrap: anywhere; line-height: 1.5`), allowing long names and paths to span across 2 or 3 lines.
   - Optimized "عملیات" (Actions) column with 22% width and flex-wrap container ensuring full visibility of both action buttons without truncation or clipping.
 - **Zero Regression:** All regression test suites passed with 100% success.
+
+### Unified 4-Column Obsidian Table Across Folder Browsing & Tag Filtering (Completed)
+- **Status:** Fully Implemented, Verified, and Deployed (v2.0.7)
+- **Backend API:** `GET /index.php/apps/archive_autotag/api/folder-files?dir=...` providing directory listings with full ACL enforcement and metadata.
+- **Frontend Architecture:** `multi_tag_filter.js` and `multi_tag_filter.css` completely replace the default English Nextcloud table with the 4-column Obsidian table:
+  - **Column 1 - نام سند (32%):** File/folder icon (📁/📄) and interactive navigation link.
+  - **Column 2 - مسیر در بایگانی (36%):** Glassmorphism badge with multi-line natural wrapping.
+  - **Column 3 - حجم (10%):** Centered formatted size.
+  - **Column 4 - عملیات (22%):** "مشاهده در پوشه" / "باز کردن پوشه" and "دانلود" action buttons.
+- **Permanent Hide of Legacy Table:** Default Nextcloud files table (`table[data-cy-files-list]`, `.files-filestable`, `#fileList`) permanently hidden via CSS/JS.
+- **Verification:** `tests/test_unified_table.py` verified 100% pass across all scenarios, with zero regressions across the entire suite.

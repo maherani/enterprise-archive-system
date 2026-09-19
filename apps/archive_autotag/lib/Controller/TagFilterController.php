@@ -108,6 +108,104 @@ class TagFilterController extends Controller {
     }
 
     /**
+     * Get directory listing for a specific path for the custom enterprise archive table.
+     */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function listFolderFiles(?string $dir = null): DataResponse {
+        $user = $this->userSession->getUser();
+        if ($user === null) {
+            return new DataResponse(['status' => 'error', 'message' => 'Authentication required'], Http::STATUS_UNAUTHORIZED);
+        }
+
+        $uid = $user->getUID();
+        $rawDir = trim((string)(
+            $dir
+            ?? $this->request->getParam('dir', null)
+            ?? ($_GET['dir'] ?? '')
+        ));
+        $cleanDir = trim($rawDir, '/');
+
+        try {
+            $userFolder = $this->rootFolder->getUserFolder($uid);
+            $userFolderPath = $userFolder->getPath();
+
+            $targetNode = ($cleanDir === '' || $cleanDir === '.') ? $userFolder : $userFolder->get($cleanDir);
+
+            if ($targetNode->getType() !== FileInfo::TYPE_FOLDER) {
+                return new DataResponse(['status' => 'error', 'message' => 'Path is not a directory'], Http::STATUS_BAD_REQUEST);
+            }
+
+            /** @var \OCP\Files\Folder $targetNode */
+            $listing = $targetNode->getDirectoryListing();
+            $filesResult = [];
+
+            foreach ($listing as $node) {
+                $fileId = (int)$node->getId();
+                if (!$this->fileOwnershipService->canUserAccessFile($fileId, $uid)) {
+                    continue;
+                }
+
+                $fullPath = $node->getPath();
+                $relPath = $fullPath;
+                if (str_starts_with($fullPath, $userFolderPath)) {
+                    $relPath = ltrim(substr($fullPath, strlen($userFolderPath)), '/');
+                }
+
+                $isDir = $node->getType() === FileInfo::TYPE_FOLDER;
+                $parentDir = dirname($relPath);
+                if ($parentDir === '.') {
+                    $parentDir = '';
+                }
+
+                $targetDir = '/' . ltrim($isDir ? $relPath : $parentDir, '/');
+                $targetDir = preg_replace('#/+#', '/', $targetDir);
+
+                $encodedTargetDir = str_replace('%2F', '/', rawurlencode($targetDir));
+                $folderUrl = '/index.php/apps/files/files?dir=' . $encodedTargetDir;
+                $webUrl = $folderUrl;
+
+                $filesResult[] = [
+                    'id' => $fileId,
+                    'name' => $node->getName(),
+                    'path' => $relPath,
+                    'parent_dir' => $parentDir,
+                    'target_dir' => $targetDir,
+                    'size' => $node->getSize(),
+                    'human_size' => $this->formatBytes($node->getSize()),
+                    'mimetype' => $node->getMimetype(),
+                    'mtime' => $node->getMTime(),
+                    'type' => $isDir ? 'folder' : 'file',
+                    'is_dir' => $isDir,
+                    'web_url' => $webUrl,
+                    'folder_url' => $folderUrl,
+                    'download_url' => '/remote.php/webdav/' . str_replace('%2F', '/', rawurlencode($relPath)),
+                ];
+            }
+
+            // Sort: folders first, then files alphabetically
+            usort($filesResult, function($a, $b) {
+                if ($a['is_dir'] !== $b['is_dir']) {
+                    return $a['is_dir'] ? -1 : 1;
+                }
+                return strnatcasecmp($a['name'], $b['name']);
+            });
+
+            return new DataResponse([
+                'status' => 'success',
+                'dir' => '/' . $cleanDir,
+                'files' => $filesResult,
+                'total' => count($filesResult),
+            ]);
+        } catch (\Throwable $e) {
+            return new DataResponse([
+                'status' => 'error',
+                'message' => 'Could not list folder: ' . $e->getMessage()
+            ], Http::STATUS_NOT_FOUND);
+        }
+    }
+
+    /**
      * Perform strict multi-tag intersection filtering with ACL enforcement.
      * Supports ?tags=tag1,tag2 and ?q=searchTerm
      */

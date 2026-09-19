@@ -1,6 +1,6 @@
 /**
- * Enterprise Archive Multi-Tag Filter Frontend
- * Interactive Tag Intersection for Nextcloud Files App
+ * Enterprise Archive Multi-Tag Filter & Unified Folder Explorer
+ * Replaces default Nextcloud file table with unified Enterprise Archive 4-column Obsidian table.
  * Hub 10 / Nextcloud 34 Vue Compatible
  */
 (function () {
@@ -12,6 +12,7 @@
         filterSearchTerm: '',
         isLoadingTags: false,
         isLoadingFiles: false,
+        currentDirectory: null,
         files: [],
     };
 
@@ -20,10 +21,10 @@
         state: state,
         reload: fetchTags,
         render: renderFilterBar,
+        loadFolder: fetchCurrentFolderFiles,
     };
 
     function getApiUrl(path) {
-        // Direct relative paths avoid any OC.generateUrl query encoding differences
         return '/index.php/apps/archive_autotag' + path;
     }
 
@@ -34,6 +35,41 @@
         var tag = document.querySelector('head > meta[name="csrf-token"]') ||
                   document.querySelector('meta[name="csrf-token"]');
         return tag ? tag.getAttribute('content') : '';
+    }
+
+    function getCurrentDirectory() {
+        // 1. From URL search params
+        var searchParams = new URLSearchParams(window.location.search);
+        var dir = searchParams.get('dir');
+        if (dir) return dir;
+
+        // 2. From URL hash
+        if (window.location.hash) {
+            var match = window.location.hash.match(/[?&]dir=([^&]+)/);
+            if (match) {
+                return decodeURIComponent(match[1]);
+            }
+        }
+
+        // 3. From Nextcloud Vue Router
+        if (window.OCP && window.OCP.Files && window.OCP.Files.Router) {
+            try {
+                var curRoute = window.OCP.Files.Router.currentRoute;
+                if (curRoute && curRoute.value && curRoute.value.query && curRoute.value.query.dir) {
+                    return curRoute.value.query.dir;
+                }
+            } catch (e) {}
+        }
+
+        // 4. From Nextcloud Files App fileList
+        if (window.OCA && window.OCA.Files && window.OCA.Files.App && window.OCA.Files.App.fileList) {
+            try {
+                var fDir = window.OCA.Files.App.fileList.getCurrentDirectory();
+                if (fDir) return fDir;
+            } catch (e) {}
+        }
+
+        return '/';
     }
 
     function fetchTags() {
@@ -56,7 +92,6 @@
             state.isLoadingTags = false;
             if (data && data.status === 'success' && Array.isArray(data.tags)) {
                 state.allTags = data.tags;
-                // Re-render immediately so chips populate the bar!
                 renderFilterBar();
             }
         })
@@ -99,21 +134,30 @@
             return;
         }
 
+        // Always hide standard Nextcloud table
+        toggleStandardFileList(false);
+
         if (state.allTags.length === 0 && !state.isLoadingTags) {
             fetchTags();
         }
 
         var existingBar = document.querySelector('#archive-tag-filter-bar');
-        if (existingBar && document.body.contains(existingBar)) {
-            return;
+        if (!existingBar || !document.body.contains(existingBar)) {
+            var mountInfo = findMountTarget();
+            if (mountInfo && mountInfo.parent) {
+                mountFilterBar(mountInfo);
+            }
         }
 
-        var mountInfo = findMountTarget();
-        if (!mountInfo || !mountInfo.parent) {
-            return;
+        // Check if directory changed in Files view (when no tag filter active)
+        if (state.selectedTagIds.size === 0) {
+            var activeDir = getCurrentDirectory();
+            var resultsContainer = document.querySelector('#archive-tag-results-container');
+            if (state.currentDirectory !== activeDir || !resultsContainer) {
+                state.currentDirectory = activeDir;
+                fetchCurrentFolderFiles(activeDir);
+            }
         }
-
-        mountFilterBar(mountInfo);
     }
 
     function mountFilterBar(mountInfo) {
@@ -135,7 +179,9 @@
         renderFilterBar();
 
         if (state.selectedTagIds.size > 0) {
-            onFilterChange();
+            fetchFilteredFiles();
+        } else {
+            fetchCurrentFolderFiles(getCurrentDirectory());
         }
     }
 
@@ -294,7 +340,8 @@
         var selectors = [
             '.files-list',
             '.files-filestable',
-            '#fileList'
+            '#fileList',
+            'table[data-cy-files-list]'
         ];
         var listElements = document.querySelectorAll(selectors.join(', '));
         listElements.forEach(function (el) {
@@ -303,25 +350,17 @@
     }
 
     function onFilterChange() {
-        var resultsContainer = document.querySelector('#archive-tag-results-container');
+        toggleStandardFileList(false);
         if (state.selectedTagIds.size === 0) {
-            if (resultsContainer) {
-                resultsContainer.remove();
-            }
-            toggleStandardFileList(true);
+            fetchCurrentFolderFiles(getCurrentDirectory());
             return;
         }
-
-        toggleStandardFileList(false);
         fetchFilteredFiles();
     }
 
-    function fetchFilteredFiles() {
-        var tagIds = Array.from(state.selectedTagIds).join(',');
-        var url = getApiUrl('/api/filter?tag_ids=' + encodeURIComponent(tagIds));
-
+    function getOrCreateResultsContainer() {
         var filterBar = document.querySelector('#archive-tag-filter-bar');
-        if (!filterBar) return;
+        if (!filterBar) return null;
 
         var parent = filterBar.parentNode;
         var existingResults = document.querySelector('#archive-tag-results-container');
@@ -335,9 +374,53 @@
                 parent.appendChild(existingResults);
             }
         }
-
         existingResults.style.display = 'block';
-        existingResults.innerHTML = '<div class="archive-empty-results"><div>⏳ در حال انطباق برچسب‌ها و استخراج اسناد...</div></div>';
+        return existingResults;
+    }
+
+    function fetchCurrentFolderFiles(dir) {
+        var currentDir = dir || getCurrentDirectory();
+        state.currentDirectory = currentDir;
+
+        var container = getOrCreateResultsContainer();
+        if (!container) return;
+
+        toggleStandardFileList(false);
+
+        var url = getApiUrl('/api/folder-files?dir=' + encodeURIComponent(currentDir));
+        fetch(url, {
+            headers: {
+                'requesttoken': getCsrfToken(),
+                'Accept': 'application/json',
+            },
+            credentials: 'same-origin'
+        })
+        .then(function (res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+        })
+        .then(function (data) {
+            if (state.selectedTagIds.size > 0) return; // Ignore if user selected a tag meanwhile
+            data.count_label = 'تعداد اسناد: ' + (data.total || 0) + ' سند';
+            renderResults(data);
+        })
+        .catch(function (err) {
+            console.warn('[ArchiveMultiTagFilter] Folder files fetch error:', err);
+            if (state.selectedTagIds.size === 0) {
+                container.innerHTML = '<div class="archive-empty-results"><div style="color: #ef4444;">خطا در دریافت لیست اسناد پوشه جاری.</div></div>';
+            }
+        });
+    }
+
+    function fetchFilteredFiles() {
+        var tagIds = Array.from(state.selectedTagIds).join(',');
+        var url = getApiUrl('/api/filter?tag_ids=' + encodeURIComponent(tagIds));
+
+        var container = getOrCreateResultsContainer();
+        if (!container) return;
+
+        container.innerHTML = '<div class="archive-empty-results"><div>⏳ در حال انطباق برچسب‌ها و استخراج اسناد...</div></div>';
+        toggleStandardFileList(false);
 
         fetch(url, {
             headers: {
@@ -351,11 +434,13 @@
             return res.json();
         })
         .then(function (data) {
+            if (state.selectedTagIds.size === 0) return; // User cleared tags
+            data.count_label = 'تعداد اسناد منطبق: ' + (data.total || 0) + ' سند';
             renderResults(data);
         })
         .catch(function (err) {
             console.error('[ArchiveMultiTagFilter] Query error:', err);
-            existingResults.innerHTML = '<div class="archive-empty-results"><div style="color: #d9534f;">خطا در دریافت نتایج فیلتر.</div></div>';
+            container.innerHTML = '<div class="archive-empty-results"><div style="color: #ef4444;">خطا در دریافت نتایج فیلتر.</div></div>';
         });
     }
 
@@ -364,11 +449,14 @@
         if (!container) return;
 
         if (!data || data.status !== 'success' || !data.files || data.files.length === 0) {
+            var emptyMessage = state.selectedTagIds.size > 0
+                ? '<div><strong>هیچ سندی با تمام برچسب‌های انتخابی یافت نشد.</strong></div><div style="font-size: 12px; margin-top: 6px; color: #888;">برای گسترش نتایج، برخی از تگ‌ها را لغو انتخاب نمایید.</div>'
+                : '<div><strong>این پوشه خالی است یا سندی در آن وجود ندارد.</strong></div>';
+
             container.innerHTML = 
                 '<div class="archive-empty-results">' +
                     '<div class="archive-empty-icon">📂</div>' +
-                    '<div><strong>هیچ سندی با تمام برچسب‌های انتخابی یافت نشد.</strong></div>' +
-                    '<div style="font-size: 12px; margin-top: 6px; color: #888;">برای گسترش نتایج، برخی از تگ‌ها را لغو انتخاب نمایید.</div>' +
+                    emptyMessage +
                 '</div>';
             return;
         }
@@ -377,12 +465,24 @@
             var icon = file.is_dir ? '📁' : '📄';
 
             var displayPath = file.is_dir ? file.path : (file.parent_dir || file.path);
-            if (!displayPath || displayPath === '.') {
+            if (!displayPath || displayPath === '.' || displayPath === '/') {
                 displayPath = 'Enterprise_Archive';
             }
+            displayPath = displayPath.replace(/^\/+/g, '');
 
             var targetDir = file.target_dir || (file.is_dir ? ('/' + file.path.replace(/^\/+/g, '')) : ('/' + (file.parent_dir || '').replace(/^\/+/g, '')));
             targetDir = targetDir.replace(/\/+/g, '/');
+
+            var sizeDisplay = file.is_dir ? '-' : (file.human_size || '0 B');
+
+            var actionButtonsHtml = '';
+            if (file.is_dir) {
+                actionButtonsHtml = '<a class="archive-action-btn archive-locate-btn" href="' + escapeHtml(file.web_url) + '" data-file-id="' + file.id + '" data-is-dir="true" data-target-dir="' + escapeHtml(targetDir) + '" title="باز کردن پوشه">📂 باز کردن پوشه</a>';
+            } else {
+                actionButtonsHtml = 
+                    '<a class="archive-action-btn archive-locate-btn" href="' + escapeHtml(file.web_url) + '" data-file-id="' + file.id + '" data-is-dir="false" data-target-dir="' + escapeHtml(targetDir) + '" title="مشاهده در پوشه">📂 مشاهده در پوشه</a>' +
+                    '<a class="archive-action-btn archive-download-btn" href="' + escapeHtml(file.download_url) + '" download title="دانلود">⬇️ دانلود</a>';
+            }
 
             return '<tr>' +
                    '<td title="' + escapeHtml(file.name) + '">' +
@@ -394,19 +494,20 @@
                    '<td title="' + escapeHtml(displayPath) + '">' +
                        '<span class="archive-file-path-badge">' + escapeHtml(displayPath) + '</span>' +
                    '</td>' +
-                   '<td class="archive-cell-size">' + escapeHtml(file.human_size) + '</td>' +
+                   '<td class="archive-cell-size">' + escapeHtml(sizeDisplay) + '</td>' +
                    '<td>' +
                        '<div class="archive-actions-cell">' +
-                           '<a class="archive-action-btn archive-locate-btn" href="' + escapeHtml(file.web_url) + '" data-file-id="' + file.id + '" data-is-dir="' + (file.is_dir ? 'true' : 'false') + '" data-target-dir="' + escapeHtml(targetDir) + '" title="مشاهده در پوشه">📂 مشاهده در پوشه</a>' +
-                           (!file.is_dir ? '<a class="archive-action-btn archive-download-btn" href="' + escapeHtml(file.download_url) + '" download title="دانلود">⬇️ دانلود</a>' : '') +
+                           actionButtonsHtml +
                        '</div>' +
                    '</td>' +
                    '</tr>';
         }).join('');
 
+        var countTitle = data.count_label || ('تعداد اسناد: ' + data.total + ' سند');
+
         container.innerHTML = 
             '<div class="archive-results-header">' +
-                '<div class="archive-results-count">تعداد اسناد منطبق: ' + data.total + ' سند</div>' +
+                '<div class="archive-results-count">' + escapeHtml(countTitle) + '</div>' +
             '</div>' +
             '<table class="archive-results-table">' +
                 '<colgroup>' +
@@ -438,36 +539,48 @@
                 e.preventDefault();
                 e.stopPropagation();
 
-                var fileId = btn.getAttribute('data-file-id');
                 var isDir = btn.getAttribute('data-is-dir') === 'true';
                 var targetDir = btn.getAttribute('data-target-dir') || '/';
                 var webUrl = btn.getAttribute('href');
 
-                // 1. Clear active tags and remove search results table so standard file list is shown
-                state.selectedTagIds.clear();
-                var resultsContainer = document.querySelector('#archive-tag-results-container');
-                if (resultsContainer) {
-                    resultsContainer.remove();
-                }
-                toggleStandardFileList(true);
-                renderFilterBar();
-
-                // 2. Navigate smoothly using Nextcloud Vue Router if available
-                if (window.OCP && window.OCP.Files && window.OCP.Files.Router) {
-                    try {
-                        window.OCP.Files.Router.goToRoute('filelist', { view: 'files' }, { dir: targetDir });
-                        return;
-                    } catch (routerErr) {
-                        console.warn('[ArchiveMultiTagFilter] Router navigation failed:', routerErr);
-                    }
+                // If filter was active, clear tags
+                if (state.selectedTagIds.size > 0) {
+                    state.selectedTagIds.clear();
+                    renderFilterBar();
                 }
 
-                // 3. Fallback: window.location
-                if (webUrl) {
-                    window.location.href = webUrl;
-                }
+                navigateToDirectory(targetDir, webUrl);
             });
         });
+    }
+
+    function navigateToDirectory(targetDir, webUrl) {
+        state.currentDirectory = targetDir;
+
+        // 1. Nextcloud Vue Router navigation
+        if (window.OCP && window.OCP.Files && window.OCP.Files.Router) {
+            try {
+                window.OCP.Files.Router.goToRoute('filelist', { view: 'files' }, { dir: targetDir });
+                fetchCurrentFolderFiles(targetDir);
+                return;
+            } catch (routerErr) {
+                console.warn('[ArchiveMultiTagFilter] Router navigation failed:', routerErr);
+            }
+        }
+
+        // 2. HTML5 pushState & fetch
+        try {
+            var url = new URL(window.location.href);
+            url.searchParams.set('dir', targetDir);
+            window.history.pushState({ dir: targetDir }, '', url.toString());
+            fetchCurrentFolderFiles(targetDir);
+            return;
+        } catch (e) {}
+
+        // 3. Fallback: window.location
+        if (webUrl) {
+            window.location.href = webUrl;
+        }
     }
 
     function escapeHtml(str) {
@@ -480,25 +593,10 @@
             .replace(/'/g, '&#039;');
     }
 
-    // Check if navigated from Enterprise Archive Portal with target directory
-    try {
-        var pendingTargetDir = sessionStorage.getItem('ea_target_dir');
-        if (pendingTargetDir) {
-            sessionStorage.removeItem('ea_target_dir');
-            if (window.OCP && window.OCP.Files && window.OCP.Files.Router) {
-                setTimeout(function () {
-                    try {
-                        window.OCP.Files.Router.goToRoute('filelist', { view: 'files' }, { dir: pendingTargetDir });
-                    } catch (rErr) {}
-                }, 100);
-            }
-        }
-    } catch (e) {}
-
     // Startup and continuous watcher
     fetchTags();
 
-    // 1. Check periodically so hydration/navigation never loses the bar
+    // 1. Continuous watcher for route/DOM changes
     setInterval(ensureMounted, 400);
 
     // 2. Observer on #content for rapid mounting on Vue render
@@ -521,6 +619,12 @@
         startObserver();
     }
 
-    window.addEventListener('popstate', ensureMounted);
-    window.addEventListener('hashchange', ensureMounted);
+    window.addEventListener('popstate', function () {
+        state.currentDirectory = null;
+        ensureMounted();
+    });
+    window.addEventListener('hashchange', function () {
+        state.currentDirectory = null;
+        ensureMounted();
+    });
 })();

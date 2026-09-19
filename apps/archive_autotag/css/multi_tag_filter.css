@@ -368,3 +368,13 @@
     font-size: 34px;
     margin-bottom: 10px;
 }
+
+
+/* Permanently hide standard English Nextcloud file list table in favor of Enterprise Archive table */
+table[data-cy-files-list],
+.files-filestable,
+#fileList,
+.files-list > table,
+.files-list .files-filestable {
+    display: none !important;
+}
