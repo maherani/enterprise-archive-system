@@ -640,3 +640,12 @@ Status: **Completed**
   - **Column 4 - عملیات (22%):** "مشاهده در پوشه" / "باز کردن پوشه" and "دانلود" action buttons.
 - **Permanent Hide of Legacy Table:** Default Nextcloud files table (`table[data-cy-files-list]`, `.files-filestable`, `#fileList`) permanently hidden via CSS/JS.
 - **Verification:** `tests/test_unified_table.py` verified 100% pass across all scenarios, with zero regressions across the entire suite.
+
+
+### Global Nav Fix: Non-wrapping Single Line Track & Safe Container Mounting (v2.0.8)
+- **Problem Fixed:** Chips wrapped onto a second row when displaying numerous department chips (e.g. 11 items for Admin), and mounting into `#content.firstChild` disrupted Nextcloud Files flex layout.
+- **Solution Applied:**
+  - Enforced `flex-wrap: nowrap !important;` with horizontal overflow track (`overflow-x: auto; scrollbar-width: none;`).
+  - Safely targeted mount inside `main.app-content` in the Files app, preserving `#content` layout and sidebar structure.
+  - Used preserved slashes in directory URLs and smooth Nextcloud Vue Router integration (`OCP.Files.Router.goToRoute`) to prevent full page reloads and broken path parameters.
+- **Result:** Sleek, stable, single-line global navigation bar across all pages with zero layout distortion.

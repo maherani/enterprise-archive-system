@@ -1,50 +1,41 @@
 /**
- * Enterprise Archive System - Access-Aware Global Navigation Bar (Requirement 16)
- * Real-time, Zero-Leakage navigation synced with Location, Upload, Auto-Tagging, Rename, and Move.
+ * Enterprise Archive System - Access-Aware Global Navigation (Requirement 16)
+ * Sleek, single-line horizontal chip track with zero layout disruption.
+ * Native to Nextcloud Hub 10 / Nextcloud 34 Vue Architecture.
  */
-(function() {
+(function () {
     'use strict';
-
-    // Prevent execution on public/login pages
-    if (window.location.pathname.includes('/login') || 
-        window.location.pathname.includes('/s/')) {
-        return;
-    }
 
     const STATE = {
         navData: null,
-        currentPath: 'Enterprise_Archive',
+        currentPath: '',
         isLoading: false,
     };
 
     /**
-     * Normalize directory string to canonical logical path rooted at Enterprise_Archive
+     * Clean directory path to standardized format
      */
-    function normalizeDirectory(rawDir) {
-        if (!rawDir || rawDir === '/' || rawDir.trim() === '') {
-            return 'Enterprise_Archive';
-        }
-        let clean = rawDir.replace(/^[\/\\]+|[\/\\]+$/g, '');
-        if (!clean.startsWith('Enterprise_Archive')) {
-            clean = 'Enterprise_Archive/' + clean;
-        }
+    function normalizeDirectory(pathStr) {
+        if (!pathStr) return '';
+        let clean = pathStr.replace(/\\/g, '/').replace(/\/+/g, '/').trim();
+        clean = clean.replace(/^\/+|\/+$/g, '');
         return clean;
     }
 
     /**
-     * Detect current active folder path from URL or Nextcloud Files API
+     * Detect current active folder path
      */
     function detectCurrentPath() {
         try {
-            // 1. Files app client-side object
-            if (window.OCA && window.OCA.Files && window.OCA.Files.App && window.OCA.Files.App.fileList) {
-                const flDir = window.OCA.Files.App.fileList.getCurrentDir();
-                if (flDir) {
-                    return normalizeDirectory(flDir);
+            // 1. Nextcloud Vue Router currentRoute (Hub 10 / Vue 3)
+            if (window.OCP && window.OCP.Files && window.OCP.Files.Router) {
+                const cur = window.OCP.Files.Router.currentRoute;
+                if (cur && cur.value && cur.value.query && cur.value.query.dir) {
+                    return normalizeDirectory(cur.value.query.dir);
                 }
             }
 
-            // 2. Query param 'dir'
+            // 2. Query string (?dir=...)
             const params = new URLSearchParams(window.location.search);
             const dirParam = params.get('dir');
             if (dirParam) {
@@ -94,22 +85,28 @@
     }
 
     /**
-     * Navigate user to specified directory
+     * Navigate user to specified directory smoothly without breaking layout
      */
     function navigateToDir(folderPath) {
         const fullDir = '/' + normalizeDirectory(folderPath);
-        const targetUrl = '/index.php/apps/files/files?dir=' + encodeURIComponent(fullDir);
 
+        // 1. If already in Files App and Vue Router is available, navigate seamlessly without page reload!
         if (window.location.pathname.includes('/apps/files') && 
-            window.OCA && window.OCA.Files && window.OCA.Files.App && window.OCA.Files.App.fileList) {
+            window.OCP && window.OCP.Files && window.OCP.Files.Router) {
             try {
-                window.OCA.Files.App.fileList.changeDirectory(fullDir);
+                window.OCP.Files.Router.goToRoute('filelist', { view: 'files' }, { dir: fullDir });
                 updateActiveChip(normalizeDirectory(fullDir));
                 return;
-            } catch (e) {
-                // fallback to href
+            } catch (routerErr) {
+                console.warn('[GlobalNav] Router navigation fallback:', routerErr);
             }
         }
+
+        // 2. Canonical target URL with preserved slashes (e.g. /Enterprise_Archive/Finance)
+        // Nextcloud router requires slashes, NOT %2F!
+        const encodedDir = fullDir.split('/').map(seg => encodeURIComponent(seg)).join('/');
+        const targetUrl = '/index.php/apps/files/files?dir=' + encodedDir;
+
         window.location.href = targetUrl;
     }
 
@@ -118,13 +115,22 @@
      */
     function updateActiveChip(pathStr) {
         STATE.currentPath = pathStr;
-        const segments = pathStr.split('/');
-        const activeDept = segments.length > 1 ? segments[1] : (pathStr === 'Enterprise_Archive' ? 'root' : 'all');
+        const normalized = normalizeDirectory(pathStr);
+        const segments = normalized.split('/');
+
+        let activeId = 'all';
+        if (normalized === 'Enterprise_Archive' || normalized === '') {
+            activeId = 'root';
+        } else if (segments.length > 1 && segments[0] === 'Enterprise_Archive') {
+            activeId = segments[1];
+        } else {
+            activeId = segments[0];
+        }
 
         const chips = document.querySelectorAll('#ea-global-nav-root .ea-nav-chip');
         chips.forEach(chip => {
             const chipId = chip.getAttribute('data-id');
-            if (chipId === activeDept || (activeDept === 'root' && chipId === 'root')) {
+            if (chipId === activeId || (activeId === 'root' && chipId === 'root')) {
                 chip.classList.add('is-active');
             } else {
                 chip.classList.remove('is-active');
@@ -133,40 +139,56 @@
     }
 
     /**
+     * Find best mount target in DOM
+     */
+    function findMountTarget() {
+        // 1. Archive Portal page
+        const portalRoot = document.getElementById('archive-portal-root');
+        if (portalRoot && portalRoot.parentNode) {
+            return { parent: portalRoot.parentNode, insertBefore: portalRoot };
+        }
+
+        // 2. Files App: mount at the very top of main content area (never sibling to sidebar in #content)
+        const mainContent = document.querySelector('main.app-content') ||
+                            document.querySelector('#app-content-vue') ||
+                            document.querySelector('.app-content') ||
+                            document.getElementById('app-content');
+        if (mainContent) {
+            return { parent: mainContent, insertBefore: mainContent.firstChild };
+        }
+
+        // 3. Fallback: if header exists, mount before #content
+        const content = document.getElementById('content');
+        if (content && content.parentNode) {
+            return { parent: content.parentNode, insertBefore: content };
+        }
+
+        return null;
+    }
+
+    /**
      * Main Render Function: Injects the navigation bar into DOM
      */
     async function renderGlobalNav() {
-        // If already rendered, just update active chip
-        if (document.getElementById('ea-global-nav-root')) {
-            updateActiveChip(detectCurrentPath());
-            return;
-        }
-
         const data = await fetchNavResources();
         if (!data || !data.items) {
             return;
         }
 
-        // Target mount container
-        let mountParent = null;
-        let referenceNode = null;
+        const existing = document.getElementById('ea-global-nav-root');
+        const mountInfo = findMountTarget();
+        if (!mountInfo || !mountInfo.parent) {
+            return;
+        }
 
-        const portalRoot = document.getElementById('archive-portal-root');
-        const appContent = document.getElementById('app-content');
-        const content = document.getElementById('content');
+        // If already rendered and properly attached, update active chip
+        if (existing && mountInfo.parent.contains(existing)) {
+            updateActiveChip(detectCurrentPath());
+            return;
+        }
 
-        if (portalRoot) {
-            mountParent = portalRoot.parentNode;
-            referenceNode = portalRoot;
-        } else if (appContent) {
-            mountParent = appContent;
-            referenceNode = appContent.firstChild;
-        } else if (content) {
-            mountParent = content;
-            referenceNode = content.firstChild;
-        } else {
-            mountParent = document.body;
-            referenceNode = document.body.firstChild;
+        if (existing) {
+            existing.remove();
         }
 
         const rootEl = document.createElement('div');
@@ -204,7 +226,6 @@
                 e.preventDefault();
                 if (item.type === 'all') {
                     if (window.location.pathname.includes('/apps/archive_autotag')) {
-                        // Reset filters in archive portal if present
                         const clearBtn = document.querySelector('#archive-portal-root .ap-filter-clear, #archive-portal-root [data-action="clear-filters"]');
                         if (clearBtn) clearBtn.click();
                         else window.location.href = '/index.php/apps/archive_autotag/';
@@ -231,9 +252,9 @@
 
         rootEl.appendChild(rowMain);
 
-        // Mount to DOM
-        if (referenceNode) {
-            mountParent.insertBefore(rootEl, referenceNode);
+        // Mount to DOM safely
+        if (mountInfo.insertBefore) {
+            mountInfo.parent.insertBefore(rootEl, mountInfo.insertBefore);
         } else {
             mountParent.appendChild(rootEl);
         }
@@ -245,20 +266,31 @@
     // Attach listeners for route and directory changes
     function setupEventListeners() {
         window.addEventListener('popstate', () => {
-            setTimeout(() => updateActiveChip(detectCurrentPath()), 50);
+            setTimeout(() => {
+                renderGlobalNav();
+                updateActiveChip(detectCurrentPath());
+            }, 50);
         });
 
         window.addEventListener('hashchange', () => {
-            setTimeout(() => updateActiveChip(detectCurrentPath()), 50);
+            setTimeout(() => {
+                renderGlobalNav();
+                updateActiveChip(detectCurrentPath());
+            }, 50);
         });
 
-        // Periodic check to catch async Nextcloud Files client navigation
+        // Periodic check to catch async Nextcloud Files client navigation & mount hydration
         setInterval(() => {
-            const detected = detectCurrentPath();
-            if (detected !== STATE.currentPath && document.getElementById('ea-global-nav-root')) {
-                updateActiveChip(detected);
+            const navEl = document.getElementById('ea-global-nav-root');
+            if (!navEl || !document.body.contains(navEl)) {
+                renderGlobalNav();
+            } else {
+                const detected = detectCurrentPath();
+                if (detected !== STATE.currentPath) {
+                    updateActiveChip(detected);
+                }
             }
-        }, 300);
+        }, 400);
     }
 
     // Run on DOM ready
