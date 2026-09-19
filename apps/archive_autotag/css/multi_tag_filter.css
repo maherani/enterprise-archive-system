@@ -247,8 +247,9 @@
     vertical-align: middle;
     text-align: right;
     color: #f8fafc;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
     box-sizing: border-box;
 }
 
@@ -260,9 +261,12 @@
     color: #94a3b8;
 }
 
-.archive-cell-actions {
-    text-align: left !important;
-    white-space: nowrap;
+.archive-actions-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-start;
 }
 
 .archive-results-table tr:hover td {
@@ -271,20 +275,24 @@
 
 .archive-file-name-cell {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 8px;
     font-weight: 600;
-    min-width: 0;
-    overflow: hidden;
+    width: 100%;
+}
+
+.archive-file-icon {
+    flex-shrink: 0;
+    margin-top: 2px;
 }
 
 .archive-file-name-cell a {
     color: #f8fafc;
     text-decoration: none;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
 }
 
 .archive-file-name-cell a:hover {
@@ -295,17 +303,18 @@
 .archive-file-path-badge {
     font-family: 'Vazirmatn', -apple-system, monospace, system-ui;
     font-size: 11.5px;
+    line-height: 1.5;
     color: #cbd5e1;
     background: #181d27;
-    padding: 4px 8px;
+    padding: 5px 9px;
     border-radius: 4px;
     direction: ltr;
     display: block;
     border: 1px solid #2d3647;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    width: 100%;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
     text-align: left;
     box-sizing: border-box;
 }

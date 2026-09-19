@@ -626,5 +626,6 @@ Status: **Completed**
 - **Streamlined UI:** Single sleek top navigation bar with accessible department chips and active highlighting.
 - **Results Table UX Refinements (Requirement 7):**
   - Removed redundant "برچسب‌ها" column from the search results table.
-  - Redesigned "مسیر در بایگانی" with strict `max-width: 100%`, `overflow: hidden`, and `text-overflow: ellipsis` badge layout, preventing any column overlaps.
+  - Redesigned "مسیر در بایگانی" and "نام سند" with multi-line natural wrapping (`white-space: normal; word-break: break-word; overflow-wrap: anywhere; line-height: 1.5`), allowing long names and paths to span across 2 or 3 lines.
+  - Optimized "عملیات" (Actions) column with 22% width and flex-wrap container ensuring full visibility of both action buttons without truncation or clipping.
 - **Zero Regression:** All regression test suites passed with 100% success.

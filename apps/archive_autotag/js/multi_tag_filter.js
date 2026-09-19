@@ -387,7 +387,7 @@
             return '<tr>' +
                    '<td title="' + escapeHtml(file.name) + '">' +
                        '<div class="archive-file-name-cell">' +
-                           '<span>' + icon + '</span>' +
+                           '<span class="archive-file-icon">' + icon + '</span>' +
                            '<a class="archive-nav-link" href="' + escapeHtml(file.web_url) + '" data-file-id="' + file.id + '" data-is-dir="' + (file.is_dir ? 'true' : 'false') + '" data-target-dir="' + escapeHtml(targetDir) + '">' + escapeHtml(file.name) + '</a>' +
                        '</div>' +
                    '</td>' +
@@ -395,9 +395,11 @@
                        '<span class="archive-file-path-badge">' + escapeHtml(displayPath) + '</span>' +
                    '</td>' +
                    '<td class="archive-cell-size">' + escapeHtml(file.human_size) + '</td>' +
-                   '<td class="archive-cell-actions">' +
-                       '<a class="archive-action-btn archive-locate-btn" href="' + escapeHtml(file.web_url) + '" data-file-id="' + file.id + '" data-is-dir="' + (file.is_dir ? 'true' : 'false') + '" data-target-dir="' + escapeHtml(targetDir) + '" title="مشاهده در پوشه">📂 مشاهده در پوشه</a>' +
-                       (!file.is_dir ? '<a class="archive-action-btn" href="' + escapeHtml(file.download_url) + '" download title="دانلود">⬇️ دانلود</a>' : '') +
+                   '<td>' +
+                       '<div class="archive-actions-cell">' +
+                           '<a class="archive-action-btn archive-locate-btn" href="' + escapeHtml(file.web_url) + '" data-file-id="' + file.id + '" data-is-dir="' + (file.is_dir ? 'true' : 'false') + '" data-target-dir="' + escapeHtml(targetDir) + '" title="مشاهده در پوشه">📂 مشاهده در پوشه</a>' +
+                           (!file.is_dir ? '<a class="archive-action-btn archive-download-btn" href="' + escapeHtml(file.download_url) + '" download title="دانلود">⬇️ دانلود</a>' : '') +
+                       '</div>' +
                    '</td>' +
                    '</tr>';
         }).join('');
@@ -409,9 +411,9 @@
             '<table class="archive-results-table">' +
                 '<colgroup>' +
                     '<col style="width: 32%;">' +
-                    '<col style="width: 38%;">' +
-                    '<col style="width: 12%;">' +
-                    '<col style="width: 18%;">' +
+                    '<col style="width: 36%;">' +
+                    '<col style="width: 10%;">' +
+                    '<col style="width: 22%;">' +
                 '</colgroup>' +
                 '<thead>' +
                     '<tr>' +
