@@ -559,11 +559,38 @@ Status: **Completed**
 
 ---
 
+
+---
+
+### Step 18 — Custom Enterprise Archive Onboarding & 2-Slide Wizard
+- **Problem & Business Need:**
+  - Standard Nextcloud displayed consumer-oriented promotional slides upon login or clicking 'About': Slide 1 featured a celebratory banner with blue balloons for Nextcloud Hub 26 with a 'Skip' button, and Slide 2 featured generic Nextcloud marketing copy (Privacy, Productivity, Interoperability, Community) with external download links and documentation references.
+  - In an isolated, high-security, Air-Gapped banking/enterprise archive system (`docs.maskan`), these screens broke organizational identity and violated security lockdown policies.
+- **Implementation & Architecture:**
+  - **Custom 2-Slide Architecture (`apps/archive_autotag/firstrunwizard_patch/`):**
+    - **Slide 1 (Hero & Intro Splash):** Deep Obsidian (`#090b0e`, `#121620`) and Industrial Orange (`#f97316`) theme with custom SVG archival vault shield, glowing circuit nodes, formal title "سامانه جامع بایگانی اسناد سازمانی", English subtitle "Enterprise Document Archiving & Governance", air-gapped status pills, and action buttons.
+    - **Slide 2 (Core Capabilities & Architecture):** Glassmorphic 2x2 card grid presenting the 4 core system pillars:
+      1. Data Isolation & Security (Air-Gapped On-Premise isolation)
+      2. Hierarchical Auto-Tagging (Automated metadata tagging)
+      3. Multi-Tag Intersection Search (AND Filter engine)
+      4. Enterprise Governance & Storage Policies (Quota limits & audit trail)
+    - **Navigation & Lifecycle:** Carousel slider with RTL animation (`translateX`), clickable slide indicators, Esc/backdrop closure, and dismissal persistence via `DELETE /apps/firstrunwizard/wizard`.
+  - **Repository & Bare-Metal Deployment Synchronization:**
+    - Committed patch files into `apps/archive_autotag/firstrunwizard_patch/` (`main-DypLm1fH.chunk.mjs` and `firstrunwizard-style.css`).
+    - Updated `deploy/deploy_from_scratch.sh` to automatically install the patch upon bare-metal deployment.
+    - Deployed live to `nextcloud/apps/firstrunwizard/` and `nextcloud/custom_apps/archive_autotag/`.
+- **Verification:**
+  - Verified HTTP delivery of JS chunk and CSS stylesheet via Nginx/Apache.
+  - Validated 18 core test suites passing across archive portal, app menu isolation, app store isolation, and air-gapped policies.
+  - Documented in Requirement 10 (`docs/requirements/10_branding_masking_and_app_menu_filter.md`).
+
+Status: **Completed**
+
 ## Repository Status
 
 - Repository: `maherani/enterprise-archive-system`
 - Branch: `main`
-- Current Checkpoint: **Steps 1 through 17 fully completed, verified, and synchronized (v2.0.3).**
+- Current Checkpoint: **Steps 1 through 18 fully completed, verified, and synchronized (v2.0.3).**
 
 ### 5. Dynamic Folder-Driven Tag Lifecycle & Reconciliation (`tests/test_tag_lifecycle_reconciliation.py`)
 - **Step 1**: Folder creation triggers automatic tag registration & hierarchy tagging.

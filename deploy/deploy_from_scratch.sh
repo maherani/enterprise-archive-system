@@ -169,6 +169,14 @@ docker exec archive_app mkdir -p /var/www/html/custom_apps/archive_autotag
 docker cp apps/archive_autotag/. archive_app:/var/www/html/custom_apps/archive_autotag/
 docker exec archive_app chown -R www-data:www-data /var/www/html/custom_apps/archive_autotag
 
+# Deploy Enterprise Archive 2-Slide Wizard Patch
+if [ -d "apps/archive_autotag/firstrunwizard_patch" ]; then
+    docker cp apps/archive_autotag/firstrunwizard_patch/main-DypLm1fH.chunk.mjs archive_app:/var/www/html/apps/firstrunwizard/js/main-DypLm1fH.chunk.mjs
+    docker cp apps/archive_autotag/firstrunwizard_patch/firstrunwizard-style.css archive_app:/var/www/html/apps/firstrunwizard/css/firstrunwizard-style.css
+    docker exec archive_app chown www-data:www-data /var/www/html/apps/firstrunwizard/js/main-DypLm1fH.chunk.mjs /var/www/html/apps/firstrunwizard/css/firstrunwizard-style.css
+    echo -e "  ${GREEN}✔${NC} Enterprise Archive 2-Slide Wizard patch deployed."
+fi
+
 # Enable companion apps
 for app in admin_audit systemtags files_sharing activity; do
     docker exec -u www-data archive_app php occ app:enable "$app" >/dev/null 2>&1 || true

@@ -94,6 +94,12 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
     - Atomic Approval: Provisions physical folder, configures group share inheritance (Read + Create), creates restricted system tag, and binds tag to requesting group.
     - Full audit logging for rejections with mandatory reason visible to group admins.
 
+15. **Custom Enterprise Archive Onboarding & 2-Slide Wizard**:
+    - Complete elimination and replacement of generic Nextcloud Hub 26 promotional screens (celebratory balloons, Nextcloud generic pitch, and external store links).
+    - **Slide 1 (Hero & Intro Splash)**: Formal Obsidian-Orange welcome hero, vector archival vault shield, Persian typography, Air-Gapped badges, and direct start action.
+    - **Slide 2 (Core Capabilities & Architecture)**: Sleek 2x2 grid of glassmorphic cards introducing the 4 foundational pillars (Data Security & Isolation, Hierarchical Auto-Tagging, Multi-Tag Intersection Search, and Enterprise Compliance).
+    - Fully integrated into the user menu "About" dialog and automated first-run onboarding flow with zero external network dependencies.
+
 ---
 
 ## Current Project State
@@ -112,6 +118,8 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
 - **Step 12 ? Per-User File Access Control & Tag Isolation (v1.4.0)**: Zero-data-leak file and tag isolation, admin grant workflows, and automated E2E test suite `tests/test_archive_acl_and_tag_isolation.py` (100% pass rate).
 - **Step 13 ? Enterprise Archive Portal UI/UX & Obsidian-Orange Design System (v1.7.1)**: Modern enterprise dashboard, dynamic sliding push workspace, global Obsidian-Orange theme, cache busting, and automated test suite `tests/test_archive_portal.py` (100% pass rate).
 - **Step 14 — Delegated Folder Creation Workflow & Advanced Governance (v1.9.6)**: Duplicate physical & pending folder prevention, complete 10-point audit trail (`oc_archive_folder_request_audit`), native Nextcloud notifications, visual audit timeline modal, dynamic parent folder tree dropdown, CSP-safe action button handlers, canonical Nextcloud `/f/{fileId}` deep-linking and native non-blocked navigation, and automated test suites (100% pass rate).
+- **Step 15 — Custom Enterprise Archive Onboarding & 2-Slide Wizard**: Replaced default Nextcloud Hub 26 promotional screens with an authentic, Obsidian-themed, RTL-first 2-slide enterprise onboarding wizard.
+
 
 See [PROJECT_STATE.md](PROJECT_STATE.md) and [docs/DEPLOYMENT_RUNBOOK.md](docs/DEPLOYMENT_RUNBOOK.md) for full operational guides and architectural records.
 
