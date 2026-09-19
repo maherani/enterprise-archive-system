@@ -139,7 +139,8 @@
     }
 
     /**
-     * Find best mount target in DOM
+     * Find best mount target in DOM.
+     * NEVER mount directly to body or #content to avoid breaking layout!
      */
     function findMountTarget() {
         // 1. Archive Portal page
@@ -148,21 +149,27 @@
             return { parent: portalRoot.parentNode, insertBefore: portalRoot };
         }
 
-        // 2. Files App: mount at the very top of main content area (never sibling to sidebar in #content)
+        // 2. Files App: mount inside main content area above breadcrumb header / tag filter bar
         const mainContent = document.querySelector('main.app-content') ||
                             document.querySelector('#app-content-vue') ||
                             document.querySelector('.app-content') ||
                             document.getElementById('app-content');
+
         if (mainContent) {
+            const filesHeader = mainContent.querySelector('.files-list__header');
+            if (filesHeader) {
+                return { parent: mainContent, insertBefore: filesHeader };
+            }
             return { parent: mainContent, insertBefore: mainContent.firstChild };
         }
 
-        // 3. Fallback: if header exists, mount before #content
-        const content = document.getElementById('content');
-        if (content && content.parentNode) {
-            return { parent: content.parentNode, insertBefore: content };
+        const filesList = document.querySelector('.files-list');
+        if (filesList && filesList.parentNode) {
+            return { parent: filesList.parentNode, insertBefore: filesList };
         }
 
+        // If Vue has not mounted yet, DO NOT mount to body or #content!
+        // Return null and let MutationObserver / setInterval mount it as soon as Vue renders!
         return null;
     }
 
@@ -170,25 +177,29 @@
      * Main Render Function: Injects the navigation bar into DOM
      */
     async function renderGlobalNav() {
-        const data = await fetchNavResources();
-        if (!data || !data.items) {
+        const mountInfo = findMountTarget();
+        const existing = document.getElementById('ea-global-nav-root');
+
+        // If Vue has not mounted target yet, wait for observer
+        if (!mountInfo || !mountInfo.parent) {
+            if (existing) existing.remove();
             return;
         }
 
-        const existing = document.getElementById('ea-global-nav-root');
-        const mountInfo = findMountTarget();
-        if (!mountInfo || !mountInfo.parent) {
-            return;
+        // Clean up any improperly positioned nav bar (e.g. in body or #content)
+        if (existing && !mountInfo.parent.contains(existing)) {
+            existing.remove();
         }
 
         // If already rendered and properly attached, update active chip
-        if (existing && mountInfo.parent.contains(existing)) {
+        if (document.getElementById('ea-global-nav-root')) {
             updateActiveChip(detectCurrentPath());
             return;
         }
 
-        if (existing) {
-            existing.remove();
+        const data = await fetchNavResources();
+        if (!data || !data.items) {
+            return;
         }
 
         const rootEl = document.createElement('div');
@@ -252,11 +263,11 @@
 
         rootEl.appendChild(rowMain);
 
-        // Mount to DOM safely
+        // Mount to DOM safely inside main content area
         if (mountInfo.insertBefore) {
             mountInfo.parent.insertBefore(rootEl, mountInfo.insertBefore);
         } else {
-            mountParent.appendChild(rootEl);
+            mountInfo.parent.appendChild(rootEl);
         }
 
         // Initialize display
@@ -279,10 +290,11 @@
             }, 50);
         });
 
-        // Periodic check to catch async Nextcloud Files client navigation & mount hydration
+        // Periodic check to ensure nav bar remains correctly mounted in main content
         setInterval(() => {
             const navEl = document.getElementById('ea-global-nav-root');
-            if (!navEl || !document.body.contains(navEl)) {
+            const mountInfo = findMountTarget();
+            if (!navEl || (mountInfo && mountInfo.parent && !mountInfo.parent.contains(navEl))) {
                 renderGlobalNav();
             } else {
                 const detected = detectCurrentPath();
@@ -291,6 +303,26 @@
                 }
             }
         }, 400);
+
+        // Observer on #content for rapid mounting on Vue render
+        const observer = new MutationObserver(() => {
+            const navEl = document.getElementById('ea-global-nav-root');
+            const mountInfo = findMountTarget();
+            if (!navEl && mountInfo && mountInfo.parent) {
+                renderGlobalNav();
+            }
+        });
+
+        function startObserver() {
+            const content = document.querySelector('#content') || document.body;
+            if (content) {
+                observer.observe(content, { childList: true, subtree: true });
+            } else {
+                setTimeout(startObserver, 200);
+            }
+        }
+
+        startObserver();
     }
 
     // Run on DOM ready
