@@ -618,10 +618,13 @@ Status: **Completed**
 - **Result**: 5/5 Passed (100%).
 
 
-### Requirement 16: Access-Aware Global Navigation & Persistent Current Path (Completed)
-- **Status:** Fully Implemented and Verified (v2.0.6)
+### Requirement 16: Access-Aware Global Navigation Bar (Completed)
+- **Status:** Fully Implemented, Refined, and Verified (v2.0.6)
 - **Backend API:** `GET /index.php/apps/archive_autotag/api/nav/resources` with dynamic role/group/tag permission filtering.
 - **Frontend Components:** `global_archive_nav.js` and `global_archive_nav.css` registered in `Application::boot()`.
 - **Zero Resource Leakage:** Verified with isolated catalogs for Admin, SOC (`Bakbari`), and CERT (`maherani`).
-- **Logical Root:** Strictly `Enterprise_Archive` with real-time breadcrumbs, deep folder navigation, and Copy Path action.
-- **Zero Regression:** All existing regression test suites passed with 100% success.
+- **Streamlined UI:** Single sleek top navigation bar with accessible department chips and active highlighting.
+- **Results Table UX Refinements (Requirement 7):**
+  - Removed redundant "برچسب‌ها" column from the search results table.
+  - Redesigned "مسیر در بایگانی" with strict `max-width: 100%`, `overflow: hidden`, and `text-overflow: ellipsis` badge layout, preventing any column overlaps.
+- **Zero Regression:** All regression test suites passed with 100% success.

@@ -376,19 +376,26 @@
         var rowsHtml = data.files.map(function (file) {
             var icon = file.is_dir ? '📁' : '📄';
 
+            var displayPath = file.is_dir ? file.path : (file.parent_dir || file.path);
+            if (!displayPath || displayPath === '.') {
+                displayPath = 'Enterprise_Archive';
+            }
+
             var targetDir = file.target_dir || (file.is_dir ? ('/' + file.path.replace(/^\/+/g, '')) : ('/' + (file.parent_dir || '').replace(/^\/+/g, '')));
             targetDir = targetDir.replace(/\/+/g, '/');
 
             return '<tr>' +
-                   '<td>' +
+                   '<td title="' + escapeHtml(file.name) + '">' +
                        '<div class="archive-file-name-cell">' +
                            '<span>' + icon + '</span>' +
                            '<a class="archive-nav-link" href="' + escapeHtml(file.web_url) + '" data-file-id="' + file.id + '" data-is-dir="' + (file.is_dir ? 'true' : 'false') + '" data-target-dir="' + escapeHtml(targetDir) + '">' + escapeHtml(file.name) + '</a>' +
                        '</div>' +
                    '</td>' +
-                   '<td><span class="archive-file-path-badge">' + escapeHtml(file.path) + '</span></td>' +
-                   '<td>' + escapeHtml(file.human_size) + '</td>' +
-                   '<td>' +
+                   '<td title="' + escapeHtml(displayPath) + '">' +
+                       '<span class="archive-file-path-badge">' + escapeHtml(displayPath) + '</span>' +
+                   '</td>' +
+                   '<td class="archive-cell-size">' + escapeHtml(file.human_size) + '</td>' +
+                   '<td class="archive-cell-actions">' +
                        '<a class="archive-action-btn archive-locate-btn" href="' + escapeHtml(file.web_url) + '" data-file-id="' + file.id + '" data-is-dir="' + (file.is_dir ? 'true' : 'false') + '" data-target-dir="' + escapeHtml(targetDir) + '" title="مشاهده در پوشه">📂 مشاهده در پوشه</a>' +
                        (!file.is_dir ? '<a class="archive-action-btn" href="' + escapeHtml(file.download_url) + '" download title="دانلود">⬇️ دانلود</a>' : '') +
                    '</td>' +
@@ -401,17 +408,17 @@
             '</div>' +
             '<table class="archive-results-table">' +
                 '<colgroup>' +
-                    '<col style="width: 28%;">' +
-                    '<col style="width: 40%;">' +
+                    '<col style="width: 32%;">' +
+                    '<col style="width: 38%;">' +
                     '<col style="width: 12%;">' +
-                    '<col style="width: 20%;">' +
+                    '<col style="width: 18%;">' +
                 '</colgroup>' +
                 '<thead>' +
                     '<tr>' +
                         '<th>نام سند</th>' +
                         '<th>مسیر در بایگانی</th>' +
-                        '<th>حجم</th>' +
-                        '<th>عملیات</th>' +
+                        '<th style="text-align: center;">حجم</th>' +
+                        '<th style="text-align: left;">عملیات</th>' +
                     '</tr>' +
                 '</thead>' +
                 '<tbody>' +
