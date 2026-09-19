@@ -24,7 +24,9 @@ return [
         ['name' => 'AiFile#getMetadata', 'url' => '/api/v1/ai/files/{fileId}/metadata', 'verb' => 'GET'],
         ['name' => 'AiFile#openapiSpec', 'url' => '/api/openapi.json', 'verb' => 'GET'],
         ['name' => 'AiFile#swaggerUi', 'url' => '/api/docs', 'verb' => 'GET'],
-        // Group Admin Tag Governance
+        // Global Access-Aware Navigation & Current Path
+        ['name' => 'Navigation#getResources', 'url' => '/api/nav/resources', 'verb' => 'GET'],
+                // Group Admin Tag Governance
         ['name' => 'GroupTag#listTags', 'url' => '/api/group-tags', 'verb' => 'GET'],
         ['name' => 'GroupTag#createTag', 'url' => '/api/group-tags/create', 'verb' => 'POST'],
         ['name' => 'GroupTag#deleteTag', 'url' => '/api/group-tags/delete', 'verb' => 'POST'],
@@ -53,7 +55,9 @@ return [
         ['name' => 'AiFile#getMetadata', 'url' => '/api/v1/ai/files/{fileId}/metadata', 'verb' => 'GET'],
         ['name' => 'AiFile#openapiSpec', 'url' => '/api/openapi.json', 'verb' => 'GET'],
         ['name' => 'AiFile#swaggerUi', 'url' => '/api/docs', 'verb' => 'GET'],
-        // Group Admin Tag Governance
+        // Global Access-Aware Navigation & Current Path
+        ['name' => 'Navigation#getResources', 'url' => '/api/nav/resources', 'verb' => 'GET'],
+                // Group Admin Tag Governance
         ['name' => 'GroupTag#listTags', 'url' => '/api/group-tags', 'verb' => 'GET'],
         ['name' => 'GroupTag#createTag', 'url' => '/api/group-tags/create', 'verb' => 'POST'],
         ['name' => 'GroupTag#deleteTag', 'url' => '/api/group-tags/delete', 'verb' => 'POST'],

@@ -162,9 +162,9 @@ docker exec -u www-data archive_app php occ config:system:set upgrade.disable-we
 echo -e "  ${GREEN}?${NC} Enterprise hardening, proxy, and systemtag isolation factory configured."
 
 # ------------------------------------------------------------------------------
-# 6. Deploy Custom App: archive_autotag v1.5.0 & Enable Companion Apps
+# 6. Deploy Custom App: archive_autotag v2.0.6 & Enable Companion Apps
 # ------------------------------------------------------------------------------
-echo -e "\n${BOLD}[6/10] Deploying Custom App: archive_autotag (v1.5.0)...${NC}"
+echo -e "\n${BOLD}[6/10] Deploying Custom App: archive_autotag (v2.0.6)...${NC}"
 docker exec archive_app mkdir -p /var/www/html/custom_apps/archive_autotag
 docker cp apps/archive_autotag/. archive_app:/var/www/html/custom_apps/archive_autotag/
 docker exec archive_app chown -R www-data:www-data /var/www/html/custom_apps/archive_autotag

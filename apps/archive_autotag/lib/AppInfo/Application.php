@@ -75,6 +75,10 @@ class Application extends App implements IBootstrap {
         Util::addScript(self::APP_ID, 'app_menu_filter');
         Util::addStyle(self::APP_ID, 'app_menu_filter');
 
+        // Global Access-Aware Navigation & Current Path (Requirement 16)
+        Util::addScript(self::APP_ID, 'global_archive_nav');
+        Util::addStyle(self::APP_ID, 'global_archive_nav');
+
         // Restrict navigation and app launcher state: for non-admin users, only display "??????? ?????"
         try {
             /** @var \OCP\IInitialStateService $initialStateService */

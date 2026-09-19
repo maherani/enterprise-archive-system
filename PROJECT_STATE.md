@@ -616,3 +616,12 @@ Status: **Completed**
 - **URL Masking Exclusion**: Verifies `url_mask.js` contains the guard preserving `dir=` in `/apps/files`.
 - **Portal Drawer Binding**: Verifies `archive_portal.js` connects locate button and path link to `folder_url`.
 - **Result**: 5/5 Passed (100%).
+
+
+### Requirement 16: Access-Aware Global Navigation & Persistent Current Path (Completed)
+- **Status:** Fully Implemented and Verified (v2.0.6)
+- **Backend API:** `GET /index.php/apps/archive_autotag/api/nav/resources` with dynamic role/group/tag permission filtering.
+- **Frontend Components:** `global_archive_nav.js` and `global_archive_nav.css` registered in `Application::boot()`.
+- **Zero Resource Leakage:** Verified with isolated catalogs for Admin, SOC (`Bakbari`), and CERT (`maherani`).
+- **Logical Root:** Strictly `Enterprise_Archive` with real-time breadcrumbs, deep folder navigation, and Copy Path action.
+- **Zero Regression:** All existing regression test suites passed with 100% success.
