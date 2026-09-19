@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test Suite: Access-Aware Global Navigation and Current Path (Requirement 16)
+Test Suite: Access-Aware Global Navigation (Requirement 16)
 Enterprise Archive System - Nextcloud 34
 
 Validates:
@@ -12,10 +12,10 @@ Validates:
 2. Frontend Assets and Global Inclusion:
    - global_archive_nav.css and global_archive_nav.js are served with HTTP 200 OK.
    - Included in both Archive Portal and Files app views.
-3. DOM & Breadcrumb Specifications:
-   - Logical root is strictly "Enterprise_Archive" (never physical, / or Home).
-   - Breadcrumb segments and clickable folder links are properly generated.
-   - Copy Path action is implemented.
+3. DOM & Single-Row Navigation Specifications:
+   - Contains authorized scope chips (همه اسناد, Enterprise_Archive, and user departments).
+   - Dynamic active chip highlighting.
+   - Current Path and Copy Path elements are strictly excluded per design refinement.
 4. Layout Integrity & Vertical Scroll:
    - No breaking generic #content rules.
    - Preserves vertical scrolling.
@@ -120,20 +120,28 @@ class TestAccessAwareNavigation(unittest.TestCase):
         self.assertFalse(user_meta.get("is_admin"))
         self.assertIn("CERT", user_meta.get("groups", []))
 
-    def test_05_frontend_assets_delivery(self):
-        """Verify global_archive_nav.css and global_archive_nav.js are served over HTTP."""
+    def test_05_frontend_assets_delivery_and_no_current_path(self):
+        """Verify global_archive_nav assets are served and current path / copy path are omitted."""
         resp_css = requests.get(f"{BASE_URL}/custom_apps/archive_autotag/css/global_archive_nav.css")
         self.assertEqual(resp_css.status_code, 200)
         self.assertIn("#ea-global-nav-root", resp_css.text)
         self.assertIn("direction: rtl;", resp_css.text)
-        self.assertIn(".ea-breadcrumbs", resp_css.text)
-        self.assertIn(".ea-btn-copy-path", resp_css.text)
+        self.assertIn(".ea-nav-items-track", resp_css.text)
+        self.assertIn(".ea-nav-chip", resp_css.text)
+
+        # Ensure current path & copy button classes are removed
+        self.assertNotIn(".ea-breadcrumbs", resp_css.text)
+        self.assertNotIn(".ea-btn-copy-path", resp_css.text)
 
         resp_js = requests.get(f"{BASE_URL}/custom_apps/archive_autotag/js/global_archive_nav.js")
         self.assertEqual(resp_js.status_code, 200)
         self.assertIn("Enterprise_Archive", resp_js.text)
         self.assertIn("ea-global-nav-root", resp_js.text)
-        self.assertIn("renderBreadcrumbs", resp_js.text)
+        self.assertIn("updateActiveChip", resp_js.text)
+
+        # Ensure breadcrumb rendering logic is removed
+        self.assertNotIn("renderBreadcrumbs", resp_js.text)
+        self.assertNotIn("ea-btn-copy-path", resp_js.text)
 
     def test_06_global_script_inclusion_in_pages(self):
         """Verify scripts are injected across both Portal and Files pages."""

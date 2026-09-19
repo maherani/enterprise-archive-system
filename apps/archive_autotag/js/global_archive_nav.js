@@ -1,5 +1,5 @@
 /**
- * Enterprise Archive System - Access-Aware Global Navigation Bar & Current Path (Requirement 16)
+ * Enterprise Archive System - Access-Aware Global Navigation Bar (Requirement 16)
  * Real-time, Zero-Leakage navigation synced with Location, Upload, Auto-Tagging, Rename, and Move.
  */
 (function() {
@@ -104,7 +104,7 @@
             window.OCA && window.OCA.Files && window.OCA.Files.App && window.OCA.Files.App.fileList) {
             try {
                 window.OCA.Files.App.fileList.changeDirectory(fullDir);
-                updateCurrentPathDisplay(normalizeDirectory(fullDir));
+                updateActiveChip(normalizeDirectory(fullDir));
                 return;
             } catch (e) {
                 // fallback to href
@@ -114,57 +114,10 @@
     }
 
     /**
-     * Build breadcrumbs DOM elements for current path
+     * Update active chip when directory changes
      */
-    function renderBreadcrumbs(container, pathStr) {
-        container.innerHTML = '';
-        const segments = pathStr.split('/');
-
-        let accumulated = '';
-        segments.forEach((seg, index) => {
-            if (index > 0) {
-                accumulated += '/' + seg;
-            } else {
-                accumulated = seg;
-            }
-
-            const isLast = (index === segments.length - 1);
-            const item = document.createElement('a');
-            item.className = 'ea-breadcrumb-item' + (isLast ? ' is-current' : '');
-            item.textContent = seg;
-            item.href = 'javascript:void(0)';
-            item.title = 'انتقال به: ' + accumulated;
-
-            if (!isLast) {
-                const targetDir = accumulated;
-                item.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    navigateToDir(targetDir);
-                });
-            }
-
-            container.appendChild(item);
-
-            if (!isLast) {
-                const sep = document.createElement('span');
-                sep.className = 'ea-breadcrumb-sep';
-                sep.textContent = '‹';
-                container.appendChild(sep);
-            }
-        });
-    }
-
-    /**
-     * Update active chip and breadcrumbs when directory changes
-     */
-    function updateCurrentPathDisplay(pathStr) {
+    function updateActiveChip(pathStr) {
         STATE.currentPath = pathStr;
-        const breadcrumbContainer = document.querySelector('#ea-global-nav-root .ea-breadcrumbs');
-        if (breadcrumbContainer) {
-            renderBreadcrumbs(breadcrumbContainer, pathStr);
-        }
-
-        // Determine active department
         const segments = pathStr.split('/');
         const activeDept = segments.length > 1 ? segments[1] : (pathStr === 'Enterprise_Archive' ? 'root' : 'all');
 
@@ -183,9 +136,9 @@
      * Main Render Function: Injects the navigation bar into DOM
      */
     async function renderGlobalNav() {
-        // If already rendered, just update path
+        // If already rendered, just update active chip
         if (document.getElementById('ea-global-nav-root')) {
-            updateCurrentPathDisplay(detectCurrentPath());
+            updateActiveChip(detectCurrentPath());
             return;
         }
 
@@ -219,14 +172,14 @@
         const rootEl = document.createElement('div');
         rootEl.id = 'ea-global-nav-root';
 
-        // Row 1: Access-Aware Global Navigation
-        const row1 = document.createElement('div');
-        row1.className = 'ea-nav-row-main';
+        // Access-Aware Global Navigation Bar
+        const rowMain = document.createElement('div');
+        rowMain.className = 'ea-nav-row-main';
 
         const brandBadge = document.createElement('div');
         brandBadge.className = 'ea-nav-brand-badge';
         brandBadge.innerHTML = '<span class="ea-nav-brand-icon">🏛️</span> <span>بایگانی سازمانی</span>';
-        row1.appendChild(brandBadge);
+        rowMain.appendChild(brandBadge);
 
         const itemsTrack = document.createElement('div');
         itemsTrack.className = 'ea-nav-items-track';
@@ -265,7 +218,7 @@
 
             itemsTrack.appendChild(chip);
         });
-        row1.appendChild(itemsTrack);
+        rowMain.appendChild(itemsTrack);
 
         // User badge
         if (data.user) {
@@ -273,54 +226,10 @@
             userBadge.className = 'ea-nav-user-badge';
             const groupStr = (data.user.groups && data.user.groups.length > 0) ? data.user.groups.join(', ') : 'عمومی';
             userBadge.innerHTML = '<span>👤</span> <span>' + (data.user.display_name || data.user.uid) + ' (' + groupStr + ')</span>';
-            row1.appendChild(userBadge);
+            rowMain.appendChild(userBadge);
         }
 
-        rootEl.appendChild(row1);
-
-        // Row 2: Current Path / Breadcrumbs
-        const row2 = document.createElement('div');
-        row2.className = 'ea-nav-row-path';
-
-        const pathInner = document.createElement('div');
-        pathInner.className = 'ea-path-inner';
-
-        const pathLabel = document.createElement('div');
-        pathLabel.className = 'ea-path-label';
-        pathLabel.innerHTML = '<span>📍</span> <span>مسیر فعلی:</span>';
-        pathInner.appendChild(pathLabel);
-
-        const breadcrumbs = document.createElement('div');
-        breadcrumbs.className = 'ea-breadcrumbs';
-        pathInner.appendChild(breadcrumbs);
-
-        row2.appendChild(pathInner);
-
-        // Actions (Copy Path)
-        const actions = document.createElement('div');
-        actions.className = 'ea-path-actions';
-
-        const copyBtn = document.createElement('button');
-        copyBtn.type = 'button';
-        copyBtn.className = 'ea-btn-copy-path';
-        copyBtn.innerHTML = '<span>📋</span> <span>کپی مسیر</span>';
-        copyBtn.title = 'کپی مسیر فعلی در کلیپ‌بورد';
-
-        copyBtn.addEventListener('click', function() {
-            const fullPathToCopy = STATE.currentPath;
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(fullPathToCopy).then(() => {
-                    showCopiedFeedback(copyBtn);
-                }).catch(() => fallbackCopy(fullPathToCopy, copyBtn));
-            } else {
-                fallbackCopy(fullPathToCopy, copyBtn);
-            }
-        });
-
-        actions.appendChild(copyBtn);
-        row2.appendChild(actions);
-
-        rootEl.appendChild(row2);
+        rootEl.appendChild(rowMain);
 
         // Mount to DOM
         if (referenceNode) {
@@ -330,50 +239,24 @@
         }
 
         // Initialize display
-        updateCurrentPathDisplay(detectCurrentPath());
-    }
-
-    function fallbackCopy(text, btn) {
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        try {
-            document.execCommand('copy');
-            showCopiedFeedback(btn);
-        } catch (e) {
-            // ignore
-        }
-        document.body.removeChild(textarea);
-    }
-
-    function showCopiedFeedback(btn) {
-        btn.classList.add('is-copied');
-        const origHTML = btn.innerHTML;
-        btn.innerHTML = '<span>✓</span> <span>کپی شد!</span>';
-        setTimeout(() => {
-            btn.classList.remove('is-copied');
-            btn.innerHTML = origHTML;
-        }, 1800);
+        updateActiveChip(detectCurrentPath());
     }
 
     // Attach listeners for route and directory changes
     function setupEventListeners() {
         window.addEventListener('popstate', () => {
-            setTimeout(() => updateCurrentPathDisplay(detectCurrentPath()), 50);
+            setTimeout(() => updateActiveChip(detectCurrentPath()), 50);
         });
 
         window.addEventListener('hashchange', () => {
-            setTimeout(() => updateCurrentPathDisplay(detectCurrentPath()), 50);
+            setTimeout(() => updateActiveChip(detectCurrentPath()), 50);
         });
 
         // Periodic check to catch async Nextcloud Files client navigation
         setInterval(() => {
             const detected = detectCurrentPath();
             if (detected !== STATE.currentPath && document.getElementById('ea-global-nav-root')) {
-                updateCurrentPathDisplay(detected);
+                updateActiveChip(detected);
             }
         }, 300);
     }

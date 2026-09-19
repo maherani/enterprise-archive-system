@@ -1,4 +1,4 @@
-/* Enterprise Archive System - Access-Aware Global Navigation & Current Path (Requirement 16) */
+/* Enterprise Archive System - Access-Aware Global Navigation (Requirement 16) */
 
 #ea-global-nav-root {
     width: 100%;
@@ -21,14 +21,13 @@
     box-sizing: border-box;
 }
 
-/* Row 1: Access-Aware Global Navigation Items */
+/* Access-Aware Global Navigation Bar */
 .ea-nav-row-main {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
     flex-wrap: wrap;
-    padding-bottom: 6px;
 }
 
 .ea-nav-brand-badge {
@@ -109,117 +108,6 @@
     border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* Row 2: Current Path / Breadcrumbs */
-.ea-nav-row-path {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    background: rgba(0, 0, 0, 0.35);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 8px;
-    padding: 5px 12px;
-    margin-top: 4px;
-}
-
-.ea-path-inner {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    flex: 1;
-}
-
-.ea-path-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 12px;
-    font-weight: 600;
-    color: #f97316;
-    white-space: nowrap;
-    user-select: none;
-}
-
-.ea-breadcrumbs {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-wrap: wrap;
-    font-family: 'Vazirmatn', -apple-system, monospace;
-    font-size: 12px;
-}
-
-.ea-breadcrumb-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: #94a3b8;
-    background: transparent;
-    border: 1px solid transparent;
-    padding: 2px 6px;
-    border-radius: 4px;
-    cursor: pointer;
-    text-decoration: none !important;
-    transition: all 0.15s ease;
-}
-
-.ea-breadcrumb-item:hover {
-    color: #f97316;
-    background: rgba(249, 115, 22, 0.08);
-    border-color: rgba(249, 115, 22, 0.25);
-}
-
-.ea-breadcrumb-item.is-current {
-    color: #ffedd5;
-    font-weight: 600;
-    background: rgba(249, 115, 22, 0.15);
-    border-color: rgba(249, 115, 22, 0.3);
-    cursor: default;
-}
-
-.ea-breadcrumb-sep {
-    color: #475569;
-    font-size: 13px;
-    user-select: none;
-    padding: 0 2px;
-}
-
-/* Copy Path button & actions */
-.ea-path-actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.ea-btn-copy-path {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 8px;
-    border-radius: 5px;
-    font-size: 11.5px;
-    font-weight: 500;
-    color: #cbd5e1;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    cursor: pointer;
-    transition: all 0.15s ease;
-    user-select: none;
-}
-
-.ea-btn-copy-path:hover {
-    color: #f97316;
-    border-color: rgba(249, 115, 22, 0.5);
-    background: rgba(249, 115, 22, 0.1);
-}
-
-.ea-btn-copy-path.is-copied {
-    color: #10b981 !important;
-    border-color: rgba(16, 185, 129, 0.5) !important;
-    background: rgba(16, 185, 129, 0.15) !important;
-}
-
 @media (max-width: 768px) {
     #ea-global-nav-root {
         padding: 6px 10px;
@@ -234,8 +122,5 @@
     .ea-nav-chip {
         padding: 4px 8px;
         font-size: 11.5px;
-    }
-    .ea-breadcrumbs {
-        font-size: 11px;
     }
 }
