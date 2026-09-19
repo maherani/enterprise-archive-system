@@ -69,7 +69,7 @@
 - **اندپوینت:** `GET /index.php/apps/archive_autotag/api/nav/resources`
 - **وابستگی‌ها:** `IUserSession`, `IGroupManager`, `IUserManager`, `IRootFolder`, `TagOwnershipService`, `ISystemTagManager`.
 - **ثبت در روت‌ها:** فایل `apps/archive_autotag/appinfo/routes.php` در هر دو بخش `routes` و `ocs`.
-- **نسخه اپلیکیشن:** ارتقا به `2.0.6` در `apps/archive_autotag/appinfo/info.xml`.
+- **نسخه اپلیکیشن:** ارتقا به `2.0.8` در `apps/archive_autotag/appinfo/info.xml`.
 
 ### ب) لایه فرانت‌اند و رابط کاربری (Frontend UI & Styling)
 - **اسکریپت کلاینت:** `apps/archive_autotag/js/global_archive_nav.js`
@@ -83,6 +83,13 @@
   - هایلایت شاخص نارنجی سازمانی (`#f97316`) برای وضعیت‌های Hover و Active.
   - حفظ ۱۰۰٪ اسکرول عمودی بدون تداخل با منوی هدر Nextcloud.
 - **لودینگ سراسری:** فراخوانی در متد `boot()` فایل `Application.php` جهت بارگذاری در کلیه صفحات سامانه.
+
+
+### ج) تثبیت نوار ناوبری و جلوگیری از شکستگی سطر (v2.0.8)
+- **چیدمان تک‌سطری قطعی:** اعمال `flex-wrap: nowrap !important;` در `.ea-nav-row-main` و `.ea-nav-items-track` برای جلوگیری از شکستن چیپ‌ها به سطر دوم حتی در صورت وجود بیش از ۱۰ دپارتمان.
+- **اسکرول افقی روان:** فعال‌سازی `overflow-x: auto;` با پنهان‌سازی اسکرول‌بار مرورگر (`scrollbar-width: none;`) جهت اسکرول نرم چیپ‌ها بدون افزایش ارتفاع هدر.
+- **درج امن در کانتینر محتوا (`main.app-content`):** درج مستقیم در بالای محتوای اصلی و قبل از سرستون فایل‌ها جهت جلوگیری از به دام افتادن نوار در پشت هدر `position: absolute` نکست‌کلود و حفظ کامل سایدبار کناری.
+- **هدایت کلاینت بدون رفرش ناگهانی:** بهره‌گیری از روتر بومی `window.OCP.Files.Router.goToRoute` و حفظ کاراکترهای اسلش در مسیر دایرکتوری.
 
 ---
 
