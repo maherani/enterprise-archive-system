@@ -31,6 +31,7 @@ class AiFileService {
         private ISystemTagManager $tagManager,
         private ISystemTagObjectMapper $tagMapper,
         private LoggerInterface $logger,
+        private ?ReliableAuditService $reliableAuditService = null,
     ) {
     }
 
@@ -489,14 +490,42 @@ class AiFileService {
         string $serviceId = 'unknown',
         ?int $tokenId = null,
         ?string $delegationRequested = null,
-        string $delegationStatus = 'NONE'
+        string $delegationStatus = 'NONE',
+        string $correlationId = ''
     ): void {
-        try {
-            $now = time();
+        $auditData = [
+            'request_id' => $requestId,
+            'correlation_id' => $correlationId,
+            'actor_uid' => $actorUid,
+            'client_id' => $clientId,
+            'file_id' => $fileId,
+            'file_name' => $fileName,
+            'auth_type' => $authType,
+            'result' => $result,
+            'client_ip' => $clientIp,
+            'bytes_served' => $bytesServed,
+            'error_message' => $errorMessage,
+            'created_at' => time(),
+            'service_id' => $serviceId,
+            'token_id' => $tokenId,
+            'delegation_requested' => $delegationRequested,
+            'delegation_status' => $delegationStatus,
+        ];
+
+        if ($this->reliableAuditService !== null) {
+            if ($result === 'ALLOWED') {
+                // Audit-Required: Guarantees audit record exists BEFORE file retrieval. Throws on failure (Fail-Closed).
+                $this->reliableAuditService->recordRequired('archive_ai_audit', $auditData);
+            } else {
+                // Audit-Best-Effort: Records unauthenticated or forbidden probes with emergency DLQ fallback (Anti-DoS)
+                $this->reliableAuditService->recordBestEffort('archive_ai_audit', $auditData);
+            }
+        } else {
             $qb = $this->db->getQueryBuilder();
             $qb->insert('archive_ai_audit')
                ->values([
                    'request_id' => $qb->createNamedParameter($requestId),
+                   'correlation_id' => $qb->createNamedParameter($correlationId),
                    'actor_uid' => $qb->createNamedParameter($actorUid),
                    'client_id' => $qb->createNamedParameter($clientId),
                    'file_id' => $qb->createNamedParameter($fileId),
@@ -506,38 +535,16 @@ class AiFileService {
                    'client_ip' => $qb->createNamedParameter($clientIp),
                    'bytes_served' => $qb->createNamedParameter($bytesServed),
                    'error_message' => $qb->createNamedParameter($errorMessage),
-                   'created_at' => $qb->createNamedParameter($now),
+                   'created_at' => $qb->createNamedParameter(time()),
                    'service_id' => $qb->createNamedParameter($serviceId),
                    'token_id' => $qb->createNamedParameter($tokenId),
                    'delegation_requested' => $qb->createNamedParameter($delegationRequested),
                    'delegation_status' => $qb->createNamedParameter($delegationStatus),
                ]);
             $qb->executeStatement();
-
-            $this->logger->info("archive_autotag_ai: [{$requestId}] File {$fileId} ({$fileName}) accessed by '{$actorUid}' via {$authType} (Service: {$serviceId}, Delegation: {$delegationStatus}): Result={$result}");
-        } catch (\Throwable $t) {
-            // Fallback for pre-migration schema
-            try {
-                $qb = $this->db->getQueryBuilder();
-                $qb->insert('archive_ai_audit')
-                   ->values([
-                       'request_id' => $qb->createNamedParameter($requestId),
-                       'actor_uid' => $qb->createNamedParameter($actorUid),
-                       'client_id' => $qb->createNamedParameter($clientId),
-                       'file_id' => $qb->createNamedParameter($fileId),
-                       'file_name' => $qb->createNamedParameter($fileName),
-                       'auth_type' => $qb->createNamedParameter($authType),
-                       'result' => $qb->createNamedParameter($result),
-                       'client_ip' => $qb->createNamedParameter($clientIp),
-                       'bytes_served' => $qb->createNamedParameter($bytesServed),
-                       'error_message' => $qb->createNamedParameter($errorMessage),
-                       'created_at' => $qb->createNamedParameter($now),
-                   ]);
-                $qb->executeStatement();
-            } catch (\Throwable $t2) {
-                $this->logger->error("archive_autotag_ai: Failed to record audit log: " . $t2->getMessage());
-            }
         }
+
+        $this->logger->info("archive_autotag_ai: [{$requestId}] File {$fileId} ({$fileName}) accessed by '{$actorUid}' via {$authType} (Service: {$serviceId}, Delegation: {$delegationStatus}): Result={$result}");
     }
 
     private function formatBytes(int $bytes): string {

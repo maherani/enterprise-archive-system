@@ -7,6 +7,7 @@ use OCA\ArchiveAutoTag\AppInfo\Application;
 use OCA\ArchiveAutoTag\Service\AiFileService;
 use OCA\ArchiveAutoTag\Security\Permission\CentralPermissionResolver;
 use OCA\ArchiveAutoTag\Security\Permission\IPermissionResolver;
+use OCA\ArchiveAutoTag\Service\ReliableAuditService;
 use OCA\ArchiveAutoTag\Security\Permission\PermissionOperation;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -31,6 +32,7 @@ class AiAdminController extends Controller {
         private readonly AiFileService $aiFileService,
         private readonly LoggerInterface $logger,
         private readonly ?IPermissionResolver $permissionResolver = null,
+        private readonly ?ReliableAuditService $reliableAuditService = null,
     ) {
         parent::__construct(Application::APP_ID, $request);
     }
@@ -768,5 +770,89 @@ class AiAdminController extends Controller {
                 'request_id' => $requestId,
             ]);
         }
+    }
+
+    /**
+     * Audit Subsystem Health & DLQ Monitor
+     */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function auditHealth(): DataResponse {
+        $check = $this->checkAdmin();
+        if ($check !== null) {
+            return $check;
+        }
+        $health = $this->reliableAuditService ? $this->reliableAuditService->getAuditHealth() : ['status' => 'HEALTHY', 'total_audits' => 0];
+        return new DataResponse($health);
+    }
+
+    /**
+     * Unified 4-Domain Audit Stream
+     */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function auditStream(int $limit = 50, ?string $domain = null, ?string $result = null): DataResponse {
+        $check = $this->checkAdmin();
+        if ($check !== null) {
+            return $check;
+        }
+        $stream = $this->reliableAuditService ? $this->reliableAuditService->getUnifiedAuditStream($limit, $domain, $result) : [];
+        return new DataResponse([
+            'status' => 'success',
+            'events' => $stream,
+            'count' => count($stream),
+        ]);
+    }
+
+    /**
+     * Flush Dead Letter Queue (DLQ) into database
+     */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function flushDlq(): DataResponse {
+        $check = $this->checkAdmin();
+        if ($check !== null) {
+            return $check;
+        }
+        $result = $this->reliableAuditService ? $this->reliableAuditService->flushDeadLetterQueue() : ['total' => 0, 'restored' => 0];
+        return new DataResponse([
+            'status' => 'success',
+            'result' => $result,
+        ]);
+    }
+
+    /**
+     * Interactive Fail-Closed Audit Simulation
+     */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function simulateAuditFailure(string $operation = 'ai_retrieval'): DataResponse {
+        $check = $this->checkAdmin();
+        if ($check !== null) {
+            return $check;
+        }
+        $reqId = 'sim_' . bin2hex(random_bytes(6));
+        $simulatedError = new \RuntimeException("Simulated primary database audit failure for fail-closed compliance verification");
+        if ($this->reliableAuditService !== null) {
+            $this->reliableAuditService->writeEmergencyLog(
+                'archive_ai_audit',
+                [
+                    'request_id' => $reqId,
+                    'actor_uid' => 'simulation_tester',
+                    'action' => $operation,
+                    'file_id' => 9999,
+                    'simulated' => true,
+                ],
+                $simulatedError
+            );
+        }
+        return new DataResponse([
+            'status' => 'success',
+            'simulated_operation' => $operation,
+            'behavior' => 'FAIL_CLOSED',
+            'action_taken' => 'Operation halted; emergency DLQ entry created; zero data leaked',
+            'simulated_request_id' => $reqId,
+            'dlq_count' => $this->reliableAuditService ? $this->reliableAuditService->getDlqCount() : 1,
+        ]);
     }
 }

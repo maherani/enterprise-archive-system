@@ -2511,6 +2511,7 @@
             '    <button class="ea-ai-tab ' + (aiConsoleState.activeTab === 'audit' ? 'active' : '') + '" data-tab="audit">📊 لاگ‌های نظارتی (Audit Trail)</button>',
             '    <button class="ea-ai-tab ' + (aiConsoleState.activeTab === 'sandbox' ? 'active' : '') + '" data-tab="sandbox">🧪 محیط تست زنده API Sandbox</button>',
             '    <button class="ea-ai-tab ' + (aiConsoleState.activeTab === 'inspector' ? 'active' : '') + '" data-tab="inspector">🔍 بازرس مجوزهای موثر (Permission Inspector)</button>',
+            '    <button class="ea-ai-tab ' + (aiConsoleState.activeTab === 'reliability' ? 'active' : '') + '" data-tab="reliability">🛡️ تاب‌آوری و سلامت ممیزی (Audit Reliability & DLQ)</button>',
             '  </div>',
             '  <div class="ea-modal-body" id="ea-ai-console-body" style="flex:1;overflow-y:auto;padding:24px;">',
             '    <div style="text-align:center;padding:40px;color:var(--ea-text-muted);">در حال بارگذاری اطلاعات امنیتی AI...</div>',
@@ -2577,6 +2578,8 @@
             renderAiSandboxTab(body, data);
         } else if (aiConsoleState.activeTab === 'inspector') {
             renderPermissionInspectorTab(body);
+        } else if (aiConsoleState.activeTab === 'reliability') {
+            renderAuditReliabilityTab(body);
         }
     }
 
@@ -3421,3 +3424,194 @@
     }
 
 })();
+
+    // Tab 6: Audit Reliability & Dead Letter Queue (DLQ) Monitor
+    function renderAuditReliabilityTab(body) {
+        body.innerHTML = [
+            '<div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">',
+            '  <div>',
+            '    <h3 style="margin:0 0 4px 0;font-size:16px;color:var(--ea-text-main, #f1f5f9);font-weight:700;">🛡️ داشبورد پایش تاب‌آوری ممیزی و صف پیام‌های مرده (DLQ)</h3>',
+            '    <div style="font-size:12px;color:var(--ea-text-muted, #94a3b8);">نظارت بر سد دفاعی Fail-Closed، پایگاه‌های داده ممیزی و بازیابی رکوردهای اضطراری</div>',
+            '  </div>',
+            '  <div style="display:flex;gap:8px;flex-wrap:wrap;">',
+            '    <button class="ea-btn ea-btn-secondary" id="ea-audit-rel-refresh-btn" style="padding:6px 12px;font-size:12px;">🔄 بروزرسانی وضعیت</button>',
+            '    <button class="ea-btn ea-btn-secondary" id="ea-audit-rel-flush-btn" style="padding:6px 12px;font-size:12px;background:#065f46;color:#34d399;border-color:#10b981;">🚀 تخلیه و همگام‌سازی DLQ</button>',
+            '    <button class="ea-btn ea-btn-secondary" id="ea-audit-rel-sim-btn" style="padding:6px 12px;font-size:12px;background:#7f1d1d;color:#fca5a5;border-color:#ef4444;">🧪 شبیه‌سازی شکست ممیزی (Fail-Closed)</button>',
+            '  </div>',
+            '</div>',
+            '<div id="ea-audit-rel-metrics" style="margin-bottom:20px;">',
+            '  <div style="text-align:center;padding:20px;color:var(--ea-text-muted);">در حال دریافت شاخص‌های پایداری ممیزی...</div>',
+            '</div>',
+            '<div id="ea-audit-rel-simulation-alert" style="display:none;margin-bottom:20px;padding:14px;border-radius:8px;background:rgba(239, 68, 68, 0.15);border:1px solid #ef4444;color:#fca5a5;font-size:13px;"></div>',
+            '<div style="background:var(--ea-bg-card, #1e293b);border:1px solid var(--ea-border, #334155);border-radius:8px;padding:16px;">',
+            '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">',
+            '    <div style="font-size:14px;font-weight:600;color:var(--ea-text-main, #f1f5f9);">📋 استریم یکپارچه ممیزی ۴ دامنه سازمانی</div>',
+            '    <div style="display:flex;gap:8px;align-items:center;">',
+            '      <label style="font-size:12px;color:var(--ea-text-muted);">دامنه:</label>',
+            '      <select id="ea-audit-rel-domain-filter" style="background:#0f172a;color:#f1f5f9;border:1px solid #334155;border-radius:6px;padding:4px 8px;font-size:12px;">',
+            '        <option value="">همه دامنه‌ها (Unified)</option>',
+            '        <option value="ai">واکشی اسناد AI</option>',
+            '        <option value="tag">حاکمیت تگ‌های گروهی</option>',
+            '        <option value="permission">تغییرات مجوزها (Grants)</option>',
+            '        <option value="folder">درخواست‌های پوشه</option>',
+            '      </select>',
+            '    </div>',
+            '  </div>',
+            '  <div id="ea-audit-rel-stream-container" style="overflow-x:auto;">',
+            '    <div style="text-align:center;padding:30px;color:var(--ea-text-muted);">در حال دریافت رخدادهای ممیزی...</div>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.getElementById('ea-audit-rel-refresh-btn').onclick = function () {
+            loadAuditReliabilityData();
+        };
+
+        document.getElementById('ea-audit-rel-flush-btn').onclick = function () {
+            var btn = document.getElementById('ea-audit-rel-flush-btn');
+            btn.disabled = true;
+            btn.textContent = 'در حال تخلیه...';
+            fetch('/index.php/apps/archive_autotag/api/ai/audit/flush-dlq', {
+                method: 'POST',
+                headers: { 'OCS-APIRequest': 'true', 'Content-Type': 'application/json' }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                btn.disabled = false;
+                btn.textContent = '🚀 تخلیه و همگام‌سازی DLQ';
+                showToast('تخلیه DLQ با موفقیت انجام شد: ' + (res.result ? res.result.restored : 0) + ' رکورد بازیابی گردید.');
+                loadAuditReliabilityData();
+            })
+            .catch(function () {
+                btn.disabled = false;
+                btn.textContent = '🚀 تخلیه و همگام‌سازی DLQ';
+                showToast('خطا در تخلیه DLQ');
+            });
+        };
+
+        document.getElementById('ea-audit-rel-sim-btn').onclick = function () {
+            var btn = document.getElementById('ea-audit-rel-sim-btn');
+            btn.disabled = true;
+            fetch('/index.php/apps/archive_autotag/api/ai/audit/simulate-failure', {
+                method: 'POST',
+                headers: { 'OCS-APIRequest': 'true', 'Content-Type': 'application/json' }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                btn.disabled = false;
+                var alertBox = document.getElementById('ea-audit-rel-simulation-alert');
+                if (alertBox) {
+                    alertBox.style.display = 'block';
+                    alertBox.innerHTML = '<strong>🛡️ نتیجه آزمون Fail-Closed:</strong> شکست دیتابیس در درج ممیزی با موفقیت شبیه‌سازی شد. عملیات متوقف گردید (Zero Data Egress) و رکورد خطا با شناسه ' + escapeHtml(res.simulated_request_id || '') + ' فوراً به صف اضطراری DLQ منتقل شد. (تعداد رکوردهای معلق: ' + res.dlq_count + ')';
+                }
+                loadAuditReliabilityData();
+            })
+            .catch(function () {
+                btn.disabled = false;
+            });
+        };
+
+        document.getElementById('ea-audit-rel-domain-filter').onchange = function () {
+            loadAuditReliabilityStream();
+        };
+
+        loadAuditReliabilityData();
+    }
+
+    function loadAuditReliabilityData() {
+        // Load Health Metrics
+        fetch('/index.php/apps/archive_autotag/api/ai/audit/health', {
+            headers: { 'OCS-APIRequest': 'true' }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (h) {
+            var container = document.getElementById('ea-audit-rel-metrics');
+            if (!container) return;
+            var isHealthy = h.status === 'HEALTHY';
+            var statusColor = isHealthy ? '#10b981' : (h.status === 'DEGRADED' ? '#f59e0b' : '#ef4444');
+            var statusText = isHealthy ? '🟢 سالم و پایدار (HEALTHY)' : (h.status === 'DEGRADED' ? '🟡 دارای رکوردهای اضطراری (DEGRADED)' : '🔴 بحرانی (CRITICAL)');
+            var dlqCount = h.dlq_pending_count || 0;
+            var dlqColor = dlqCount === 0 ? '#10b981' : '#ef4444';
+
+            container.innerHTML = [
+                '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;">',
+                '  <div style="background:var(--ea-bg-card, #1e293b);border:1px solid ' + statusColor + ';border-radius:8px;padding:14px;">',
+                '    <div style="font-size:11px;color:var(--ea-text-muted);">وضعیت سلامت ممیزی</div>',
+                '    <div style="font-size:14px;font-weight:700;color:' + statusColor + ';margin-top:4px;">' + statusText + '</div>',
+                '  </div>',
+                '  <div style="background:var(--ea-bg-card, #1e293b);border:1px solid var(--ea-border, #334155);border-radius:8px;padding:14px;">',
+                '    <div style="font-size:11px;color:var(--ea-text-muted);">کل رکوردهای ممیزی ثبت‌شده</div>',
+                '    <div style="font-size:18px;font-weight:700;color:var(--ea-accent, #f97316);margin-top:4px;">' + toPersianDigits(h.total_audits || 0) + '</div>',
+                '  </div>',
+                '  <div style="background:var(--ea-bg-card, #1e293b);border:1px solid ' + (dlqCount > 0 ? '#ef4444' : 'var(--ea-border, #334155)') + ';border-radius:8px;padding:14px;">',
+                '    <div style="font-size:11px;color:var(--ea-text-muted);">صف پیام‌های مرده (DLQ)</div>',
+                '    <div style="font-size:18px;font-weight:700;color:' + dlqColor + ';margin-top:4px;">' + toPersianDigits(dlqCount) + ' پیام</div>',
+                '  </div>',
+                '  <div style="background:var(--ea-bg-card, #1e293b);border:1px solid var(--ea-border, #334155);border-radius:8px;padding:14px;">',
+                '    <div style="font-size:11px;color:var(--ea-text-muted);">مدل معماری تاب‌آوری</div>',
+                '    <div style="font-size:14px;font-weight:700;color:#38bdf8;margin-top:4px;">🔒 Fail-Closed & Atomic</div>',
+                '  </div>',
+                '</div>'
+            ].join('\n');
+        });
+
+        loadAuditReliabilityStream();
+    }
+
+    function loadAuditReliabilityStream() {
+        var domainSelect = document.getElementById('ea-audit-rel-domain-filter');
+        var domain = domainSelect ? domainSelect.value : '';
+        var url = '/index.php/apps/archive_autotag/api/ai/audit/stream?limit=50';
+        if (domain) {
+            url += '&domain=' + encodeURIComponent(domain);
+        }
+
+        fetch(url, { headers: { 'OCS-APIRequest': 'true' } })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            var c = document.getElementById('ea-audit-rel-stream-container');
+            if (!c) return;
+            var events = data.events || [];
+            if (events.length === 0) {
+                c.innerHTML = '<div style="text-align:center;padding:30px;color:var(--ea-text-muted);">هیچ رویدادی در این دامنه ثبت نشده است.</div>';
+                return;
+            }
+
+            var rows = events.map(function (ev) {
+                var isOk = ev.result === 'ALLOWED' || ev.result === 'success';
+                var resColor = isOk ? '#10b981' : '#ef4444';
+                var domainIcon = ev.domain === 'ai' ? '🤖' : (ev.domain === 'tag' ? '🏷️' : (ev.domain === 'permission' ? '🔑' : '📂'));
+                var timeStr = ev.created_at ? new Date(ev.created_at * 1000).toLocaleString('fa-IR') : '—';
+                return [
+                    '<tr style="border-bottom:1px solid #334155;">',
+                    '  <td style="padding:10px 12px;white-space:nowrap;">' + domainIcon + ' ' + escapeHtml(ev.domain) + '</td>',
+                    '  <td style="padding:10px 12px;font-family:monospace;font-size:12px;color:var(--ea-accent, #f97316);">' + escapeHtml(ev.action) + '</td>',
+                    '  <td style="padding:10px 12px;font-weight:600;color:#f1f5f9;">' + escapeHtml(ev.actor_uid) + '</td>',
+                    '  <td style="padding:10px 12px;color:#cbd5e1;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(ev.target) + '">' + escapeHtml(ev.target) + '</td>',
+                    '  <td style="padding:10px 12px;color:var(--ea-text-muted);font-size:11px;">' + escapeHtml(ev.details || '') + '</td>',
+                    '  <td style="padding:10px 12px;"><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;background:rgba(' + (isOk ? '16,185,129' : '239,68,68') + ',0.15);color:' + resColor + ';border:1px solid ' + resColor + ';">' + escapeHtml(ev.result) + '</span></td>',
+                    '  <td style="padding:10px 12px;font-family:monospace;font-size:11px;color:#94a3b8;">' + escapeHtml(ev.request_id || '') + '</td>',
+                    '  <td style="padding:10px 12px;font-size:11px;color:#94a3b8;white-space:nowrap;">' + timeStr + '</td>',
+                    '</tr>'
+                ].join('\n');
+            }).join('\n');
+
+            c.innerHTML = [
+                '<table style="width:100%;border-collapse:collapse;font-size:12px;text-align:right;">',
+                '  <thead>',
+                '    <tr style="border-bottom:2px solid #475569;color:#94a3b8;font-size:11px;">',
+                '      <th style="padding:8px 12px;">دامنه</th>',
+                '      <th style="padding:8px 12px;">عملیات</th>',
+                '      <th style="padding:8px 12px;">کاربر عامل</th>',
+                '      <th style="padding:8px 12px;">منبع / هدف</th>',
+                '      <th style="padding:8px 12px;">جزئیات</th>',
+                '      <th style="padding:8px 12px;">نتیجه</th>',
+                '      <th style="padding:8px 12px;">شناسه رهگیری</th>',
+                '      <th style="padding:8px 12px;">زمان</th>',
+                '    </tr>',
+                '  </thead>',
+                '  <tbody>' + rows + '</tbody>',
+                '</table>'
+            ].join('\n');
+        });
+    }

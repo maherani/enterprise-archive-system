@@ -22,6 +22,7 @@ class GroupTagService {
         private TagOwnershipService $tagOwnershipService,
         private FileOwnershipService $fileOwnershipService,
         private LoggerInterface $logger,
+        private ?ReliableAuditService $reliableAuditService = null,
     ) {}
 
     /**
@@ -228,11 +229,11 @@ class GroupTagService {
                    ->where($dOwnQb->expr()->eq('tag_id', $dOwnQb->createNamedParameter($tagId)));
             $dOwnQb->executeStatement();
 
-            // 12. Commit transaction atomically
-            $this->db->commit();
+            // 12. Audit inside transaction boundary (Fail-Closed: if audit write fails, entire delete rolls back)
+            $this->logAuditEvent($actorUid, $groupId, 'delete_tag', $tagId, $tagName, null, null, null, 'success', "Tag #{$tagId} ('{$tagName}') deleted by {$actorUid} (usage detached: {$usageCount})", '', '', '', $this->db);
 
-            // 13. Audit SUCCESS ONLY AFTER successful commit
-            $this->logAuditEvent($actorUid, $groupId, 'delete_tag', $tagId, $tagName, null, null, null, 'success', "Tag #{$tagId} ('{$tagName}') deleted by {$actorUid} (usage detached: {$usageCount})");
+            // 13. Commit transaction atomically
+            $this->db->commit();
 
             return [
                 'status' => 'success',
@@ -629,30 +630,67 @@ class GroupTagService {
         ?int $targetId,
         ?string $targetPath,
         string $result,
-        string $details = ''
+        string $details = '',
+        string $requestId = '',
+        string $correlationId = '',
+        string $clientIp = '',
+        ?IDBConnection $conn = null
     ): void {
-        try {
-            $now = time();
-            $qb = $this->db->getQueryBuilder();
-            $qb->insert('archive_tag_audit')
-               ->values([
-                   'actor_uid' => $qb->createNamedParameter($actorUid),
-                   'group_id' => $qb->createNamedParameter($groupId),
-                   'action' => $qb->createNamedParameter($action),
-                   'tag_id' => $qb->createNamedParameter($tagId),
-                   'tag_name' => $qb->createNamedParameter($tagName),
-                   'target_type' => $qb->createNamedParameter($targetType),
-                   'target_id' => $qb->createNamedParameter($targetId),
-                   'target_path' => $qb->createNamedParameter($targetPath),
-                   'result' => $qb->createNamedParameter($result),
-                   'details' => $qb->createNamedParameter($details),
-                   'created_at' => $qb->createNamedParameter($now),
-               ]);
-            $qb->executeStatement();
+        $auditData = [
+            'request_id' => $requestId !== '' ? $requestId : ('req_tag_' . bin2hex(random_bytes(6))),
+            'correlation_id' => $correlationId,
+            'actor_uid' => $actorUid,
+            'group_id' => $groupId,
+            'action' => $action,
+            'tag_id' => $tagId,
+            'tag_name' => $tagName,
+            'target_type' => $targetType,
+            'target_id' => $targetId,
+            'target_path' => $targetPath,
+            'result' => $result,
+            'details' => $details,
+            'client_ip' => $clientIp,
+            'created_at' => time(),
+        ];
 
-            $this->logger->info("archive_autotag [TagAudit]: {$action} by {$actorUid} in group {$groupId} on tag '{$tagName}' - Result: {$result}");
-        } catch (\Throwable $t) {
-            $this->logger->error("archive_autotag: Failed to log tag audit event: " . $t->getMessage());
+        if ($this->reliableAuditService !== null) {
+            if ($result === 'success') {
+                // Audit-Required: Fail-closed if database write fails
+                $this->reliableAuditService->recordRequired('archive_tag_audit', $auditData, $conn);
+            } else {
+                // Audit-Best-Effort: Fallback to emergency DLQ
+                $this->reliableAuditService->recordBestEffort('archive_tag_audit', $auditData);
+            }
+        } else {
+            try {
+                $c = $conn ?? $this->db;
+                $qb = $c->getQueryBuilder();
+                $qb->insert('archive_tag_audit')
+                   ->values([
+                       'actor_uid' => $qb->createNamedParameter($actorUid),
+                       'group_id' => $qb->createNamedParameter($groupId),
+                       'action' => $qb->createNamedParameter($action),
+                       'tag_id' => $qb->createNamedParameter($tagId),
+                       'tag_name' => $qb->createNamedParameter($tagName),
+                       'target_type' => $qb->createNamedParameter($targetType),
+                       'target_id' => $qb->createNamedParameter($targetId),
+                       'target_path' => $qb->createNamedParameter($targetPath),
+                       'result' => $qb->createNamedParameter($result),
+                       'details' => $qb->createNamedParameter($details),
+                       'created_at' => $qb->createNamedParameter(time()),
+                       'request_id' => $qb->createNamedParameter($auditData['request_id']),
+                       'correlation_id' => $qb->createNamedParameter($correlationId),
+                       'client_ip' => $qb->createNamedParameter($clientIp),
+                   ]);
+                $qb->executeStatement();
+            } catch (\Throwable $t) {
+                $this->logger->error("archive_autotag: Failed to log tag audit event: " . $t->getMessage());
+                if ($result === 'success') {
+                    throw $t;
+                }
+            }
         }
+
+        $this->logger->info("archive_autotag [TagAudit]: {$action} by {$actorUid} in group {$groupId} on tag '{$tagName}' - Result: {$result}");
     }
 }

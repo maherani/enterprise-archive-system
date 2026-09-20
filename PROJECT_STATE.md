@@ -690,3 +690,13 @@ Status: **Completed**
   - Implemented force-delete confirmation dialogs when tags are in active use.
   - Added a dedicated "🔄 همگام‌سازی و ترمیم تگ‌ها" (Reconcile Tags) action button with real-time feedback.
 - **Verification:** `tests/test_atomic_group_tag_deletion.py` (11/11 PASS, 100%) covering false-success elimination, rollback guarantees, tag-in-use 409 enforcement, cascade force-delete, orphan recovery, ghost cleanup, OCC CLI governance, and cross-group isolation. Full test suite expanded to 28 comprehensive test suites with zero regressions.
+
+
+### Requirement 21: Reliable Audit Subsystem, Fail-Closed Gating & DLQ Resilience (Completed)
+- **Status:** Fully Implemented, Hardened, and Verified (v2.1.4)
+- **Audit-Required vs Audit-Best-Effort:** Categorized all sensitive operations. Critical operations (Folder Approval/Rejection, Tag Creation/Deletion, Permission Grant/Revoke/Purge, AI Document Retrieval) strictly enforce `Audit-Required` with `Fail-Closed` semantics — if audit DB write fails, operations abort immediately and zero bytes are leaked. Unauthenticated probes enforce `Audit-Best-Effort` with DLQ fallback to maintain anti-DoS resilience.
+- **Dedicated Permission Audit Table:** Created `oc_archive_permission_audit` via Migration `Version2400Date20260920000001` capturing `request_id`, `correlation_id`, `actor_uid`, `file_id`, `grantee_type`, `grantee_id`, `action`, `permissions`, `prev_permissions`, `result`, and `client_ip`.
+- **Emergency Dead Letter Queue (DLQ):** Integrated local disk DLQ fallback (`archive_audit_emergency.jsonl`) guaranteeing zero audit loss during database network blips, replayed seamlessly via `occ archive:audit:gov flush-dlq`.
+- **Audit Log Injection Defense:** Hardened `ReliableAuditService::sanitize` against CRLF (`\r\n`) and non-printable control characters, neutralizing forged log entries.
+- **Observability & Health API:** Exposed `/api/ai/audit/health` and unified 4-domain `/api/ai/audit/stream` endpoints strictly protected by admin superuser authorization (HTTP 403 for non-admin roles).
+- **Verification:** `tests/test_reliable_audit_subsystem.py` (10/10 PASS, 100%) and overall test suite expanded to 29 comprehensive test suites.

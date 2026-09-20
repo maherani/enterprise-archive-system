@@ -38,11 +38,12 @@ TESTS = [
     ("test_fail_close_isolation_wrapper.py", "Storage Security: Fail-Closed Storage Isolation & Cache Hardening"),
     ("test_file_ownership_effective_acl.py", "Authorization: FileOwnershipService Redesign, Explicit Revocation & Cascade ACL"),
     ("test_atomic_group_tag_deletion.py", "Governance: Atomic Group Tag Deletion, Consistency & Reconciliation Engine"),
+    ("test_reliable_audit_subsystem.py", "Audit Security: Reliable Audit Subsystem, Fail-Closed Gating & DLQ Flush"),
 ]
 
 def main():
     print("=" * 80)
-    print(" ENTERPRISE ARCHIVE SYSTEM - COMPREHENSIVE 28-SUITE AUDIT")
+    print(" ENTERPRISE ARCHIVE SYSTEM - COMPREHENSIVE 29-SUITE AUDIT")
     print("=" * 80)
 
     results = []

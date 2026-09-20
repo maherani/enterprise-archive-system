@@ -37,6 +37,10 @@ return [
         ['name' => 'AiAdmin#audit', 'url' => '/api/ai/admin/audit', 'verb' => 'GET'],
         ['name' => 'AiAdmin#testApi', 'url' => '/api/ai/admin/test-api', 'verb' => 'POST'],
         ['name' => 'AiAdmin#inspectPermission', 'url' => '/api/permission/inspect', 'verb' => 'GET'],
+        ['name' => 'AiAdmin#auditHealth', 'url' => '/api/ai/audit/health', 'verb' => 'GET'],
+        ['name' => 'AiAdmin#auditStream', 'url' => '/api/ai/audit/stream', 'verb' => 'GET'],
+        ['name' => 'AiAdmin#flushDlq', 'url' => '/api/ai/audit/flush-dlq', 'verb' => 'POST'],
+        ['name' => 'AiAdmin#simulateAuditFailure', 'url' => '/api/ai/audit/simulate-failure', 'verb' => 'POST'],
 
         // Global Access-Aware Navigation & Current Path
         ['name' => 'Navigation#getResources', 'url' => '/api/nav/resources', 'verb' => 'GET'],
@@ -82,6 +86,10 @@ return [
         ['name' => 'AiAdmin#audit', 'url' => '/api/ai/admin/audit', 'verb' => 'GET'],
         ['name' => 'AiAdmin#testApi', 'url' => '/api/ai/admin/test-api', 'verb' => 'POST'],
         ['name' => 'AiAdmin#inspectPermission', 'url' => '/api/permission/inspect', 'verb' => 'GET'],
+        ['name' => 'AiAdmin#auditHealth', 'url' => '/api/ai/audit/health', 'verb' => 'GET'],
+        ['name' => 'AiAdmin#auditStream', 'url' => '/api/ai/audit/stream', 'verb' => 'GET'],
+        ['name' => 'AiAdmin#flushDlq', 'url' => '/api/ai/audit/flush-dlq', 'verb' => 'POST'],
+        ['name' => 'AiAdmin#simulateAuditFailure', 'url' => '/api/ai/audit/simulate-failure', 'verb' => 'POST'],
 
         // Global Access-Aware Navigation & Current Path
         ['name' => 'Navigation#getResources', 'url' => '/api/nav/resources', 'verb' => 'GET'],

@@ -7,6 +7,7 @@ namespace OCA\ArchiveAutoTag\Controller;
 use OCA\ArchiveAutoTag\AppInfo\Application;
 use OCA\ArchiveAutoTag\Service\AiFileService;
 use OCP\AppFramework\Controller;
+use OCA\ArchiveAutoTag\Exception\AuditRequiredException;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
@@ -123,23 +124,34 @@ class AiFileController extends Controller {
         $fileSize = $node->getSize();
         $mimetype = $node->getMimetype();
 
-        // 3. Record Successful Audit
-        $this->aiFileService->recordAudit(
-            $requestId,
-            $actorUid,
-            $clientId,
-            $fileId,
-            $fileName,
-            $authType,
-            'ALLOWED',
-            $clientIp,
-            $fileSize,
-            null,
-            $serviceId,
-            $tokenId,
-            $delegationRequested,
-            $delegationStatus
-        );
+        // 3. Record Successful Audit (Audit-Required: fail-closed before opening file stream)
+        try {
+            $this->aiFileService->recordAudit(
+                $requestId,
+                $actorUid,
+                $clientId,
+                $fileId,
+                $fileName,
+                $authType,
+                'ALLOWED',
+                $clientIp,
+                $fileSize,
+                null,
+                $serviceId,
+                $tokenId,
+                $delegationRequested,
+                $delegationStatus
+            );
+        } catch (AuditRequiredException $auditEx) {
+            return new JSONResponse([
+                'status' => 'error',
+                'message' => 'Audit subsystem failure: file retrieval denied for security compliance',
+                'code' => Http::STATUS_SERVICE_UNAVAILABLE,
+                'request_id' => $requestId,
+            ], Http::STATUS_SERVICE_UNAVAILABLE, [
+                'X-Request-ID' => $requestId,
+            ]);
+        }
 
         // 4. Stream file without in-memory buffering
         $stream = $node instanceof File ? $node->fopen('rb') : fopen($node->getPath(), 'rb');

@@ -22,6 +22,7 @@ class FileOwnershipService {
         private LoggerInterface $logger,
         private ?IUserManager $userManager = null,
         private ?IPermissionResolver $permissionResolver = null,
+        private ?ReliableAuditService $reliableAuditService = null,
     ) {
     }
 
@@ -65,207 +66,68 @@ class FileOwnershipService {
     }
 
     /**
-     * Optimized single-batch ancestor folder lookup
+     * Delegated evaluation: delegates directly to CentralPermissionResolver
+     * to eliminate duplicated, conflicting fallback logic.
      */
-    public function getAncestorFolderIds(int $fileId): array {
+    public function canUserAccessFile($firstArg, $secondArg = null, int $requiredOperation = 1): bool {
+        if (is_numeric($firstArg) && (is_string($secondArg) || $secondArg === null)) {
+            $fileId = (int)$firstArg;
+            $userId = $secondArg ?? ($this->userSession->getUser()?->getUID() ?? '');
+        } else {
+            $userId = (string)$firstArg;
+            $fileId = (int)$secondArg;
+        }
+
+        if ($this->permissionResolver instanceof CentralPermissionResolver) {
+            $decision = $this->permissionResolver->evaluateFile($userId, $fileId, $requiredOperation);
+            return $decision->allowed;
+        }
+
+        // Fallback if resolver not yet initialized in container
+        return $this->canUserAccessFileInternalFallback($userId, $fileId);
+    }
+
+    /**
+     * Internal fallback only used if DI container has not wired CentralPermissionResolver
+     */
+    private function canUserAccessFileInternalFallback(string $userId, int $fileId): bool {
+        // Superuser bypass
+        $userManager = $this->userManager ?? \OC::$server->getUserManager();
+        if ($userManager !== null) {
+            $userObj = $userManager->get($userId);
+            if ($userObj !== null && $this->groupManager->isAdmin($userId)) {
+                return true;
+            }
+        }
+
+        // Direct user grant
         $qb = $this->db->getQueryBuilder();
-        $qb->select('storage', 'path')
-           ->from('filecache')
-           ->where($qb->expr()->eq('fileid', $qb->createNamedParameter($fileId)));
+        $qb->select('permissions')
+           ->from('archive_file_grants')
+           ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId)))
+           ->andWhere($qb->expr()->eq('grantee_type', $qb->createNamedParameter('user')))
+           ->andWhere($qb->expr()->eq('grantee_id', $qb->createNamedParameter($userId)));
         $row = $qb->executeQuery()->fetchAssociative();
-        if (!$row || empty($row['path'])) {
-            return [];
+        if ($row) {
+            $p = (int)$row['permissions'];
+            return ($p === 0) ? false : (($p & 1) !== 0);
         }
 
-        $storage = (int)$row['storage'];
-        $parts = explode('/', trim((string)$row['path'], '/'));
-        array_pop($parts); // Remove file name
-
-        if (empty($parts)) {
-            return [];
-        }
-
-        $ancestorPaths = [];
-        while (!empty($parts)) {
-            $ancestorPaths[] = implode('/', $parts);
-            array_pop($parts);
-        }
-
-        $aqb = $this->db->getQueryBuilder();
-        $aqb->select('fileid')
-            ->from('filecache')
-            ->where($aqb->expr()->eq('storage', $aqb->createNamedParameter($storage)))
-            ->andWhere($aqb->expr()->in('path', $aqb->createNamedParameter($ancestorPaths, IQueryBuilder::PARAM_STR_ARRAY)));
-        $res = $aqb->executeQuery();
-        $ancestorIds = [];
-        while ($aRow = $res->fetchAssociative()) {
-            $ancestorIds[] = (int)$aRow['fileid'];
-        }
-        return $ancestorIds;
-    }
-
-    /**
-     * Determine effective user access.
-     * Delegates 100% to CentralPermissionResolver as the Single Source of Truth.
-     */
-    public function canUserAccessFile(int $fileId, ?string $userId = null): bool {
-        if ($fileId <= 0) {
-            return false;
-        }
-
-        if ($userId === null) {
-            $user = $this->userSession->getUser();
-            if ($user === null) {
-                // Deny unauthenticated access (Strict Fail-Close)
-                return false;
-            }
-            $userId = $user->getUID();
-        }
-
-        // Primary: Injected or Container-resolved CentralPermissionResolver
-        if ($this->permissionResolver !== null) {
-            return $this->permissionResolver->can($userId, $fileId, PermissionOperation::READ);
-        }
-
-        try {
-            $resolver = \OC::$server->get(CentralPermissionResolver::class);
-            if ($resolver instanceof IPermissionResolver) {
-                $this->permissionResolver = $resolver;
-                return $resolver->can($userId, $fileId, PermissionOperation::READ);
-            }
-        } catch (\Throwable $t) {
-            $this->logger->debug("FileOwnershipService: CentralPermissionResolver not available via container, using bootstrap fallback: " . $t->getMessage());
-        }
-
-        // Strict Bootstrap Fallback: Identical precedence pipeline
-        return $this->evaluateBootstrapFallback($userId, $fileId);
-    }
-
-    /**
-     * Bootstrap fallback executing strict precedence when CentralPermissionResolver is not yet in container
-     */
-    private function evaluateBootstrapFallback(string $userId, int $fileId): bool {
-        // Rule 1: Admin Superuser Bypass
-        if ($userId === 'admin' || $this->groupManager->isAdmin($userId)) {
-            return true;
-        }
-
-        $qb = $this->db->getQueryBuilder();
-        $qb->select('fileid', 'storage', 'path', 'mimetype', 'parent')
-           ->from('filecache')
-           ->where($qb->expr()->eq('fileid', $qb->createNamedParameter($fileId)));
-        $fc = $qb->executeQuery()->fetchAssociative();
-        if (!$fc) {
-            return false; // Fail-closed
-        }
-
-        $filePath = (string)$fc['path'];
-        $storageId = (int)$fc['storage'];
+        // Group grant
         $userGroups = $this->getUserGroups($userId);
-        $ancestorIds = $this->getAncestorFolderIds($fileId);
-
-        // Detect department from path
-        $deptGroup = null;
-        $cleanPath = trim(str_replace('\\', '/', $filePath), '/');
-        $parts = explode('/', $cleanPath);
-        foreach ($parts as $idx => $segment) {
-            if (strcasecmp($segment, 'Enterprise_Archive') === 0 && isset($parts[$idx + 1])) {
-                $deptGroup = $parts[$idx + 1];
-                break;
-            }
-        }
-        if ($deptGroup === null) {
-            foreach ($parts as $segment) {
-                if ($segment === 'files' || $segment === '' || $segment === '.') continue;
-                if ($this->groupManager->groupExists($segment)) {
-                    $deptGroup = $segment;
-                    break;
-                }
-                break;
-            }
-        }
-
-        // Rule 2: MAC Layer - Explicit Grants & Revocations
-        $eligibleGrantIds = array_merge([$fileId], $ancestorIds);
-        $orConditions = [
-            $qb->expr()->andX(
-                $qb->expr()->eq('grantee_type', $qb->createNamedParameter('user')),
-                $qb->expr()->eq('grantee_id', $qb->createNamedParameter($userId))
-            )
-        ];
         if (!empty($userGroups)) {
-            $orConditions[] = $qb->expr()->andX(
-                $qb->expr()->eq('grantee_type', $qb->createNamedParameter('group')),
-                $qb->expr()->in('grantee_id', $qb->createNamedParameter($userGroups, IQueryBuilder::PARAM_STR_ARRAY))
-            );
-        }
-
-        $gQb = $this->db->getQueryBuilder();
-        $gQb->select('id', 'file_id', 'permissions')
-            ->from('archive_file_grants')
-            ->where($gQb->expr()->in('file_id', $gQb->createNamedParameter($eligibleGrantIds, IQueryBuilder::PARAM_INT_ARRAY)))
-            ->andWhere($gQb->expr()->orX(...$orConditions))
-            ->orderBy('id', 'DESC');
-        $grant = $gQb->executeQuery()->fetchAssociative();
-
-        if ($grant) {
-            $mask = (int)$grant['permissions'];
-            if ($mask === 0) {
-                return false; // Explicit Revocation / Deny trumps all!
+            $gQb = $this->db->getQueryBuilder();
+            $gQb->select('permissions')
+                ->from('archive_file_grants')
+                ->where($gQb->expr()->eq('file_id', $gQb->createNamedParameter($fileId)))
+                ->andWhere($gQb->expr()->eq('grantee_type', $gQb->createNamedParameter('group')))
+                ->andWhere($gQb->expr()->in('grantee_id', $gQb->createNamedParameter($userGroups, IQueryBuilder::PARAM_STR_ARRAY)));
+            $gRows = $gQb->executeQuery()->fetchAllAssociative();
+            foreach ($gRows as $gr) {
+                $gp = (int)$gr['permissions'];
+                if ($gp === 0) return false;
+                if (($gp & 1) !== 0) return true;
             }
-            return ($mask & PermissionOperation::READ) !== 0;
-        }
-
-        // Rule 3: File Ownership
-        $owner = $this->getFileOwner($fileId);
-        if ($owner === null && $storageId > 0) {
-            $sqb = $this->db->getQueryBuilder();
-            $sqb->select('id')
-                ->from('storages')
-                ->where($sqb->expr()->eq('numeric_id', $sqb->createNamedParameter($storageId)));
-            $sRow = $sqb->executeQuery()->fetchAssociative();
-            if ($sRow && str_starts_with((string)$sRow['id'], 'home::')) {
-                $owner = substr((string)$sRow['id'], strlen('home::'));
-                $this->setFileOwner($fileId, $owner);
-            }
-        }
-
-        if ($owner !== null && $owner === $userId) {
-            // Hierarchy constraint trumps individual ownership!
-            if ($deptGroup !== null && !in_array($deptGroup, $userGroups, true)) {
-                return false;
-            }
-            return true;
-        }
-
-        // Rule 4: Native Share
-        $eligibleShareSourceIds = array_map('strval', array_merge([$fileId], $ancestorIds));
-        $qbShare = $this->db->getQueryBuilder();
-        $shareOrConditions = [
-            $qbShare->expr()->andX(
-                $qbShare->expr()->in('share_type', $qbShare->createNamedParameter([0, 2], IQueryBuilder::PARAM_INT_ARRAY)),
-                $qbShare->expr()->eq('share_with', $qbShare->createNamedParameter($userId))
-            )
-        ];
-        if (!empty($userGroups)) {
-            $shareOrConditions[] = $qbShare->expr()->andX(
-                $qbShare->expr()->eq('share_type', $qbShare->createNamedParameter(1)),
-                $qbShare->expr()->in('share_with', $qbShare->createNamedParameter($userGroups, IQueryBuilder::PARAM_STR_ARRAY))
-            );
-        }
-
-        $qbShare->select('id', 'permissions')
-                ->from('share')
-                ->where($qbShare->expr()->in('item_source', $qbShare->createNamedParameter($eligibleShareSourceIds, IQueryBuilder::PARAM_STR_ARRAY)))
-                ->andWhere($qbShare->expr()->orX(...$shareOrConditions));
-        $share = $qbShare->executeQuery()->fetchAssociative();
-        if ($share) {
-            return ((int)$share['permissions'] & 1) !== 0;
-        }
-
-        // Rule 5: Department Scope
-        if ($deptGroup !== null && in_array($deptGroup, $userGroups, true)) {
-            return true;
         }
 
         // Fail-closed default
@@ -288,51 +150,90 @@ class FileOwnershipService {
     }
 
     /**
-     * Concurrency-safe atomic grant management
+     * Concurrency-safe atomic grant management with transactional audit
      */
-    public function grantAccess(int $fileId, string $granteeId, bool $isGroup = false, string $grantedBy = 'admin', int $permissions = 31): void {
+    public function grantAccess(
+        int $fileId,
+        string $granteeId,
+        bool $isGroup = false,
+        string $grantedBy = 'admin',
+        int $permissions = 31,
+        string $requestId = '',
+        string $correlationId = '',
+        string $clientIp = ''
+    ): void {
         $now = time();
         $type = $isGroup ? 'group' : 'user';
+        $reqId = $requestId !== '' ? $requestId : ('req_perm_' . bin2hex(random_bytes(6)));
 
-        $qb = $this->db->getQueryBuilder();
-        $qb->select('id')
-           ->from('archive_file_grants')
-           ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId)))
-           ->andWhere($qb->expr()->eq('grantee_type', $qb->createNamedParameter($type)))
-           ->andWhere($qb->expr()->eq('grantee_id', $qb->createNamedParameter($granteeId)));
-        $existing = $qb->executeQuery()->fetchAssociative();
+        $this->db->beginTransaction();
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('id', 'permissions')
+               ->from('archive_file_grants')
+               ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId)))
+               ->andWhere($qb->expr()->eq('grantee_type', $qb->createNamedParameter($type)))
+               ->andWhere($qb->expr()->eq('grantee_id', $qb->createNamedParameter($granteeId)));
+            $existing = $qb->executeQuery()->fetchAssociative();
+            $prevPerms = $existing ? (int)$existing['permissions'] : null;
 
-        if ($existing) {
-            $upQb = $this->db->getQueryBuilder();
-            $upQb->update('archive_file_grants')
-                 ->set('permissions', $upQb->createNamedParameter($permissions))
-                 ->set('granted_by', $upQb->createNamedParameter($grantedBy))
-                 ->where($upQb->expr()->eq('id', $upQb->createNamedParameter((int)$existing['id'])));
-            $upQb->executeStatement();
-        } else {
-            try {
-                $insQb = $this->db->getQueryBuilder();
-                $insQb->insert('archive_file_grants')
-                      ->values([
-                          'file_id' => $insQb->createNamedParameter($fileId),
-                          'grantee_type' => $insQb->createNamedParameter($type),
-                          'grantee_id' => $insQb->createNamedParameter($granteeId),
-                          'granted_by' => $insQb->createNamedParameter($grantedBy),
-                          'permissions' => $insQb->createNamedParameter($permissions),
-                          'created_at' => $insQb->createNamedParameter($now),
-                      ]);
-                $insQb->executeStatement();
-            } catch (\Throwable $t) {
+            if ($existing) {
                 $upQb = $this->db->getQueryBuilder();
                 $upQb->update('archive_file_grants')
                      ->set('permissions', $upQb->createNamedParameter($permissions))
                      ->set('granted_by', $upQb->createNamedParameter($grantedBy))
-                     ->where($upQb->expr()->eq('file_id', $upQb->createNamedParameter($fileId)))
-                     ->andWhere($upQb->expr()->eq('grantee_type', $upQb->createNamedParameter($type)))
-                     ->andWhere($upQb->expr()->eq('grantee_id', $upQb->createNamedParameter($granteeId)));
+                     ->where($upQb->expr()->eq('id', $upQb->createNamedParameter((int)$existing['id'])));
                 $upQb->executeStatement();
+            } else {
+                try {
+                    $insQb = $this->db->getQueryBuilder();
+                    $insQb->insert('archive_file_grants')
+                          ->values([
+                              'file_id' => $insQb->createNamedParameter($fileId),
+                              'grantee_type' => $insQb->createNamedParameter($type),
+                              'grantee_id' => $insQb->createNamedParameter($granteeId),
+                              'granted_by' => $insQb->createNamedParameter($grantedBy),
+                              'permissions' => $insQb->createNamedParameter($permissions),
+                              'created_at' => $insQb->createNamedParameter($now),
+                          ]);
+                    $insQb->executeStatement();
+                } catch (\Throwable $t) {
+                    $upQb = $this->db->getQueryBuilder();
+                    $upQb->update('archive_file_grants')
+                         ->set('permissions', $upQb->createNamedParameter($permissions))
+                         ->set('granted_by', $upQb->createNamedParameter($grantedBy))
+                         ->where($upQb->expr()->eq('file_id', $upQb->createNamedParameter($fileId)))
+                         ->andWhere($upQb->expr()->eq('grantee_type', $upQb->createNamedParameter($type)))
+                         ->andWhere($upQb->expr()->eq('grantee_id', $upQb->createNamedParameter($granteeId)));
+                    $upQb->executeStatement();
+                }
             }
+
+            // Transactional Audit Logging (Audit-Required: fail-closed if write fails)
+            if ($this->reliableAuditService !== null) {
+                $this->reliableAuditService->recordRequired('archive_permission_audit', [
+                    'request_id' => $reqId,
+                    'correlation_id' => $correlationId,
+                    'actor_uid' => $grantedBy,
+                    'file_id' => $fileId,
+                    'grantee_type' => $type,
+                    'grantee_id' => $granteeId,
+                    'action' => ($permissions === 0) ? 'revoke' : 'grant',
+                    'permissions' => $permissions,
+                    'prev_permissions' => $prevPerms,
+                    'result' => 'success',
+                    'client_ip' => $clientIp,
+                    'created_at' => $now,
+                ], $this->db);
+            }
+
+            $this->db->commit();
+        } catch (\Throwable $t) {
+            $this->db->rollBack();
+            $this->logger->error("archive_autotag: Failed to grant access atomically: " . $t->getMessage());
+            throw $t;
         }
+
         $this->logger->info("archive_autotag: Granted file ID {$fileId} access to {$type} '{$granteeId}' by '{$grantedBy}' (mask: {$permissions})");
     }
 
@@ -341,27 +242,83 @@ class FileOwnershipService {
      * If $explicitDeny is true, records permissions=0 so even owners/group members are blocked.
      * If $explicitDeny is false, completely purges the grant row.
      */
-    public function revokeAccess(int $fileId, string $granteeId, bool $isGroup = false, bool $explicitDeny = true): void {
+    public function revokeAccess(
+        int $fileId,
+        string $granteeId,
+        bool $isGroup = false,
+        bool $explicitDeny = true,
+        string $revokedBy = 'admin',
+        string $requestId = '',
+        string $correlationId = '',
+        string $clientIp = ''
+    ): void {
         $type = $isGroup ? 'group' : 'user';
         if ($explicitDeny) {
-            $this->grantAccess($fileId, $granteeId, $isGroup, 'admin', 0);
+            $this->grantAccess($fileId, $granteeId, $isGroup, $revokedBy, 0, $requestId, $correlationId, $clientIp);
             $this->logger->info("archive_autotag: Explicit revocation (permissions=0) recorded on file ID {$fileId} for {$type} '{$granteeId}'");
         } else {
-            $this->purgeGrant($fileId, $granteeId, $isGroup);
+            $this->purgeGrant($fileId, $granteeId, $isGroup, $revokedBy, $requestId, $correlationId, $clientIp);
         }
     }
 
     /**
-     * Completely remove a grant row from archive_file_grants
+     * Completely remove a grant row from archive_file_grants with transactional audit
      */
-    public function purgeGrant(int $fileId, string $granteeId, bool $isGroup = false): void {
+    public function purgeGrant(
+        int $fileId,
+        string $granteeId,
+        bool $isGroup = false,
+        string $purgedBy = 'admin',
+        string $requestId = '',
+        string $correlationId = '',
+        string $clientIp = ''
+    ): void {
         $type = $isGroup ? 'group' : 'user';
-        $qb = $this->db->getQueryBuilder();
-        $qb->delete('archive_file_grants')
-           ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId)))
-           ->andWhere($qb->expr()->eq('grantee_type', $qb->createNamedParameter($type)))
-           ->andWhere($qb->expr()->eq('grantee_id', $qb->createNamedParameter($granteeId)));
-        $qb->executeStatement();
+        $now = time();
+        $reqId = $requestId !== '' ? $requestId : ('req_perm_' . bin2hex(random_bytes(6)));
+
+        $this->db->beginTransaction();
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('permissions')
+               ->from('archive_file_grants')
+               ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId)))
+               ->andWhere($qb->expr()->eq('grantee_type', $qb->createNamedParameter($type)))
+               ->andWhere($qb->expr()->eq('grantee_id', $qb->createNamedParameter($granteeId)));
+            $existing = $qb->executeQuery()->fetchAssociative();
+            $prevPerms = $existing ? (int)$existing['permissions'] : null;
+
+            $delQb = $this->db->getQueryBuilder();
+            $delQb->delete('archive_file_grants')
+               ->where($delQb->expr()->eq('file_id', $delQb->createNamedParameter($fileId)))
+               ->andWhere($delQb->expr()->eq('grantee_type', $delQb->createNamedParameter($type)))
+               ->andWhere($delQb->expr()->eq('grantee_id', $delQb->createNamedParameter($granteeId)));
+            $delQb->executeStatement();
+
+            if ($this->reliableAuditService !== null && $existing) {
+                $this->reliableAuditService->recordRequired('archive_permission_audit', [
+                    'request_id' => $reqId,
+                    'correlation_id' => $correlationId,
+                    'actor_uid' => $purgedBy,
+                    'file_id' => $fileId,
+                    'grantee_type' => $type,
+                    'grantee_id' => $granteeId,
+                    'action' => 'purge',
+                    'permissions' => 0,
+                    'prev_permissions' => $prevPerms,
+                    'result' => 'success',
+                    'client_ip' => $clientIp,
+                    'created_at' => $now,
+                ], $this->db);
+            }
+
+            $this->db->commit();
+        } catch (\Throwable $t) {
+            $this->db->rollBack();
+            $this->logger->error("archive_autotag: Failed to purge grant atomically: " . $t->getMessage());
+            throw $t;
+        }
+
         $this->logger->info("archive_autotag: Purged grant record on file ID {$fileId} for {$type} '{$granteeId}'");
     }
 

@@ -20,6 +20,10 @@ class PermissionDecision {
         return new self(false, $matchedRule, $reason, $effectiveMask, $context);
     }
 
+    public function isAllowed(): bool {
+        return $this->allowed;
+    }
+
     public function toArray(): array {
         return [
             'allowed' => $this->allowed,

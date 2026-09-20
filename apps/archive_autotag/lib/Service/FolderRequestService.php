@@ -49,7 +49,8 @@ class FolderRequestService {
         TagOwnershipService $tagOwnershipService,
         ISystemTagManager $tagManager,
         INotificationManager $notificationManager,
-        LoggerInterface $logger
+        LoggerInterface $logger,
+        private ?ReliableAuditService $reliableAuditService = null
     ) {
         $this->db = $db;
         $this->groupManager = $groupManager;
@@ -201,29 +202,71 @@ class FolderRequestService {
         ?string $newStatus = null,
         ?string $details = null,
         ?string $rejectionReason = null,
-        ?string $errorInfo = null
+        ?string $errorInfo = null,
+        string $correlationId = '',
+        string $clientIp = '',
+        ?IDBConnection $conn = null
     ): void {
         $now = time();
-        try {
-            $qb = $this->db->getQueryBuilder();
-            $qb->insert('archive_folder_request_audit')
-               ->values([
-                   'request_id' => $qb->createNamedParameter($requestId),
-                   'event_type' => $qb->createNamedParameter($eventType),
-                   'actor_uid' => $qb->createNamedParameter($actorUid),
-                   'group_id' => $qb->createNamedParameter($groupId),
-                   'folder_name' => $qb->createNamedParameter($folderName),
-                   'folder_path' => $qb->createNamedParameter($folderPath),
-                   'prev_status' => $qb->createNamedParameter($prevStatus),
-                   'new_status' => $qb->createNamedParameter($newStatus),
-                   'details' => $qb->createNamedParameter($details),
-                   'rejection_reason' => $qb->createNamedParameter($rejectionReason),
-                   'error_info' => $qb->createNamedParameter($errorInfo),
-                   'created_at' => $qb->createNamedParameter($now),
-               ]);
-            $qb->executeStatement();
-        } catch (\Throwable $t) {
-            $this->logger->error("archive_autotag: Failed to record audit event '{$eventType}' for request #{$requestId}: " . $t->getMessage());
+        $auditData = [
+            'request_id' => $requestId,
+            'event_type' => $eventType,
+            'actor_uid' => $actorUid,
+            'group_id' => $groupId,
+            'folder_name' => $folderName,
+            'folder_path' => $folderPath,
+            'prev_status' => $prevStatus,
+            'new_status' => $newStatus,
+            'details' => $details,
+            'rejection_reason' => $rejectionReason,
+            'error_info' => $errorInfo,
+            'correlation_id' => $correlationId,
+            'client_ip' => $clientIp,
+            'created_at' => $now,
+        ];
+
+        // Folder Approval and Rejection events are Audit-Required (Fail-Closed)
+        $isRequired = in_array($eventType, [
+            'request_approved',
+            'folder_created',
+            'permissions_applied',
+            'tag_created',
+            'request_completed',
+            'request_rejected',
+        ], true);
+
+        if ($this->reliableAuditService !== null) {
+            if ($isRequired) {
+                $this->reliableAuditService->recordRequired('archive_folder_request_audit', $auditData, $conn);
+            } else {
+                $this->reliableAuditService->recordBestEffort('archive_folder_request_audit', $auditData);
+            }
+        } else {
+            try {
+                $c = $conn ?? $this->db;
+                $qb = $c->getQueryBuilder();
+                $qb->insert('archive_folder_request_audit')
+                   ->values([
+                       'request_id' => $qb->createNamedParameter($requestId),
+                       'event_type' => $qb->createNamedParameter($eventType),
+                       'actor_uid' => $qb->createNamedParameter($actorUid),
+                       'group_id' => $qb->createNamedParameter($groupId),
+                       'folder_name' => $qb->createNamedParameter($folderName),
+                       'folder_path' => $qb->createNamedParameter($folderPath),
+                       'prev_status' => $qb->createNamedParameter($prevStatus),
+                       'new_status' => $qb->createNamedParameter($newStatus),
+                       'details' => $qb->createNamedParameter($details),
+                       'rejection_reason' => $qb->createNamedParameter($rejectionReason),
+                       'error_info' => $qb->createNamedParameter($errorInfo),
+                       'created_at' => $qb->createNamedParameter($now),
+                   ]);
+                $qb->executeStatement();
+            } catch (\Throwable $t) {
+                $this->logger->error("archive_autotag: Failed to record audit event '{$eventType}' for request #{$requestId}: " . $t->getMessage());
+                if ($isRequired) {
+                    throw $t;
+                }
+            }
         }
 
         $this->logger->info("[archive_audit] request_id={$requestId} event={$eventType} actor={$actorUid} group={$groupId} folder='{$folderName}' prev={$prevStatus} new={$newStatus}");
@@ -618,18 +661,29 @@ class FolderRequestService {
         }
 
         $now = time();
-        $upQb = $this->db->getQueryBuilder();
-        $upQb->update('archive_folder_requests')
-             ->set('status', $upQb->createNamedParameter(self::STATUS_REJECTED))
-             ->set('reviewer_uid', $upQb->createNamedParameter($adminUid))
-             ->set('reviewed_at', $upQb->createNamedParameter($now))
-             ->set('updated_at', $upQb->createNamedParameter($now))
-             ->set('rejection_reason', $upQb->createNamedParameter($reason))
-             ->where($upQb->expr()->eq('id', $upQb->createNamedParameter($id)));
-        $upQb->executeStatement();
+        $this->db->beginTransaction();
+        try {
+            $upQb = $this->db->getQueryBuilder();
+            $upQb->update('archive_folder_requests')
+                 ->set('status', $upQb->createNamedParameter(self::STATUS_REJECTED))
+                 ->set('reviewer_uid', $upQb->createNamedParameter($adminUid))
+                 ->set('reviewed_at', $upQb->createNamedParameter($now))
+                 ->set('updated_at', $upQb->createNamedParameter($now))
+                 ->set('rejection_reason', $upQb->createNamedParameter($reason))
+                 ->where($upQb->expr()->eq('id', $upQb->createNamedParameter($id)));
+            $upQb->executeStatement();
 
-        // Audit Event: Rejected
-        $this->logAuditEvent($id, 'request_rejected', $adminUid, $request['group_id'], $request['folder_name'], $request['target_path'], self::STATUS_PENDING, self::STATUS_REJECTED, 'درخواست ایجاد پوشه توسط مدیر ارشد سیستم رد شد.', $reason);
+            // Audit Event: Rejected (Audit-Required: fails-closed if audit write fails)
+            $this->logAuditEvent($id, 'request_rejected', $adminUid, $request['group_id'], $request['folder_name'], $request['target_path'], self::STATUS_PENDING, self::STATUS_REJECTED, 'درخواست ایجاد پوشه توسط مدیر ارشد سیستم رد شد.', $reason, null, '', '', $this->db);
+
+            $this->db->commit();
+        } catch (\Throwable $t) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->logger->error("archive_autotag: Failed to reject folder request #{$id} atomically: " . $t->getMessage());
+            throw $t;
+        }
 
         // Notify Group Admin
         $this->sendNotificationToUser($request['requester_uid'], 'folder_request_rejected', [
