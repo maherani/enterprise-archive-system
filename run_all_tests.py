@@ -39,6 +39,7 @@ TESTS = [
     ("test_file_ownership_effective_acl.py", "Authorization: FileOwnershipService Redesign, Explicit Revocation & Cascade ACL"),
     ("test_atomic_group_tag_deletion.py", "Governance: Atomic Group Tag Deletion, Consistency & Reconciliation Engine"),
     ("test_reliable_audit_subsystem.py", "Audit Security: Reliable Audit Subsystem, Fail-Closed Gating & DLQ Flush"),
+    ("test_ai_audit_semantics.py", "AI Engine: Audit Semantic Model, Precise Byte Accounting & Lifecycle Transitions"),
 ]
 
 def main():

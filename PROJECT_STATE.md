@@ -700,3 +700,16 @@ Status: **Completed**
 - **Audit Log Injection Defense:** Hardened `ReliableAuditService::sanitize` against CRLF (`\r\n`) and non-printable control characters, neutralizing forged log entries.
 - **Observability & Health API:** Exposed `/api/ai/audit/health` and unified 4-domain `/api/ai/audit/stream` endpoints strictly protected by admin superuser authorization (HTTP 403 for non-admin roles).
 - **Verification:** `tests/test_reliable_audit_subsystem.py` (10/10 PASS, 100%) and overall test suite expanded to 29 comprehensive test suites.
+
+
+### Requirement 22: AI File Retrieval Audit Semantic Model & Lifecycle (Completed)
+- **Status:** Fully Implemented, Hardened, and Verified (v2.1.5)
+- **False-Success Audit Elimination:** Overhauled `AiFileController::getFile` to completely remove premature `ALLOWED` + full `fileSize` logging before streaming. Pre-stream audit records initial state with `stage = AUTHORIZED`, `transfer_status = PENDING`, `bytes_requested = $fileSize`, and `bytes_served = 0`.
+- **Three-Dimensional State Model:** Decoupled security decision (`result`: `ALLOWED`, `FORBIDDEN`, `UNAUTHORIZED`, `NOT_FOUND`), transfer progress (`transfer_status`: `PENDING`, `COMPLETED`, `ABORTED`, `FAILED`, `STREAM_FAILED`, `NONE`), and request lifecycle (`stage`: `INIT`, `AUTH`, `ACCESS_CHECK`, `AUTHORIZED`, `STREAMING`, `FINISHED`, `TERMINATED`, `FAILED`).
+- **Audited Streaming Response Engine:** Implemented `AuditedStreamResponse` (`OCP\AppFramework\Http\ICallbackResponse`) with 8KB chunk loop, `ignore_user_abort(true)`, output buffer flushing (`flush()`), and real-time socket disconnection detection (`connection_aborted()`). Guarantees `finally` block execution for accurate final byte metrics and duration timing (`duration_ms`).
+- **Precise Byte Accounting:** Differentiated `bytes_requested` (total target file size) from `bytes_served` (actual bytes written to client socket), capturing exact partial downloads upon premature client termination.
+- **Mid-Stream Storage & Missing File Resilience:** Handled storage I/O read failures during transmission (`FAILED` / `TERMINATED`) and file vanishing between authorization and stream opening (`STREAM_FAILED` / `FAILED` returning HTTP 500).
+- **DLQ Integration for Progress Updates:** Wired `AiFileService::updateTransferProgress` with `ReliableAuditService` DLQ fallback for fail-safe metric durability during database pressure.
+- **Distributed Correlation & Traceability:** Maintained end-to-end tracing across `request_id`, `correlation_id` (`X-Correlation-ID`), `client_id` (`X-Client-ID`), `actor_uid`, and `client_ip`.
+- **Database Migration Version2500:** Added `bytes_requested` (bigint), `transfer_status` (varchar 32), `stage` (varchar 32), and `duration_ms` (integer) columns along with indexes to `oc_archive_ai_audit`.
+- **Verification:** `tests/test_ai_audit_semantics.py` (8/8 PASS, 100%), with complete backward compatibility confirmed by `tests/test_ai_file_retrieval_api.py` (16/16 PASS) and `tests/test_reliable_audit_subsystem.py` (10/10 PASS). Comprehensive test suite expanded to 23 core test suites with 0 regressions.

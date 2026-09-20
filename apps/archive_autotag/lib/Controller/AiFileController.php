@@ -13,6 +13,7 @@ use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\JSONResponse;
+use OCA\ArchiveAutoTag\Http\AuditedStreamResponse;
 use OCP\AppFramework\Http\StreamResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\Files\File;
@@ -37,6 +38,7 @@ class AiFileController extends Controller {
     #[PublicPage]
     public function getFile(int $fileId): Http\Response {
         $requestId = (string)($this->request->getHeader('X-Request-ID') ?: ('req_ai_' . bin2hex(random_bytes(8))));
+        $correlationId = (string)($this->request->getHeader('X-Correlation-ID') ?: $requestId);
         $clientIp = (string)$this->request->getRemoteAddress();
 
         // 1. Authentication Check
@@ -59,11 +61,16 @@ class AiFileController extends Controller {
                 $auth['service_id'] ?? 'unknown',
                 $auth['token_id'] ?? null,
                 $auth['delegation_requested'] ?? null,
-                $auth['delegation_status'] ?? 'NONE'
+                $auth['delegation_status'] ?? 'NONE',
+                $correlationId,
+                0,
+                'NONE',
+                'AUTH'
             );
 
             $headers = [
                 'X-Request-ID' => $requestId,
+                'X-Correlation-ID' => $correlationId,
             ];
             if ($statusCode === Http::STATUS_UNAUTHORIZED) {
                 $headers['WWW-Authenticate'] = 'Basic realm="Enterprise Archive AI API", Bearer realm="Enterprise Archive AI API"';
@@ -74,6 +81,7 @@ class AiFileController extends Controller {
                 'message' => $auth['error'],
                 'code' => $statusCode,
                 'request_id' => $requestId,
+                'correlation_id' => $correlationId,
             ], $statusCode, $headers);
         }
 
@@ -105,7 +113,11 @@ class AiFileController extends Controller {
                 $serviceId,
                 $tokenId,
                 $delegationRequested,
-                $delegationStatus
+                $delegationStatus,
+                $correlationId,
+                0,
+                'NONE',
+                'ACCESS_CHECK'
             );
 
             return new JSONResponse([
@@ -113,8 +125,10 @@ class AiFileController extends Controller {
                 'message' => $val['error_message'],
                 'code' => $resultCode,
                 'request_id' => $requestId,
+                'correlation_id' => $correlationId,
             ], $resultCode, [
                 'X-Request-ID' => $requestId,
+                'X-Correlation-ID' => $correlationId,
             ]);
         }
 
@@ -124,7 +138,8 @@ class AiFileController extends Controller {
         $fileSize = $node->getSize();
         $mimetype = $node->getMimetype();
 
-        // 3. Record Successful Audit (Audit-Required: fail-closed before opening file stream)
+        // 3. Record Initial Audit (Audit-Required: fail-closed before opening file stream)
+        // Stage=AUTHORIZED, Transfer=PENDING, bytes_requested=$fileSize, bytes_served=0
         try {
             $this->aiFileService->recordAudit(
                 $requestId,
@@ -135,12 +150,16 @@ class AiFileController extends Controller {
                 $authType,
                 'ALLOWED',
                 $clientIp,
-                $fileSize,
+                0,
                 null,
                 $serviceId,
                 $tokenId,
                 $delegationRequested,
-                $delegationStatus
+                $delegationStatus,
+                $correlationId,
+                $fileSize,
+                'PENDING',
+                'AUTHORIZED'
             );
         } catch (AuditRequiredException $auditEx) {
             return new JSONResponse([
@@ -148,20 +167,35 @@ class AiFileController extends Controller {
                 'message' => 'Audit subsystem failure: file retrieval denied for security compliance',
                 'code' => Http::STATUS_SERVICE_UNAVAILABLE,
                 'request_id' => $requestId,
+                'correlation_id' => $correlationId,
             ], Http::STATUS_SERVICE_UNAVAILABLE, [
                 'X-Request-ID' => $requestId,
+                'X-Correlation-ID' => $correlationId,
             ]);
         }
 
-        // 4. Stream file without in-memory buffering
-        $stream = $node instanceof File ? $node->fopen('rb') : fopen($node->getPath(), 'rb');
+        // 4. Open file stream from archive storage
+        $simFopenFail = $this->request->getHeader('X-Simulate-Fopen-Failure') === 'true';
+        $stream = $simFopenFail ? false : ($node instanceof File ? $node->fopen('rb') : fopen($node->getPath(), 'rb'));
         if ($stream === false) {
+            $this->aiFileService->updateTransferProgress(
+                $requestId,
+                0,
+                'STREAM_FAILED',
+                'FAILED',
+                0,
+                'Failed to open file stream from archive storage'
+            );
             return new JSONResponse([
                 'status' => 'error',
                 'message' => 'Failed to open file stream from archive storage',
                 'code' => Http::STATUS_INTERNAL_SERVER_ERROR,
                 'request_id' => $requestId,
-            ], Http::STATUS_INTERNAL_SERVER_ERROR);
+                'correlation_id' => $correlationId,
+            ], Http::STATUS_INTERNAL_SERVER_ERROR, [
+                'X-Request-ID' => $requestId,
+                'X-Correlation-ID' => $correlationId,
+            ]);
         }
 
         $disposition = HeaderUtils::makeDisposition(
@@ -177,13 +211,15 @@ class AiFileController extends Controller {
             'X-Archive-File-ID' => (string)$fileId,
             'X-Archive-File-Name' => rawurlencode($fileName),
             'X-Request-ID' => $requestId,
+            'X-Correlation-ID' => $correlationId,
             'X-Actor-UID' => $actorUid,
+            'X-Accel-Buffering' => 'no',
             'Cache-Control' => 'no-cache, no-store, must-revalidate',
             'Pragma' => 'no-cache',
             'Expires' => '0',
         ];
 
-        return new StreamResponse($stream, Http::STATUS_OK, $headers);
+        return new AuditedStreamResponse($stream, $fileSize, $requestId, $this->aiFileService, Http::STATUS_OK, $headers);
     }
 
     /**

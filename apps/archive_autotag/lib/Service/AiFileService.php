@@ -476,6 +476,51 @@ class AiFileService {
     /**
      * Record structured audit entry for all AI retrieval requests with service principal and delegation status.
      */
+    /**
+     * Update real-time transfer progress, byte accounting, and completion/abort status.
+     */
+    public function updateTransferProgress(
+        string $requestId,
+        int $bytesServed,
+        string $transferStatus,
+        string $stage = 'STREAMING',
+        int $durationMs = 0,
+        ?string $errorMessage = null
+    ): void {
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->update('archive_ai_audit')
+               ->set('bytes_served', $qb->createNamedParameter($bytesServed))
+               ->set('transfer_status', $qb->createNamedParameter($transferStatus))
+               ->set('stage', $qb->createNamedParameter($stage));
+
+            if ($durationMs > 0) {
+                $qb->set('duration_ms', $qb->createNamedParameter($durationMs));
+            }
+            if ($errorMessage !== null) {
+                $qb->set('error_message', $qb->createNamedParameter($errorMessage));
+            }
+
+            $qb->where($qb->expr()->eq('request_id', $qb->createNamedParameter($requestId)));
+            $qb->executeStatement();
+
+            $this->logger->info("archive_autotag_ai: [{$requestId}] Transfer progress updated: Status={$transferStatus}, Served={$bytesServed}B, Stage={$stage}, Duration={$durationMs}ms");
+        } catch (\Throwable $t) {
+            $this->logger->error("archive_autotag_ai: Failed to update transfer progress for [{$requestId}]: " . $t->getMessage());
+            if ($this->reliableAuditService !== null) {
+                $this->reliableAuditService->recordBestEffort('archive_ai_audit_emergency', [
+                    'request_id' => $requestId,
+                    'bytes_served' => $bytesServed,
+                    'transfer_status' => $transferStatus,
+                    'stage' => $stage,
+                    'duration_ms' => $durationMs,
+                    'error_message' => $errorMessage,
+                    'updated_at' => time(),
+                ]);
+            }
+        }
+    }
+
     public function recordAudit(
         string $requestId,
         string $actorUid,
@@ -491,7 +536,10 @@ class AiFileService {
         ?int $tokenId = null,
         ?string $delegationRequested = null,
         string $delegationStatus = 'NONE',
-        string $correlationId = ''
+        string $correlationId = '',
+        int $bytesRequested = 0,
+        string $transferStatus = 'NONE',
+        string $stage = 'INIT'
     ): void {
         $auditData = [
             'request_id' => $requestId,
@@ -503,7 +551,10 @@ class AiFileService {
             'auth_type' => $authType,
             'result' => $result,
             'client_ip' => $clientIp,
+            'bytes_requested' => $bytesRequested,
             'bytes_served' => $bytesServed,
+            'transfer_status' => $transferStatus,
+            'stage' => $stage,
             'error_message' => $errorMessage,
             'created_at' => time(),
             'service_id' => $serviceId,
@@ -533,7 +584,10 @@ class AiFileService {
                    'auth_type' => $qb->createNamedParameter($authType),
                    'result' => $qb->createNamedParameter($result),
                    'client_ip' => $qb->createNamedParameter($clientIp),
+                   'bytes_requested' => $qb->createNamedParameter($bytesRequested),
                    'bytes_served' => $qb->createNamedParameter($bytesServed),
+                   'transfer_status' => $qb->createNamedParameter($transferStatus),
+                   'stage' => $qb->createNamedParameter($stage),
                    'error_message' => $qb->createNamedParameter($errorMessage),
                    'created_at' => $qb->createNamedParameter(time()),
                    'service_id' => $qb->createNamedParameter($serviceId),
