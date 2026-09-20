@@ -100,6 +100,22 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
     - **Slide 2 (Core Capabilities & Architecture)**: Sleek 2x2 grid of glassmorphic cards introducing the 4 foundational pillars (Data Security & Isolation, Hierarchical Auto-Tagging, Multi-Tag Intersection Search, and Enterprise Compliance).
     - Fully integrated into the user menu "About" dialog and automated first-run onboarding flow with zero external network dependencies.
 
+16. **Hardened On-Premise AI File Retrieval API & Security Console (v2.0.9)**:
+    - O(1) RAM streaming, cryptographically secure 256-bit Bearer tokens hashed with SHA-256 in PostgreSQL, zero plaintext storage.
+    - Delegated Identity with Deny-by-default allowlist policy (`X-On-Behalf-Of`), zero-escalation admin spoofing barrier.
+    - 100% Air-gapped OpenAPI 3.0.3 and local Swagger UI at `/api/docs`.
+    - Enriched database audit trail (`oc_archive_ai_audit`) tracking actor, client IP, service ID, and delegation status.
+    - Interactive web console with 4 tabs (Services, Delegations, Audit Trail, Live Test Sandbox).
+
+17. **Central Permission Resolver & Effective Permission Inspector (v2.1.0)**:
+    - Centralized `CentralPermissionResolver` acting as the Single Source of Truth for all authorization decisions across files, folders, and tags.
+    - Strict Deny-by-Default evaluation pipeline.
+    - Granular 8-bit operation bitmask: `READ (1)`, `WRITE (2)`, `CREATE (4)`, `DELETE (8)`, `SHARE (16)`, `MANAGE (32)`, `READ_METADATA (64)`, `TAG_ASSIGN (128)`.
+    - Definitive precedence rules: Hierarchy trumps ownership, Mandatory Access Control (`archive_file_grants`) trumps Discretionary (`oc_share`), Tag visibility is strictly isolated from file content read.
+    - Interactive **«🔍 بازرس مجوزهای موثر (Permission Inspector)»** in the web portal for real-time rule inspection, bitmask pills, and audit context.
+    - Verified with automated test suite `tests/test_central_permission_resolver.py` (100% pass rate).
+
+
 ---
 
 ## Current Project State
@@ -118,6 +134,8 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
 - **Step 12 ? Per-User File Access Control & Tag Isolation (v1.4.0)**: Zero-data-leak file and tag isolation, admin grant workflows, and automated E2E test suite `tests/test_archive_acl_and_tag_isolation.py` (100% pass rate).
 - **Step 13 ? Enterprise Archive Portal UI/UX & Obsidian-Orange Design System (v1.7.1)**: Modern enterprise dashboard, dynamic sliding push workspace, global Obsidian-Orange theme, cache busting, and automated test suite `tests/test_archive_portal.py` (100% pass rate).
 - **Step 14 — Delegated Folder Creation Workflow & Advanced Governance (v1.9.6)**: Duplicate physical & pending folder prevention, complete 10-point audit trail (`oc_archive_folder_request_audit`), native Nextcloud notifications, visual audit timeline modal, dynamic parent folder tree dropdown, CSP-safe action button handlers, canonical Nextcloud `/f/{fileId}` deep-linking and native non-blocked navigation, and automated test suites (100% pass rate).
+- **Step 15 — Hardened On-Premise AI File Retrieval API & Security Console (v2.0.9)**: 16-point automated test suite (`tests/test_ai_file_retrieval_api.py`) with 100% pass rate.
+- **Step 16 — Central Permission Resolver & Effective Permission Inspector (v2.1.0)**: Unified authorization engine (`CentralPermissionResolver`), granular 8-bit operation mask, UI permission debugger tab, and automated test suite `tests/test_central_permission_resolver.py` (100% pass rate).
 - **Step 15 — Custom Enterprise Archive Onboarding & 2-Slide Wizard**: Replaced default Nextcloud Hub 26 promotional screens with an authentic, Obsidian-themed, RTL-first 2-slide enterprise onboarding wizard.
 
 

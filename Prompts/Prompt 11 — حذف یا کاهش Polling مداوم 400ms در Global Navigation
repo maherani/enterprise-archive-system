@@ -1,0 +1,47 @@
+در repository زیر کار می‌کنی:
+
+https://github.com/maherani/enterprise-archive-system.git
+
+هدف:
+بازطراحی مکانیزم mount و refresh شدن Global Archive Navigation در سمت frontend.
+
+فایل‌های اصلی مرتبط:
+- nextcloud/custom_apps/archive_autotag/js/global_archive_nav.js
+- nextcloud/custom_apps/archive_autotag/css/global_archive_nav.css
+
+مشکل فعلی:
+در global_archive_nav.js از polling با setInterval حدود 400ms استفاده شده است تا مشخص شود navigation در DOM وجود دارد یا نه و همچنین active chip دوباره بررسی شود.
+
+این روش در یک صفحه طولانی‌مدت باعث اجرای مداوم JavaScript، بررسی مکرر DOM و مصرف غیرضروری CPU می‌شود.
+
+وظیفه تو:
+
+1. ابتدا بدون تغییر کد، implementation فعلی را کامل بررسی کن.
+2. دقیقاً مشخص کن:
+   - setInterval کجا استفاده شده است.
+   - چه state یا DOM conditionهایی باعث polling شده‌اند.
+   - آیا MutationObserver هم‌زمان همین مسئولیت را انجام می‌دهد.
+   - آیا routing در Nextcloud باعث می‌شود event یا lifecycle مناسب‌تری برای refresh وجود داشته باشد.
+3. یک design پیشنهادی ارائه بده که تا حد ممکن polling را حذف کند یا به حداقل منطقی برساند.
+4. طراحی باید با SPA/navigation behavior خود Nextcloud سازگار باشد.
+5. navigation نباید در بارگذاری اولیه، تغییر مسیر، باز و بسته شدن Files app یا mutationهای DOM از کار بیفتد.
+6. از ایجاد observerهای متعدد و duplicate handler جلوگیری کن.
+7. memory leak و listener duplication را هم بررسی کن.
+8. behavior فعلی navigation باید حفظ شود:
+   - نمایش منابع مجاز
+   - active state
+   - navigation به folder
+   - mount شدن داخل container صحیح
+   - سازگاری با admin و non-admin
+
+محدودیت مهم:
+فعلاً هیچ فایلی را تغییر نده.
+
+ابتدا فقط گزارش بده:
+- مشکل دقیق فعلی چیست
+- چرا polling فعلی وجود دارد
+- چه event/lifecycle mechanism جایگزین پیشنهاد می‌کنی
+- چه فایل‌هایی تغییر خواهند کرد
+- چه regression testهایی لازم است
+
+بعد از تأیید من، implementation را انجام بده.

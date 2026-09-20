@@ -1,0 +1,54 @@
+در repository:
+
+https://github.com/maherani/enterprise-archive-system.git
+
+بخش مورد بررسی:
+
+nextcloud/custom_apps/archive_autotag/js/global_archive_nav.js
+
+مشکل:
+Global Navigation در بعضی chipها از hrefهایی مانند:
+
+javascript:void(0)
+
+استفاده می‌کند.
+
+هدف:
+طراحی مجدد navigation itemها به شکلی که از semantic HTML و navigation استاندارد استفاده کنند و behavior فعلی حفظ شود.
+
+وظیفه:
+
+1. ابتدا کد فعلی global_archive_nav.js را کامل بررسی کن.
+2. مشخص کن چرا javascript:void(0) استفاده شده است.
+3. بررسی کن آیا هر navigation item واقعاً باید:
+   - یک link باشد
+   - یا button باشد.
+4. برای itemهایی که مقصد URL مشخص دارند، تا حد امکان از `<a>` واقعی با href معتبر استفاده کن.
+5. برای actionهایی که navigation نیستند، از `<button>` استفاده شود.
+6. behavior فعلی Nextcloud routing حفظ شود.
+7. بررسی کن که استفاده از:
+   - window.location.href
+   - OCP.Files.Router.goToRoute
+   - path encoding
+   - special characters
+   باعث regression نشود.
+8. دسترسی keyboard نیز باید حفظ یا بهتر شود:
+   - Tab navigation
+   - Enter
+   - Space در buttonها
+9. focus behavior را بررسی کن.
+10. از inline JavaScript داخل href استفاده نشود.
+11. XSS safety و escaping مسیر folder را مجدداً بررسی کن.
+
+محدودیت:
+فعلاً هیچ تغییر کدی اعمال نکن.
+
+ابتدا design report بده:
+- classification هر navigation item
+- ساختار HTML جدید
+- strategy routing
+- accessibility considerations
+- فایل‌های تحت تأثیر
+- تست‌های regression موردنیاز
+
+پس از تأیید من implementation را انجام بده.

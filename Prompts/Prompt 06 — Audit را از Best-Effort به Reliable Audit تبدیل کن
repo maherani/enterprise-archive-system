@@ -1,0 +1,62 @@
+سیستم Audit پروژه Enterprise Archive System را بررسی و برای عملیات حساس Harden کن.
+
+Auditهای مهم:
+- archive_folder_request_audit
+- archive_ai_audit
+- archive_tag_audit
+
+مشکل:
+در چند نقطه، خطای Audit با catch گرفته می‌شود و عملیات اصلی همچنان ادامه پیدا می‌کند.
+
+هدف:
+تشخیص اینکه کدام عملیات باید:
+1. Audit-required باشند
+2. Audit-best-effort باشند
+
+ابتدا تمام Audit Writerها را پیدا کن و یک طبقه‌بندی ارائه بده.
+
+برای عملیات زیر تصمیم معماری مشخص بده:
+- Folder Approval
+- Folder Rejection
+- Tag Create
+- Tag Delete
+- Tag Assign
+- AI Retrieval
+- AI Authorization Failure
+- Permission Grant
+- Permission Revoke
+
+Design باید شامل:
+- Audit consistency
+- event schema
+- actor
+- target
+- timestamp
+- request ID
+- result
+- error
+- correlation ID
+- source/client
+- immutable history
+باشد.
+
+مشخص کن اگر Audit DB Write شکست خورد:
+- عملیات متوقف شود؟
+- retry شود؟
+- queue شود؟
+- fallback log داشته باشد؟
+- چه عملیاتی اجازه ادامه دارند؟
+
+همچنین:
+- Audit log injection
+- حساسیت داده‌ها
+- حجم زیاد لاگ
+- retention
+- indexing
+- query performance
+را بررسی کن.
+
+تا قبل از Approval هیچ تغییر کدی انجام نده.
+
+خروجی:
+Audit Classification + Reliability Design + Failure Matrix + Schema Improvement + Test Plan.

@@ -25,6 +25,8 @@
 | **13** | **رابط برنامه‌نویسی امن واکشی فایل برای هوش مصنوعی لوکال** | [`13_secure_ai_file_retrieval_api.md`](13_secure_ai_file_retrieval_api.md) | مستقل | 02, 08, 12 | استریم باینری O(1) رم، احراز هویت ماشین رمزنگاری‌شده، هشینگ SHA-256، تفویض ایمن Deny-by-default، چرخش و ابطال توکن، پرتال Swagger UI آفلاین و ممیزی غنی oc_archive_ai_audit | عملیاتی و نهایی (v2.0.9) |
 | **14** | **ایزولاسیون کامل سیستم، مسدودسازی سرویس‌های خارجی و محیط بسته** | [`14_air_gapped_isolation_and_external_services_lockdown.md`](14_air_gapped_isolation_and_external_services_lockdown.md) | تکمیلی / مستقل | 01, 04, 10 | ایزولاسیون Air-Gapped کامل، قطع اینترنت هسته، غیرفعالسازی برنامه‌های فدراسیون/تله‌متری، مسدودسازی روت‌های Help/Apps، سلب پیوندهای عمومی و CSP بومی | عملیاتی و نهایی |
 | **15** | **مدیریت تگ‌های اختصاصی گروه توسط ادمین گروه و ایزولاسیون بین‌گروهی** | [`15_group_admin_tag_governance.md`](15_group_admin_tag_governance.md) | مستقل / تکمیلی | 02, 07, 08, 11 | مدیریت کامل تگ‌های گروهی توسط Group Admin با مدل Zero-Bypass، حفظ ۱۰۰٪ تگ‌گذاری خودکار، الصاق و حذف درجا در پورتال و کشو، جدول ممیزی اختصاصی `oc_archive_tag_audit` | عملیاتی و نهایی |
+| **16** | **نوار ناوبری دسترسی‌محور سراسری و مسیر جاری** | [`16_access_aware_global_navigation_and_current_path.md`](16_access_aware_global_navigation_and_current_path.md) | مستقل | 04, 09 | کنترلر ناوبری سلسله‌مراتبی، ریشه سازمانی Enterprise_Archive، محاسبه داینامیک مسیر جاری | عملیاتی و نهایی |
+| **17** | **لایه متمرکز حل دسترسی و محاسبه مجوزهای موثر (Central Permission Resolver)** | [`17_central_permission_resolver_and_effective_acl.md`](17_central_permission_resolver_and_effective_acl.md) | مستقل / زیرساختی | 08, 13, 15, 16 | موتور یکپارچه CentralPermissionResolver بر اساس Deny-by-Default، بیت‌ماسک عملیات ۸گانه، تقدم ساختار دپارتمانی بر مالکیت، بازرس تعاملی در UI | عملیاتی و نهایی (v2.1.0) |
 
 ---
 
@@ -64,4 +66,3 @@ Requirement → Design → Approval → Implementation → Test → Verification
 * **توسعه قابلیت‌های موجود:** در صورت توسعه یا بهینه‌سازی قابلیت‌های قبلی، سند شماره‌دار مربوطه مستقیماً به‌روزرسانی و سوابق آن تکمیل می‌شود.
 * **معرفی قابلیت‌های بنیادین جدید:** در صورت ارائه نیازمندی کاملاً مستقل با دامنه جدید، سند شماره ۱۳ به بعد طبق همین فرمت ۲۳گانه ایجاد خواهد شد.
 
-| 16 | [نوار ناوبری دسترسی‌محور سراسری](16_access_aware_global_navigation_and_current_path.md) | پیاده‌سازی شده | کنترلر بک‌اند، کلاینت ناوبری دسترسی‌محور داینامیک با ریشه سازمانی Enterprise_Archive و ایزولاسیون کامل |

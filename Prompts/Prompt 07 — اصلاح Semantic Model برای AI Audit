@@ -1,0 +1,57 @@
+AI File Retrieval API را از نظر Audit Semantics بازطراحی کن.
+
+فایل‌های اصلی:
+- AiFileController.php
+- AiFileService.php
+- Version2000...
+- test_ai_file_retrieval_api.py
+
+مشکل فعلی:
+در getFile() قبل از اینکه Stream واقعاً باز و انتقال داده آغاز شود، Audit با وضعیت ALLOWED و bytes_served برابر fileSize ثبت می‌شود.
+
+این می‌تواند باعث شود Audit بگوید:
+ALLOWED + full bytes
+در حالی که Stream ممکن است باز نشده یا transfer شکست خورده باشد.
+
+هدف:
+تفکیک این مفاهیم:
+- Authentication
+- Authorization
+- Resource Found
+- Stream Opened
+- Transfer Started
+- Transfer Completed
+- Transfer Failed
+
+ابتدا وضعیت فعلی را کامل بررسی کن.
+
+یک Lifecycle پیشنهادی برای AI Retrieval طراحی کن، مثلاً:
+
+REQUESTED
+AUTHENTICATED
+AUTHORIZED
+STREAM_OPENED
+TRANSFER_STARTED
+COMPLETED
+FAILED
+
+اما قبل از انتخاب نهایی، معماری مناسب را پیشنهاد بده.
+
+مشخص کن:
+- bytes_requested
+- bytes_served
+- completion status
+- error
+چه زمانی ثبت شوند.
+
+Request ID و Client ID و Actor UID باید در تمام مراحل قابل correlation باشند.
+
+همچنین مشخص کن:
+- اگر client connection وسط انتقال قطع شود چه می‌شود؟
+- اگر fopen موفق و transfer شکست خورد؟
+- اگر Audit update شکست خورد؟
+- اگر file delete شود بین authorization و streaming چه می‌شود؟
+
+Test Plan کامل ارائه کن.
+
+تا قبل از Approval هیچ Implementation انجام نده.

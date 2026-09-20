@@ -1,0 +1,50 @@
+repository:
+
+https://github.com/maherani/enterprise-archive-system.git
+
+فایل اصلی:
+
+run_all_tests.py
+
+مشکل:
+Test runner مسیرهای absolute وابسته به machine فعلی دارد، از جمله چیزی شبیه:
+
+/home/alborz/enterprise-archive-system
+
+و همچنین مسیر Python environment را به همان machine وابسته کرده است.
+
+هدف:
+قابل‌حمل شدن test infrastructure بدون تغییر رفتار تست‌ها.
+
+وظیفه:
+
+1. ابتدا run_all_tests.py را کامل بررسی کن.
+2. تمام مسیرهای absolute و machine-specific را پیدا کن.
+3. بررسی کن سایر testها و scriptها نیز به همین path وابستگی دارند یا نه.
+4. design پیشنهادی باید بتواند repository را در این محیط‌ها اجرا کند:
+   - مسیر دیگر روی Linux
+   - WSL
+   - CI/CD
+   - virtualenv با مسیر متفاوت
+5. root repository باید به صورت dynamic از location خود script یا current project context تعیین شود.
+6. Python executable نباید hard-code شده باشد.
+7. اگر virtualenv وجود دارد، آن را robust تشخیص بده؛ در غیر این صورت از Python runtime فعلی استفاده شود.
+8. اجرای testها باید deterministic باقی بماند.
+9. خروجی runner و grouping فعلی تا جای ممکن حفظ شود.
+10. dependency جدید فقط در صورت ضرورت اضافه شود.
+
+نکته:
+این کار نباید صرفاً با replace کردن یک string انجام شود.
+تمام assumptions مربوط به filesystem layout را بررسی کن.
+
+فعلاً هیچ فایلی را تغییر نده.
+
+ابتدا گزارش بده:
+- تمام hard-coded paths
+- تمام وابستگی‌های environment-specific
+- design جدید برای path resolution
+- compatibility با WSL/CI
+- فایل‌هایی که باید تغییر کنند
+- test plan
+
+پس از تأیید من implementation را انجام بده.

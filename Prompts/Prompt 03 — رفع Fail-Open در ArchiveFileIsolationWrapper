@@ -1,0 +1,63 @@
+تو باید بخش File Isolation در پروژه Enterprise Archive System را Hardening کنی.
+
+فایل کلیدی:
+apps/archive_autotag/lib/Storage/ArchiveFileIsolationWrapper.php
+
+مشکل:
+در isPathPermitted() اگر Cache Entry پیدا نشود، کد فعلی عملاً اجازه دسترسی می‌دهد:
+
+if (!$entry) {
+    return true;
+}
+
+این رفتار در یک آرشیو سازمانی حساس می‌تواند Fail-Open باشد.
+
+هدف:
+تبدیل این بخش به Fail-Closed بدون ایجاد Regression در عملکرد عادی Nextcloud.
+
+ابتدا:
+
+1. تمام مسیرهای استفاده از ArchiveFileIsolationWrapper را پیدا کن.
+2. ArchiveFileIsolationCacheWrapper.php را هم بررسی کن.
+3. مشخص کن Cache در چه شرایطی Empty یا Stale می‌شود.
+4. بررسی کن:
+   - File
+   - Folder
+   - Rename
+   - Move
+   - Delete
+   - Upload
+   - WebDAV
+   - Files UI
+   چه اثری روی این Wrapper دارند.
+
+5. مشخص کن آیا می‌توان Permission را مستقیماً از یک Authority معتبر گرفت یا باید Cache reconstruction انجام شود.
+
+Design پیشنهادی باید مشخص کند:
+- Unknown Resource چه رفتاری دارد؟
+- Stale Cache چه رفتاری دارد؟
+- Missing Filecache چه رفتاری دارد؟
+- Directory چگونه بررسی می‌شود؟
+- Admin bypass چگونه باقی می‌ماند؟
+- Performance چگونه حفظ می‌شود؟
+
+هدف نهایی:
+Unknown = Deny by default
+و فقط زمانی Allow شود که Permission واقعاً قابل اثبات باشد.
+
+حتماً Test Caseهای زیر را طراحی کن:
+- موجود و مجاز
+- موجود و غیرمجاز
+- Cache missing
+- Cache stale
+- Deleted file
+- renamed file
+- nested folder
+- admin access
+- WebDAV
+- AI API
+
+تا قبل از تأیید من هیچ کدی تغییر نده.
+
+خروجی:
+Design + Security Analysis + Regression Risks + Tests + Files to Change.

@@ -1,0 +1,28 @@
+Access-Aware Global Navigation پروژه Enterprise Archive System را از نظر Scope واقعی صفحات بررسی کن.
+
+Requirement فعلی ادعا می‌کند Navigation در تمام صفحات موردنیاز سامانه قابل مشاهده است، اما Testهای فعلی عمدتاً Portal و Files را بررسی می‌کنند.
+
+ابتدا این Contextها را بررسی کن:
+
+- Archive Portal
+- Files
+- Folder View
+- Search
+- Multi-Tag Results
+- Admin UI
+- Folder Request UI
+- Group Tag UI
+- Settings
+- Error Pages / fallback routes
+- Login/redirect flows در صورت relevant بودن
+
+بررسی کن:
+- Global script کجا inject می‌شود؟
+- کجا DOM mount می‌شود؟
+- در Vue route change چه رخ می‌دهد؟
+- آیا mount target در تمام صفحات وجود دارد؟
+- آیا Nav duplicate می‌شود؟
+- آیا Nav پشت Header قرار می‌گیرد؟
+- آیا Nav Layout را خراب می‌کند؟
+
+سپس یک Page Coverage
