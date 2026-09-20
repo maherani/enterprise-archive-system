@@ -34,7 +34,8 @@ class FileGrantCommand extends Command {
             ->addArgument('file', InputArgument::REQUIRED, 'Target file ID or file path (e.g. 195 or /Enterprise_Archive/doc.pdf)')
             ->addArgument('grantee', InputArgument::OPTIONAL, 'Target username or group name')
             ->addOption('group', 'g', InputOption::VALUE_NONE, 'Target grantee is a group rather than a user')
-            ->addOption('permissions', 'p', InputOption::VALUE_OPTIONAL, 'Numeric permissions mask (default: 31)', '31');
+            ->addOption('permissions', 'p', InputOption::VALUE_OPTIONAL, 'Numeric permissions mask (default: 31)', '31')
+            ->addOption('purge', null, InputOption::VALUE_NONE, 'Completely purge grant row instead of recording explicit revocation');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int {
@@ -43,6 +44,7 @@ class FileGrantCommand extends Command {
         $grantee = (string)$input->getArgument('grantee');
         $isGroup = (bool)$input->getOption('group');
         $perms = (int)$input->getOption('permissions');
+        $purge = (bool)$input->getOption('purge');
 
         $fileId = $this->resolveFileId($fileArg);
         if ($fileId === null) {
@@ -69,7 +71,7 @@ class FileGrantCommand extends Command {
                 }
                 $this->fileOwnershipService->grantAccess($fileId, $grantee, $isGroup, 'admin', $perms);
                 $typeStr = $isGroup ? 'Group' : 'User';
-                $output->writeln("<info>Successfully granted access on file ID {$fileId} to {$typeStr} '{$grantee}'.</info>");
+                $output->writeln("<info>Successfully granted access on file ID {$fileId} to {$typeStr} '{$grantee}' (mask: {$perms}).</info>");
                 return Command::SUCCESS;
 
             case 'revoke':
@@ -77,9 +79,13 @@ class FileGrantCommand extends Command {
                     $output->writeln("<error>Please specify a grantee to revoke.</error>");
                     return Command::FAILURE;
                 }
-                $this->fileOwnershipService->revokeAccess($fileId, $grantee, $isGroup);
+                $this->fileOwnershipService->revokeAccess($fileId, $grantee, $isGroup, !$purge);
                 $typeStr = $isGroup ? 'Group' : 'User';
-                $output->writeln("<info>Successfully revoked access on file ID {$fileId} from {$typeStr} '{$grantee}'.</info>");
+                if ($purge) {
+                    $output->writeln("<info>Successfully purged grant record on file ID {$fileId} for {$typeStr} '{$grantee}'.</info>");
+                } else {
+                    $output->writeln("<info>Successfully recorded explicit revocation (Deny) on file ID {$fileId} for {$typeStr} '{$grantee}'.</info>");
+                }
                 return Command::SUCCESS;
 
             case 'list':
@@ -91,7 +97,9 @@ class FileGrantCommand extends Command {
                 } else {
                     $output->writeln("  Active Grants:");
                     foreach ($grants as $g) {
-                        $output->writeln("    - [{$g['grantee_type']}] {$g['grantee_id']} (Permissions: {$g['permissions']}, Granted by: {$g['granted_by']})");
+                        $pVal = (int)$g['permissions'];
+                        $permDesc = ($pVal === 0) ? '<error>0 [EXPLICIT REVOCATION / DENIED]</error>' : "<comment>{$pVal}</comment>";
+                        $output->writeln("    - [{$g['grantee_type']}] {$g['grantee_id']} (Permissions: {$permDesc}, Granted by: {$g['granted_by']})");
                     }
                 }
                 return Command::SUCCESS;

@@ -3172,4 +3172,157 @@
         .catch(function (err) { alert('خطا: ' + err.message); });
     }
 
+
+    // Tab 5: Effective Permission Inspector
+    function renderPermissionInspectorTab(body) {
+        body.innerHTML = [
+            '<div class="ea-policy-banner" style="background:rgba(249,115,22,0.08);border-color:rgba(249,115,22,0.3);color:#fdba74;">',
+            '  <strong>🔍 بازرس هوشمند مجوزهای موثر (Effective Permission Inspector):</strong><br>',
+            '  در این بخش مدیران می‌توانند ارزیابی لحظه‌ای مجوزهای سیستم را بر اساس مدل واحد CentralPermissionResolver برای هر کاربر، منبع (فایل، پوشه، تگ) و نوع عملیات بررسی کنند. اولویت قطعی با سد دفاعی ابطال صریح (Explicit Revocation) و ساختار سازمانی دپارتمان (Hierarchy Trumps Ownership) است.',
+            '</div>',
+            '<div style="background:var(--ea-surface-card);border:1px solid var(--ea-border);border-radius:var(--ea-radius-md);padding:20px;">',
+            '  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;">',
+            '    <div>',
+            '      <label style="display:block;font-size:0.85rem;font-weight:700;color:var(--ea-text-main);margin-bottom:6px;">نام کاربر مورد ارزیابی:</label>',
+            '      <input type="text" id="ea-insp-user" class="ea-form-input" placeholder="مثلاً: Bakbari یا maherani یا admin" value="Bakbari" />',
+            '    </div>',
+            '    <div>',
+            '      <label style="display:block;font-size:0.85rem;font-weight:700;color:var(--ea-text-main);margin-bottom:6px;">نوع منبع (Resource Type):</label>',
+            '      <select id="ea-insp-type" class="ea-form-input">',
+            '        <option value="file" selected>فایل (File)</option>',
+            '        <option value="folder">پوشه سازمانی (Folder)</option>',
+            '        <option value="tag">برچسب سیستمی (Tag)</option>',
+            '      </select>',
+            '    </div>',
+            '    <div>',
+            '      <label style="display:block;font-size:0.85rem;font-weight:700;color:var(--ea-text-main);margin-bottom:6px;">شناسه / مسیر منبع:</label>',
+            '      <input type="text" id="ea-insp-id" class="ea-form-input" placeholder="مثلاً: 623 یا Enterprise_Archive/SOC" value="623" />',
+            '    </div>',
+            '    <div>',
+            '      <label style="display:block;font-size:0.85rem;font-weight:700;color:var(--ea-text-main);margin-bottom:6px;">نوع عملیات (Operation):</label>',
+            '      <select id="ea-insp-op" class="ea-form-input">',
+            '        <option value="READ" selected>READ (خواندن محتوا)</option>',
+            '        <option value="WRITE">WRITE (ویرایش/به‌روزرسانی)</option>',
+            '        <option value="CREATE">CREATE (ایجاد در پوشه)</option>',
+            '        <option value="DELETE">DELETE (حذف منبع)</option>',
+            '        <option value="SHARE">SHARE (اشتراک‌گذاری)</option>',
+            '        <option value="MANAGE">MANAGE (مدیریت سیستمی)</option>',
+            '        <option value="READ_METADATA">READ_METADATA (مشاهده متادیتا)</option>',
+            '        <option value="TAG_ASSIGN">TAG_ASSIGN (انتساب تگ)</option>',
+            '      </select>',
+            '    </div>',
+            '  </div>',
+            '  <div style="margin-top:14px;">',
+            '    <span style="font-size:0.8rem;color:var(--ea-text-muted);">سناریوهای از پیش تعریف‌شده جهت آزمایش سریع:</span>',
+            '    <div class="ea-quick-chips">',
+            '      <button class="ea-chip-btn" id="ea-insp-chip-owner">👤 مالکیت Bakbari در SOC (مجاز)</button>',
+            '      <button class="ea-chip-btn" id="ea-insp-chip-revoke" style="color:#f87171;border-color:rgba(239,68,68,0.4);">🚫 مالکیت پس از ابطال صریح (Revoked/Deny)</button>',
+            '      <button class="ea-chip-btn" id="ea-insp-chip-cert-soc" style="color:#facc15;border-color:rgba(234,179,8,0.4);">⛔ دسترسی بین‌گروهی maherani (Deny-by-Default)</button>',
+            '      <button class="ea-chip-btn" id="ea-insp-chip-cascade" style="color:#38bdf8;border-color:rgba(56,189,248,0.4);">📂 ارث‌بری پوشه والد (Ancestor Grant)</button>',
+            '      <button class="ea-chip-btn" id="ea-insp-chip-admin">👑 سوپریوزر ادمین (Full 255)</button>',
+            '    </div>',
+            '  </div>',
+            '  <div style="margin-top:20px;">',
+            '    <button id="ea-insp-run-btn" class="ea-btn ea-btn-primary" style="padding:10px 24px;font-size:0.95rem;">🔍 استعلام و بازرسی بلادرنگ مجوزها</button>',
+            '  </div>',
+            '</div>',
+            '<div id="ea-insp-result-container" style="display:none;margin-top:20px;"></div>'
+        ].join('\n');
+
+        document.getElementById('ea-insp-chip-owner').onclick = function () {
+            document.getElementById('ea-insp-user').value = 'Bakbari';
+            document.getElementById('ea-insp-type').value = 'file';
+            document.getElementById('ea-insp-id').value = '623';
+            document.getElementById('ea-insp-op').value = 'READ';
+        };
+        document.getElementById('ea-insp-chip-revoke').onclick = function () {
+            document.getElementById('ea-insp-user').value = 'Bakbari';
+            document.getElementById('ea-insp-type').value = 'file';
+            document.getElementById('ea-insp-id').value = '623';
+            document.getElementById('ea-insp-op').value = 'READ';
+            executePermissionInspection('Bakbari', 'file', '623', 'READ');
+        };
+        document.getElementById('ea-insp-chip-cert-soc').onclick = function () {
+            document.getElementById('ea-insp-user').value = 'maherani';
+            document.getElementById('ea-insp-type').value = 'file';
+            document.getElementById('ea-insp-id').value = '623';
+            document.getElementById('ea-insp-op').value = 'READ';
+        };
+        document.getElementById('ea-insp-chip-cascade').onclick = function () {
+            document.getElementById('ea-insp-user').value = 'Bakbari';
+            document.getElementById('ea-insp-type').value = 'folder';
+            document.getElementById('ea-insp-id').value = 'Enterprise_Archive/SOC';
+            document.getElementById('ea-insp-op').value = 'READ';
+        };
+        document.getElementById('ea-insp-chip-admin').onclick = function () {
+            document.getElementById('ea-insp-user').value = 'admin';
+            document.getElementById('ea-insp-type').value = 'file';
+            document.getElementById('ea-insp-id').value = '623';
+            document.getElementById('ea-insp-op').value = 'READ';
+        };
+
+        document.getElementById('ea-insp-run-btn').onclick = function () {
+            var user = document.getElementById('ea-insp-user').value.trim();
+            var type = document.getElementById('ea-insp-type').value;
+            var id = document.getElementById('ea-insp-id').value.trim();
+            var op = document.getElementById('ea-insp-op').value;
+            executePermissionInspection(user, type, id, op);
+        };
+    }
+
+    function executePermissionInspection(user, type, id, op) {
+        var resContainer = document.getElementById('ea-insp-result-container');
+        if (!resContainer) return;
+
+        resContainer.style.display = 'block';
+        resContainer.innerHTML = '<div style="text-align:center;padding:24px;color:var(--ea-text-muted);">در حال ارزیابی ماتریس مجوزهای موثر...</div>';
+
+        var query = '?target_user=' + encodeURIComponent(user) +
+                    '&target_type=' + encodeURIComponent(type) +
+                    '&target_id=' + encodeURIComponent(id) +
+                    '&operation=' + encodeURIComponent(op);
+
+        fetch('/index.php/apps/archive_autotag/api/permission/inspect' + query, {
+            method: 'GET',
+            headers: { 'OCS-APIRequest': 'true' }
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            var isAllowed = data.allowed === true;
+            var badgeColor = isAllowed ? '#22c55e' : '#ef4444';
+            var bgGlass = isAllowed ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)';
+            var borderCol = isAllowed ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)';
+
+            var allOps = ['READ', 'WRITE', 'CREATE', 'DELETE', 'SHARE', 'MANAGE', 'READ_METADATA', 'TAG_ASSIGN'];
+            var opPills = allOps.map(function (oName) {
+                var hasOp = (data.effective_operations || []).indexOf(oName) !== -1;
+                var opCol = hasOp ? '#22c55e' : '#64748b';
+                var opBg = hasOp ? 'rgba(34,197,94,0.15)' : 'rgba(100,116,139,0.1)';
+                var opBorder = hasOp ? 'rgba(34,197,94,0.4)' : 'rgba(100,116,139,0.2)';
+                var icon = hasOp ? '✓' : '✗';
+                return '<span style="display:inline-block;padding:3px 8px;margin:3px;border-radius:4px;font-size:0.75rem;font-family:monospace;background:' + opBg + ';color:' + opCol + ';border:1px solid ' + opBorder + ';">' + icon + ' ' + oName + '</span>';
+            }).join(' ');
+
+            resContainer.innerHTML = [
+                '<div style="background:' + bgGlass + ';border:1px solid ' + borderCol + ';border-radius:var(--ea-radius-md);padding:20px;">',
+                '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px;">',
+                '    <div style="display:flex;align-items:center;gap:12px;">',
+                '      <span style="font-size:1.1rem;font-weight:900;background:' + badgeColor + ';color:#000;padding:4px 14px;border-radius:6px;">' + (isAllowed ? '✅ دسترسی مجاز (ALLOWED)' : '⛔ عدم دسترسی (DENIED)') + '</span>',
+                '      <span style="font-size:0.85rem;color:var(--ea-text-muted);">قاعده موثر: <code style="color:#fff;font-weight:bold;">' + escapeHtml(data.matched_rule || '-') + '</code></span>',
+                '    </div>',
+                '    <div style="font-size:0.85rem;color:var(--ea-text-subtle);">ماسک بیتی موثر: <strong style="color:var(--ea-text-main);font-family:monospace;">' + escapeHtml(String(data.effective_mask || 0)) + '</strong></div>',
+                '  </div>',
+                '  <div style="font-size:0.92rem;line-height:1.6;color:var(--ea-text-main);margin-bottom:14px;background:#05070a;padding:12px;border-radius:6px;border:1px solid #1e293b;">' + escapeHtml(data.reason || '') + '</div>',
+                '  <div style="margin-top:10px;">',
+                '    <div style="font-size:0.8rem;color:var(--ea-text-muted);margin-bottom:6px;">عملیات مجاز برای کاربر بر اساس ماسک موثر:</div>',
+                '    <div>' + opPills + '</div>',
+                '  </div>',
+                '</div>'
+            ].join('\n');
+        })
+        .catch(function (err) {
+            resContainer.innerHTML = '<div style="color:#ef4444;padding:16px;">خطا در استعلام مجوزها: ' + escapeHtml(err.message) + '</div>';
+        });
+    }
+
 })();

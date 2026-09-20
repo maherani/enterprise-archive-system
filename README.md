@@ -123,6 +123,14 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
     - Dynamic on-demand physical storage scanner reconciliation before path decision to prevent stale-cache false rejections.
     - WebDAV protocol preservation with full 10-point automated regression test suite (`tests/test_fail_close_isolation_wrapper.py`) at 100% pass rate.
 
+19. **FileOwnershipService Redesign & Effective ACL Precedence (v2.1.2)**:
+    - Formal decoupling of document ownership from effective authorization.
+    - Explicit Revocation (`EXPLICIT_REVOCATION` with bitmask `0`) providing tamper-proof admin revocation that overrides owner and group scopes.
+    - Cascading ancestor folder grant inheritance (`ANCESTOR_GRANT`) with specific file grant precedence.
+    - Concurrency-safe atomic upsert handlers eliminating race conditions during file creation and grant assignment.
+    - Complete elimination of N+1 database roundtrips via single-batch ancestor queries and pre-fetching in bulk file filtering.
+    - Interactive 5th tab preset integration in the web console and 11-point automated verification suite (`tests/test_file_ownership_effective_acl.py`) with 100% pass rate.
+
 ---
 
 ## Current Project State
@@ -144,6 +152,7 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
 - **Step 15 — Hardened On-Premise AI File Retrieval API & Security Console (v2.0.9)**: 16-point automated test suite (`tests/test_ai_file_retrieval_api.py`) with 100% pass rate.
 - **Step 16 — Central Permission Resolver & Effective Permission Inspector (v2.1.0)**: Unified authorization engine (`CentralPermissionResolver`), granular 8-bit operation mask, UI permission debugger tab, and automated test suite `tests/test_central_permission_resolver.py` (100% pass rate).
 - **Step 17 — Fail-Closed Storage Isolation & Cache Hardening (v2.1.1)**: Strict Deny-by-Default storage wrapper, parent-directory upload authorization, on-demand cache reconciliation, and automated E2E test suite `tests/test_fail_close_isolation_wrapper.py` (100% pass rate).
+- **Step 18 — FileOwnershipService Redesign & Effective ACL Precedence (v2.1.2)**: Formal ownership decoupling, explicit revocation (mask 0), cascading folder grants, atomic upserts, N+1 query elimination, and automated E2E test suite `tests/test_file_ownership_effective_acl.py` (100% pass rate).
 - **Step 15 — Custom Enterprise Archive Onboarding & 2-Slide Wizard**: Replaced default Nextcloud Hub 26 promotional screens with an authentic, Obsidian-themed, RTL-first 2-slide enterprise onboarding wizard.
 
 
@@ -249,7 +258,7 @@ python3 tests/test_folder_request_workflow.py
 # Test 8: Vertical Scroll & Non-Destructive Layout Isolation
 python3 tests/test_vertical_scroll_and_layout.py
 
-# --- Master Test Suite Runner (All 26 Automated Suites) ---
+# --- Master Test Suite Runner (All 27 Automated Suites) ---
 python3 run_all_tests.py
 ```
 

@@ -664,3 +664,12 @@ Status: **Completed**
 - **Dynamic On-Demand Storage Scanner:** Added automatic reconciliation (`$this->getWrapperStorage()->getScanner()->scanFile($path)`) before permission rejection, ensuring valid newly created or restored files are indexed seamlessly.
 - **Storage Wrapper Contract:** Implemented `isCreatable($path)` override matching `IStorage` wrapper contract.
 - **Verification:** `tests/test_fail_close_isolation_wrapper.py` (10/10 PASS, 100%) covering cache misses, unindexed probes, IDOR cross-department isolation, rename lifecycle, nested uploads, admin superuser access, WebDAV PROPFIND, and AI retrieval API.
+
+### Requirement 19: FileOwnershipService Redesign & Effective ACL Precedence (Completed)
+- **Status:** Fully Implemented, Hardened, and Verified (v2.1.2)
+- **Decoupled Authorization:** Eliminated parallel fallback logic inside `FileOwnershipService::canUserAccessFile()`, delegating 100% of authorization decisions to `CentralPermissionResolver`.
+- **Explicit Revocation Barrier:** Implemented `EXPLICIT_REVOCATION` rule via `permissions = 0` in `archive_file_grants`. Overrides creator ownership and department group membership, ensuring revoked owners are strictly denied access.
+- **Cascading Ancestor Grants:** Implemented folder-to-file grant inheritance (`ANCESTOR_GRANT`) prioritized below specific direct file grants.
+- **Performance & N+1 Elimination:** Replaced 10-query sequential parent loops with a single deterministic batch query, and added bulk metadata pre-fetching in `filterAccessibleFileIds`.
+- **Race Condition Immunity:** Hardened `setFileOwner` and `grantAccess` with concurrency-safe atomic upsert handling.
+- **Verification:** `tests/test_file_ownership_effective_acl.py` (11/11 PASS, 100%) and 100% pass rate across all 27 automated test suites.

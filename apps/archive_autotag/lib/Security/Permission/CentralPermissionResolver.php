@@ -83,12 +83,8 @@ class CentralPermissionResolver implements IPermissionResolver {
         // Detect Department Group Scope from Path (e.g. Enterprise_Archive/<Department>/...)
         $deptGroup = $this->extractDepartmentFromPath($filePath);
 
-        // Rule 2: Explicit Grants (archive_file_grants) - MAC Layer
-        // Direct grant on this specific file always applies; grant on ancestor folders applies to admin/system files
-        $eligibleGrantIds = [$fileId];
-        if ($owner === 'admin' || $owner === 'system' || $owner === null) {
-            $eligibleGrantIds = array_merge($eligibleGrantIds, $ancestorIds);
-        }
+        // Rule 2: Explicit Grants & Revocations (archive_file_grants) - MAC Layer
+        $eligibleGrantIds = array_values(array_unique(array_merge([$fileId], $ancestorIds)));
         $gQb = $this->db->getQueryBuilder();
         $orConds = [
             $gQb->expr()->andX(
@@ -108,19 +104,48 @@ class CentralPermissionResolver implements IPermissionResolver {
             ->where($gQb->expr()->in('file_id', $gQb->createNamedParameter($eligibleGrantIds, IQueryBuilder::PARAM_INT_ARRAY)))
             ->andWhere($gQb->expr()->orX(...$orConds))
             ->orderBy('id', 'DESC');
-        $grantRow = $gQb->executeQuery()->fetchAssociative();
+        $grantRows = $gQb->executeQuery()->fetchAllAssociative();
+
+        $grantRow = null;
+        $isAncestor = false;
+        if (!empty($grantRows)) {
+            // Direct grant on $fileId takes priority over ancestor grants
+            foreach ($grantRows as $r) {
+                if ((int)$r['file_id'] === $fileId) {
+                    $grantRow = $r;
+                    $isAncestor = false;
+                    break;
+                }
+            }
+            if ($grantRow === null) {
+                $grantRow = $grantRows[0];
+                $isAncestor = true;
+            }
+        }
 
         if ($grantRow) {
             $grantedMask = (int)$grantRow['permissions'];
+
+            // Explicit Revocation (permissions = 0)
+            if ($grantedMask === 0) {
+                return $this->cacheDecision($cacheKey, PermissionDecision::deny(
+                    'EXPLICIT_REVOCATION',
+                    "Access explicitly revoked by administrator grant #{$grantRow['id']} on object #{$grantRow['file_id']} ({$grantRow['grantee_type']}:{$grantRow['grantee_id']}).",
+                    0,
+                    ['grant_id' => $grantRow['id'], 'grantee' => "{$grantRow['grantee_type']}:{$grantRow['grantee_id']}"]
+                ));
+            }
+
             // Normalize mask: Nextcloud 31 = Read(1) | Update(2) | Create(4) | Delete(8) | Share(16)
             $effectiveMask = $this->normalizeGrantMask($grantedMask);
 
             if (($effectiveMask & $operation) === $operation) {
+                $ruleName = $isAncestor ? 'ANCESTOR_GRANT' : 'EXPLICIT_GRANT';
                 return $this->cacheDecision($cacheKey, PermissionDecision::allow(
-                    'EXPLICIT_GRANT',
-                    "Authorized via explicit archive grant #{$grantRow['id']} on object #{$grantRow['file_id']} ({$grantRow['grantee_type']}:{$grantRow['grantee_id']}).",
+                    $ruleName,
+                    "Authorized via " . ($isAncestor ? "ancestor folder grant" : "explicit grant") . " #{$grantRow['id']} on object #{$grantRow['file_id']} ({$grantRow['grantee_type']}:{$grantRow['grantee_id']}).",
                     $effectiveMask,
-                    ['grant_id' => $grantRow['id'], 'grantee' => "{$grantRow['grantee_type']}:{$grantRow['grantee_id']}"]
+                    ['grant_id' => $grantRow['id'], 'grantee' => "{$grantRow['grantee_type']}:{$grantRow['grantee_id']}", 'cascaded' => $isAncestor]
                 ));
             } else {
                 return $this->cacheDecision($cacheKey, PermissionDecision::deny(

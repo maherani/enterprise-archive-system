@@ -28,11 +28,12 @@
 | **16** | **نوار ناوبری دسترسی‌محور سراسری و مسیر جاری** | [`16_access_aware_global_navigation_and_current_path.md`](16_access_aware_global_navigation_and_current_path.md) | مستقل | 04, 09 | کنترلر ناوبری سلسله‌مراتبی، ریشه سازمانی Enterprise_Archive، محاسبه داینامیک مسیر جاری | عملیاتی و نهایی |
 | **17** | **لایه متمرکز حل دسترسی و محاسبه مجوزهای موثر (Central Permission Resolver)** | [`17_central_permission_resolver_and_effective_acl.md`](17_central_permission_resolver_and_effective_acl.md) | مستقل / زیرساختی | 08, 13, 15, 16 | موتور یکپارچه CentralPermissionResolver بر اساس Deny-by-Default، بیت‌ماسک عملیات ۸گانه، تقدم ساختار دپارتمانی بر مالکیت، بازرس تعاملی در UI | عملیاتی و نهایی (v2.1.0) |
 | **18** | **ایزولاسیون ذخیره‌سازی بسته در برابر شکست و مقاوم‌سازی کش (Fail-Closed Storage Isolation & Cache Hardening)** | [`18_fail_closed_storage_isolation_and_cache_hardening.md`](18_fail_closed_storage_isolation_and_cache_hardening.md) | مستقل / زیرساختی امنیتی | 08, 17 | حذف قطعی آسیب‌پذیری Fail-Open، مسدودسازی پروب‌های خارج از کش و مسیرهای دستکاری‌شده، ارزیابی مجوز والد در آپلود و ایجاد فایل، اسکن داینامیک فیزیکی استوریج قبل از رد درخواست | عملیاتی و نهایی (v2.1.1) |
+| **19** | **بازطراحی سرویس مالکیت فایل و انطباق با دسترسی موثر (FileOwnershipService Redesign & Effective ACL)** | [`19_file_ownership_redesign_and_effective_acl.md`](19_file_ownership_redesign_and_effective_acl.md) | مستقل / زیرساختی امنیتی | 08, 17, 18 | تفکیک ۴ بعد مالکیت، سد دفاعی ابطال صریح (Explicit Revocation با ماسک ۰)، ارث‌بری آبشاری گرنت والد، مهار رخدادهای رقابتی و حذف کامل کوئری‌های N+1 | عملیاتی و نهایی (v2.1.2) |
 
 ---
 
 ## ۲. ساختار استاندارد ۲۳گانه هر سند نیازمندی
-تمامی ۱۸ سند نیازمندی دارای ساختار کاملاً یکپارچه و استاندارد شامل بخش‌های زیر هستند:
+تمامی ۱۹ سند نیازمندی دارای ساختار کاملاً یکپارچه و استاندارد شامل بخش‌های زیر هستند:
 1. **شرح نیازمندی (Problem Statement & Business Need)**
 2. **نیازمندی‌های تابعی (Functional Requirements)**
 3. **نیازمندی‌های غیرتابعی (Non-Functional Requirements)**
@@ -65,5 +66,5 @@
 Requirement → Design → Approval → Implementation → Test → Verification → Documentation Update → Commit/Push
 ```
 * **توسعه قابلیت‌های موجود:** در صورت توسعه یا بهینه‌سازی قابلیت‌های قبلی، سند شماره‌دار مربوطه مستقیماً به‌روزرسانی و سوابق آن تکمیل می‌شود.
-* **معرفی قابلیت‌های بنیادین جدید:** در صورت ارائه نیازمندی کاملاً مستقل با دامنه جدید، سند شماره ۱۹ به بعد طبق همین فرمت ۲۳گانه ایجاد خواهد شد.
+* **معرفی قابلیت‌های بنیادین جدید:** در صورت ارائه نیازمندی کاملاً مستقل با دامنه جدید، سند شماره ۲۰ به بعد طبق همین فرمت ۲۳گانه ایجاد خواهد شد.
 

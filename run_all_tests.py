@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Enterprise Archive System - Master Test Suite Runner
-Executes all 26 automated test suites and produces a unified audit matrix.
+Executes all 27 automated test suites and produces a unified audit matrix.
 """
 
 import os
@@ -36,11 +36,12 @@ TESTS = [
     ("test_ai_admin_ui_api.py", "AI Admin: Service Registration, Delegation Rules & Audit Sandbox API"),
     ("test_central_permission_resolver.py", "Authorization: Central Permission Resolver, Effective ACL & Dynamic Precedence"),
     ("test_fail_close_isolation_wrapper.py", "Storage Security: Fail-Closed Storage Isolation & Cache Hardening"),
+("test_file_ownership_effective_acl.py", "Authorization: FileOwnershipService Redesign, Explicit Revocation & Cascade ACL"),
 ]
 
 def main():
     print("=" * 80)
-    print(" ENTERPRISE ARCHIVE SYSTEM - COMPREHENSIVE 26-SUITE AUDIT")
+    print(" ENTERPRISE ARCHIVE SYSTEM - COMPREHENSIVE 27-SUITE AUDIT")
     print("=" * 80)
 
     results = []
