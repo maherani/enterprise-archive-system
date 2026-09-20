@@ -65,6 +65,14 @@ class ArchiveFileIsolationWrapper extends Wrapper {
     }
 
     #[\Override]
+    public function isCreatable(string $path): bool {
+        if (!$this->isPathPermitted($path, PermissionOperation::CREATE)) {
+            return false;
+        }
+        return parent::isCreatable($path);
+    }
+
+    #[\Override]
     public function isDeletable(string $path): bool {
         if (!$this->isPathPermitted($path, PermissionOperation::DELETE)) {
             return false;
@@ -92,6 +100,9 @@ class ArchiveFileIsolationWrapper extends Wrapper {
         return parent::fopen($path, $mode);
     }
 
+    /**
+     * Centralized Fail-Closed Path Permission Evaluation
+     */
     private function isPathPermitted(string $path, int $operation = PermissionOperation::READ): bool {
         $cleanPath = trim(trim($path, '/'), '.');
         if ($cleanPath === '') {
@@ -106,7 +117,7 @@ class ArchiveFileIsolationWrapper extends Wrapper {
         }
         $userId = $user->getUID();
 
-        // System admin has unrestricted access to all files
+        // System admin has unrestricted superuser access across all files and folders
         if ($userId === 'admin' || $this->groupManager->isAdmin($userId)) {
             return true;
         }
@@ -121,12 +132,43 @@ class ArchiveFileIsolationWrapper extends Wrapper {
             return true;
         }
 
-        // 2. File Check
+        // 2. File Check via Cache
         $cache = $this->getWrapperStorage()->getCache('');
         $entry = $cache->get($path);
-        
+        if (!$entry && $path !== $cleanPath) {
+            $entry = $cache->get($cleanPath);
+        }
+
+        // 3. Handling Missing / Unindexed Cache Entries (Fail-Closed Architecture)
         if (!$entry) {
-            return true;
+            // Scenario A: Write / Creation Operation (e.g. Uploading a brand new file via WebDAV PUT or fopen('w'))
+            // The file does not exist in cache yet. Authorization is determined by whether the user
+            // has CREATE permission in the parent directory.
+            if (($operation & (PermissionOperation::WRITE | PermissionOperation::CREATE)) !== 0) {
+                $parentDir = dirname($cleanPath);
+                if ($parentDir === '.' || $parentDir === '' || $parentDir === '/') {
+                    // Regular users cannot write to archive root (Fail-Closed)
+                    return false;
+                }
+                if ($resolver !== null) {
+                    return $resolver->evaluateFolder($userId, $parentDir, PermissionOperation::CREATE)->allowed;
+                }
+                return false;
+            }
+
+            // Scenario B: Read / Metadata probe on a file that physically exists on underlying storage
+            if ($this->getWrapperStorage()->file_exists($path)) {
+                try {
+                    // On-demand scanner reconciliation
+                    $this->getWrapperStorage()->getScanner()->scanFile($path);
+                    $entry = $cache->get($path);
+                } catch (\Throwable $t) {}
+            }
+
+            // If still no entry in filecache (bogus path, unindexed probe, non-existent file), FAIL-CLOSED
+            if (!$entry) {
+                return false;
+            }
         }
 
         if ($entry->getMimetype() === 'httpd/unix-directory') {

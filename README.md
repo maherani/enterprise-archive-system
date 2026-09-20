@@ -116,6 +116,13 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
     - Verified with automated test suite `tests/test_central_permission_resolver.py` (100% pass rate).
 
 
+18. **Fail-Closed Storage Isolation & Cache Hardening (v2.1.1)**:
+    - Elimination of critical Fail-Open vulnerability in `ArchiveFileIsolationWrapper::isPathPermitted()`.
+    - Strict Deny-by-Default on unindexed probes, missing cache entries, and tampered storage paths.
+    - Parent directory authorization resolution for write/upload flows preventing unauthorized direct folder poisoning.
+    - Dynamic on-demand physical storage scanner reconciliation before path decision to prevent stale-cache false rejections.
+    - WebDAV protocol preservation with full 10-point automated regression test suite (`tests/test_fail_close_isolation_wrapper.py`) at 100% pass rate.
+
 ---
 
 ## Current Project State
@@ -136,6 +143,7 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
 - **Step 14 — Delegated Folder Creation Workflow & Advanced Governance (v1.9.6)**: Duplicate physical & pending folder prevention, complete 10-point audit trail (`oc_archive_folder_request_audit`), native Nextcloud notifications, visual audit timeline modal, dynamic parent folder tree dropdown, CSP-safe action button handlers, canonical Nextcloud `/f/{fileId}` deep-linking and native non-blocked navigation, and automated test suites (100% pass rate).
 - **Step 15 — Hardened On-Premise AI File Retrieval API & Security Console (v2.0.9)**: 16-point automated test suite (`tests/test_ai_file_retrieval_api.py`) with 100% pass rate.
 - **Step 16 — Central Permission Resolver & Effective Permission Inspector (v2.1.0)**: Unified authorization engine (`CentralPermissionResolver`), granular 8-bit operation mask, UI permission debugger tab, and automated test suite `tests/test_central_permission_resolver.py` (100% pass rate).
+- **Step 17 — Fail-Closed Storage Isolation & Cache Hardening (v2.1.1)**: Strict Deny-by-Default storage wrapper, parent-directory upload authorization, on-demand cache reconciliation, and automated E2E test suite `tests/test_fail_close_isolation_wrapper.py` (100% pass rate).
 - **Step 15 — Custom Enterprise Archive Onboarding & 2-Slide Wizard**: Replaced default Nextcloud Hub 26 promotional screens with an authentic, Obsidian-themed, RTL-first 2-slide enterprise onboarding wizard.
 
 
@@ -241,7 +249,7 @@ python3 tests/test_folder_request_workflow.py
 # Test 8: Vertical Scroll & Non-Destructive Layout Isolation
 python3 tests/test_vertical_scroll_and_layout.py
 
-# --- Master Test Suite Runner (All 17 Automated Suites) ---
+# --- Master Test Suite Runner (All 26 Automated Suites) ---
 python3 run_all_tests.py
 ```
 

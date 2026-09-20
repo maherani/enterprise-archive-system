@@ -418,6 +418,16 @@ class CentralPermissionResolver implements IPermissionResolver {
                 return $parts[$idx + 1];
             }
         }
+        // Direct group folder variation: files/SOC/... or SOC/...
+        foreach ($parts as $segment) {
+            if ($segment === 'files' || $segment === '' || $segment === '.') {
+                continue;
+            }
+            if ($this->groupManager->groupExists($segment)) {
+                return $segment;
+            }
+            break; // only check first meaningful path component
+        }
         return null;
     }
 

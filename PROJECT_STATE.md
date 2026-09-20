@@ -649,3 +649,18 @@ Status: **Completed**
   - Safely targeted mount inside `main.app-content` in the Files app, preserving `#content` layout and sidebar structure.
   - Used preserved slashes in directory URLs and smooth Nextcloud Vue Router integration (`OCP.Files.Router.goToRoute`) to prevent full page reloads and broken path parameters.
 - **Result:** Sleek, stable, single-line global navigation bar across all pages with zero layout distortion.
+
+### Requirement 17: Central Permission Resolver & Effective Permission Inspector (Completed)
+- **Status:** Fully Implemented, Integrated, and Verified (v2.1.0)
+- **Engine Core:** `CentralPermissionResolver` implementing `IPermissionResolver` with Deny-by-Default architecture and bitmask operations: `READ (1)`, `WRITE (2)`, `CREATE (4)`, `DELETE (8)`, `SHARE (16)`, `MANAGE (32)`, `READ_METADATA (64)`, `TAG_ASSIGN (128)`.
+- **Precedence Hierarchy:** Department structure strictly overrides file ownership. `archive_file_grants` overrides discretionary shares. Tag visibility is completely isolated from file content read.
+- **Frontend Inspector:** Added interactive debugger tab «🔍 بازرس مجوزهای موثر (Permission Inspector)» to the AI Admin console allowing real-time permission queries, bitmask breakdown badges, and audit diagnostics.
+- **Verification:** `tests/test_central_permission_resolver.py` (9/9 PASS, 100%).
+
+### Requirement 18: Fail-Closed Storage Isolation & Cache Hardening (Completed)
+- **Status:** Fully Implemented, Hardened, and Verified (v2.1.1)
+- **Vulnerability Remediation:** Eliminated the critical Fail-Open flaw in `ArchiveFileIsolationWrapper::isPathPermitted()` (`if (!$entry) return true;` replaced with strict `return false;`).
+- **Parent Directory Evaluation:** Implemented `evaluateFolder($userId, dirname($cleanPath), CREATE)` check for write and create file flows (`CREATE`, `WRITE`, `fopen('w')`), preventing unindexed file injections.
+- **Dynamic On-Demand Storage Scanner:** Added automatic reconciliation (`$this->getWrapperStorage()->getScanner()->scanFile($path)`) before permission rejection, ensuring valid newly created or restored files are indexed seamlessly.
+- **Storage Wrapper Contract:** Implemented `isCreatable($path)` override matching `IStorage` wrapper contract.
+- **Verification:** `tests/test_fail_close_isolation_wrapper.py` (10/10 PASS, 100%) covering cache misses, unindexed probes, IDOR cross-department isolation, rename lifecycle, nested uploads, admin superuser access, WebDAV PROPFIND, and AI retrieval API.
