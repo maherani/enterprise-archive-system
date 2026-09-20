@@ -2135,7 +2135,10 @@
             '      <div id="ea-gtag-create-msg" style="margin-top: 8px; font-size: 0.82rem; display: none;"></div>',
             '    </div>',
             '    <!-- Group Tags Table / List -->',
-            '    <div style="font-weight: 700; font-size: 0.9rem; margin-bottom: 8px; color: var(--ea-text-main);">فهرست تگ‌های ثبت‌شده برای گروه:</div>',
+            '    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <div style="font-weight: 700; font-size: 0.9rem; color: var(--ea-text-main);">فهرست تگ‌های ثبت‌شده برای گروه:</div>
+      <button id="ea-gtag-reconcile-btn" class="ea-btn" style="padding: 3px 10px; font-size: 0.8rem; background: rgba(59,130,246,0.15); border-color: rgba(59,130,246,0.4); color: #60a5fa;" title="شناسایی و ترمیم تگ‌های یتیم یا فانتوم">🔄 همگام‌سازی و ترمیم تگ‌ها</button>
+    </div>',
             '    <div id="ea-gtag-list-container" style="max-height: 320px; overflow-y: auto; border: 1px solid var(--ea-border); border-radius: var(--ea-radius); background: var(--ea-surface);">',
             '      <div style="padding: 24px; text-align: center; color: var(--ea-text-muted);">⏳ در حال بارگذاری تگ‌ها...</div>',
             '    </div>',
@@ -2153,6 +2156,13 @@
         var closeBottomBtn = document.getElementById('ea-gtag-close-bottom-btn');
         if (closeBottomBtn) closeBottomBtn.onclick = closeModal;
         overlay.onclick = function (e) { if (e.target === overlay) closeModal(); };
+
+        var reconcileBtn = document.getElementById('ea-gtag-reconcile-btn');
+        if (reconcileBtn) {
+            reconcileBtn.onclick = function () {
+                window._eaReconcileGroupTags(selectedGroup);
+            };
+        }
 
         var groupSelect = document.getElementById('ea-gtag-group-select');
         if (groupSelect) {
@@ -2242,12 +2252,19 @@
                     ];
 
                     data.tags.forEach(function (t) {
+                        var fc = t.file_count || t.usage_count || 0;
+                        var statBadge = '';
+                        if (t.status === 'DELETING') {
+                            statBadge = '<span style="color: #f59e0b; font-size: 0.72rem; margin-right: 6px; padding: 1px 5px; background: rgba(245,158,11,0.15); border-radius: 4px;">⏳ در حال حذف</span>';
+                        } else if (t.status === 'FAILED_DELETION') {
+                            statBadge = '<span style="color: #ef4444; font-size: 0.72rem; margin-right: 6px; padding: 1px 5px; background: rgba(239,68,68,0.15); border-radius: 4px;">⚠️ خطا</span>';
+                        }
                         html.push(
                             '<tr style="border-bottom: 1px solid var(--ea-border); transition: background 0.2s;" onmouseover="this.style.background=\'rgba(255,255,255,0.02)\'" onmouseout="this.style.background=\'transparent\'">',
-                            '  <td style="padding: 10px 14px; font-weight: 700; color: var(--ea-text-main);"><span class="ea-mini-tag" style="font-size: 0.82rem;">🏷️ ' + escapeHtml(t.clean_name || t.name) + '</span></td>',
-                            '  <td style="padding: 10px 14px; color: var(--ea-text-muted);">' + toPersianDigits(t.file_count || 0) + ' سند</td>',
+                            '  <td style="padding: 10px 14px; font-weight: 700; color: var(--ea-text-main);"><span class="ea-mini-tag" style="font-size: 0.82rem;">🏷️ ' + escapeHtml(t.clean_name || t.name) + '</span>' + statBadge + '</td>',
+                            '  <td style="padding: 10px 14px; color: var(--ea-text-muted);">' + toPersianDigits(fc) + ' سند</td>',
                             '  <td style="padding: 10px 14px; text-align: center;">',
-                            '    <button class="ea-btn" style="padding: 4px 10px; font-size: 0.8rem; color: #ef4444; border-color: rgba(239,68,68,0.3);" onclick="window._eaDeleteGroupTag(\'' + escapeHtml(grp) + '\', ' + t.id + ', \'' + escapeHtml(t.clean_name || t.name) + '\')">🗑️ حذف</button>',
+                            '    <button class="ea-btn" style="padding: 4px 10px; font-size: 0.8rem; color: #ef4444; border-color: rgba(239,68,68,0.3);" onclick="window._eaDeleteGroupTag(\'' + escapeHtml(grp) + '\', ' + t.id + ', \'' + escapeHtml(t.clean_name || t.name) + '\', ' + fc + ')">🗑️ حذف</button>',
                             '  </td>',
                             '</tr>'
                         );
@@ -2264,30 +2281,108 @@
             });
         }
 
-        window._eaDeleteGroupTag = function (grp, tagId, tagName) {
-            if (!confirm('آیا از حذف تگ اختصاصی «' + tagName + '» اطمینان دارید؟ این تگ از تمامی فایل‌های این گروه جدا خواهد شد.')) {
-                return;
+        window._eaDeleteGroupTag = function (grp, tagId, tagName, fileCount) {
+            fileCount = fileCount || 0;
+            var force = false;
+            if (fileCount > 0) {
+                var confirmMsg = 'تگ اختصاصی «' + tagName + '» در حال حاضر به ' + fileCount + ' سند اختصاص یافته است.\n\n' +
+                                 'آیا از حذف اجباری (Force Delete) و جداسازی کامل این تگ از اسناد اطمینان دارید؟';
+                if (!confirm(confirmMsg)) {
+                    return;
+                }
+                force = true;
+            } else {
+                if (!confirm('آیا از حذف قطعی تگ اختصاصی «' + tagName + '» اطمینان دارید؟')) {
+                    return;
+                }
             }
+
             var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
             if (window.OC && window.OC.requestToken) headers['requesttoken'] = window.OC.requestToken;
 
             fetch('/index.php/apps/archive_autotag/api/group-tags/delete', {
                 method: 'POST',
                 headers: headers,
-                body: JSON.stringify({ group_id: grp, tag_id: tagId })
+                body: JSON.stringify({ group_id: grp, tag_id: tagId, force: force })
             })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (data && data.status === 'success') {
-                    showToast('تگ اختصاصی «' + tagName + '» حذف گردید.');
+            .then(function (r) {
+                return r.json().then(function (data) {
+                    return { ok: r.ok, status: r.status, data: data };
+                });
+            })
+            .then(function (res) {
+                var data = res.data;
+                if (res.ok && data && data.status === 'success') {
+                    showToast('تگ اختصاصی «' + tagName + '» با موفقیت و به صورت کامل حذف شد.');
                     loadGroupTags(grp);
                     fetchTags();
                     fetchFiles();
+                } else if (res.status === 409 && data && data.code === 'TAG_IN_USE') {
+                    if (confirm('تگ «' + tagName + '» در حال حاضر در ' + (data.usage_count || fileCount) + ' سند در حال استفاده است.\nآیا مایل به حذف اجباری (Force) و جداسازی خودکار هستید؟')) {
+                        fetch('/index.php/apps/archive_autotag/api/group-tags/delete', {
+                            method: 'POST',
+                            headers: headers,
+                            body: JSON.stringify({ group_id: grp, tag_id: tagId, force: true })
+                        })
+                        .then(function (r2) { return r2.json(); })
+                        .then(function (d2) {
+                            if (d2 && d2.status === 'success') {
+                                showToast('تگ اختصاصی «' + tagName + '» به همراه جداسازی از اسناد حذف گردید.');
+                                loadGroupTags(grp);
+                                fetchTags();
+                                fetchFiles();
+                            } else {
+                                alert('خطا در حذف اجباری تگ: ' + (d2.message || 'نامشخص'));
+                            }
+                        });
+                    }
                 } else {
-                    alert('خطا در حذف تگ: ' + ((data && data.message) ? data.message : 'نامشخص'));
+                    alert('خطا در حذف تگ: ' + ((data && data.message) ? data.message : 'کد خطای ' + res.status));
                 }
             })
             .catch(function (err) {
+                alert('خطای ارتباط با سرور: ' + err.message);
+            });
+        };
+
+        window._eaReconcileGroupTags = function (grp) {
+            var btn = document.getElementById('ea-gtag-reconcile-btn');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerText = '⏳ در حال همگام‌سازی...';
+            }
+
+            var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+            if (window.OC && window.OC.requestToken) headers['requesttoken'] = window.OC.requestToken;
+
+            fetch('/index.php/apps/archive_autotag/api/group-tags/reconcile', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({ group_id: grp })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerText = '🔄 همگام‌سازی و ترمیم تگ‌ها';
+                }
+                if (data && data.status === 'success') {
+                    var rep = data.report || {};
+                    var msg = 'همگام‌سازی با موفقیت انجام شد: ' +
+                              (rep.orphans_restored ? rep.orphans_restored.length : 0) + ' تگ بازیابی و ' +
+                              (rep.ghosts_purged ? rep.ghosts_purged.length : 0) + ' رکورد فانتوم پاکسازی شد.';
+                    showToast(msg);
+                    loadGroupTags(grp);
+                    fetchTags();
+                } else {
+                    alert('خطا در همگام‌سازی: ' + ((data && data.message) ? data.message : 'نامشخص'));
+                }
+            })
+            .catch(function (err) {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerText = '🔄 همگام‌سازی و ترمیم تگ‌ها';
+                }
                 alert('خطای ارتباط: ' + err.message);
             });
         };

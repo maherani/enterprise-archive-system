@@ -21,7 +21,7 @@ class TagOwnershipService {
     ) {
     }
 
-    public function setTagOwner(int $tagId, string $ownerUid): void {
+    public function setTagOwner(int $tagId, string $ownerUid, string $status = 'ACTIVE'): void {
         $now = time();
         $qb = $this->db->getQueryBuilder();
         $qb->select('id')
@@ -33,6 +33,7 @@ class TagOwnershipService {
             $upQb = $this->db->getQueryBuilder();
             $upQb->update('archive_tag_ownership')
                  ->set('owner_uid', $upQb->createNamedParameter($ownerUid))
+                 ->set('status', $upQb->createNamedParameter($status))
                  ->where($upQb->expr()->eq('tag_id', $upQb->createNamedParameter($tagId)));
             $upQb->executeStatement();
         } else {
@@ -41,11 +42,12 @@ class TagOwnershipService {
                   ->values([
                       'tag_id' => $insQb->createNamedParameter($tagId),
                       'owner_uid' => $insQb->createNamedParameter($ownerUid),
+                      'status' => $insQb->createNamedParameter($status),
                       'created_at' => $insQb->createNamedParameter($now),
                   ]);
             $insQb->executeStatement();
         }
-        $this->logger->info("archive_autotag: Tag ID {$tagId} registered with owner: {$ownerUid}");
+        $this->logger->info("archive_autotag: Tag ID {$tagId} registered with owner: {$ownerUid} (status: {$status})");
     }
 
     public function getTagOwner(int $tagId): ?string {
@@ -55,6 +57,31 @@ class TagOwnershipService {
            ->where($qb->expr()->eq('tag_id', $qb->createNamedParameter($tagId)));
         $row = $qb->executeQuery()->fetchAssociative();
         return $row ? (string)$row['owner_uid'] : null;
+    }
+
+    public function getTagStatus(int $tagId): string {
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('status')
+               ->from('archive_tag_ownership')
+               ->where($qb->expr()->eq('tag_id', $qb->createNamedParameter($tagId)));
+            $row = $qb->executeQuery()->fetchAssociative();
+            return $row ? (string)($row['status'] ?? 'ACTIVE') : 'ACTIVE';
+        } catch (\Throwable $t) {
+            return 'ACTIVE';
+        }
+    }
+
+    public function setTagStatus(int $tagId, string $status): void {
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->update('archive_tag_ownership')
+               ->set('status', $qb->createNamedParameter($status))
+               ->where($qb->expr()->eq('tag_id', $qb->createNamedParameter($tagId)));
+            $qb->executeStatement();
+        } catch (\Throwable $t) {
+            $this->logger->warning("archive_autotag: Failed to set status for tag {$tagId}: " . $t->getMessage());
+        }
     }
 
     public function assignTagToGroup(int $tagId, string $groupId): void {
@@ -113,6 +140,7 @@ class TagOwnershipService {
                 ->where($qb2->expr()->eq('tag_id', $qb2->createNamedParameter($tagId)));
             $qb2->executeStatement();
         } catch (\Throwable $t) {
+            $this->logger->warning("archive_autotag: Failed to delete owner/group records for tag {$tagId}: " . $t->getMessage());
         }
     }
 
@@ -130,6 +158,12 @@ class TagOwnershipService {
         // 1. Admin sees ALL tags across all groups
         if ($userId === 'admin' || $this->groupManager->isAdmin($userId)) {
             return true;
+        }
+
+        // Exclude tags pending deletion or failed deletion for regular users
+        $status = $this->getTagStatus($tagId);
+        if ($status !== 'ACTIVE') {
+            return false;
         }
 
         $userGroups = $user !== null ? $this->groupManager->getUserGroupIds($user) : [];

@@ -46,6 +46,7 @@ return [
         ['name' => 'GroupTag#deleteTag', 'url' => '/api/group-tags/delete', 'verb' => 'POST'],
         ['name' => 'GroupTag#assignTag', 'url' => '/api/group-tags/assign', 'verb' => 'POST'],
         ['name' => 'GroupTag#removeTag', 'url' => '/api/group-tags/remove', 'verb' => 'POST'],
+        ['name' => 'GroupTag#reconcileTags', 'url' => '/api/group-tags/reconcile', 'verb' => 'POST'],
     ],
     'ocs' => [
         ['name' => 'TagFilter#listVisibleTags', 'url' => '/api/tags', 'verb' => 'GET'],
@@ -90,5 +91,6 @@ return [
         ['name' => 'GroupTag#deleteTag', 'url' => '/api/group-tags/delete', 'verb' => 'POST'],
         ['name' => 'GroupTag#assignTag', 'url' => '/api/group-tags/assign', 'verb' => 'POST'],
         ['name' => 'GroupTag#removeTag', 'url' => '/api/group-tags/remove', 'verb' => 'POST'],
+        ['name' => 'GroupTag#reconcileTags', 'url' => '/api/group-tags/reconcile', 'verb' => 'POST'],
     ],
 ];

@@ -673,3 +673,20 @@ Status: **Completed**
 - **Performance & N+1 Elimination:** Replaced 10-query sequential parent loops with a single deterministic batch query, and added bulk metadata pre-fetching in `filterAccessibleFileIds`.
 - **Race Condition Immunity:** Hardened `setFileOwner` and `grantAccess` with concurrency-safe atomic upsert handling.
 - **Verification:** `tests/test_file_ownership_effective_acl.py` (11/11 PASS, 100%) and 100% pass rate across all 27 automated test suites.
+
+
+### Requirement 20: Atomic Group Tag Deletion & Consistency Engine (Completed)
+- **Status:** Fully Implemented, Hardened, and Verified (v2.1.3)
+- **False-Success Elimination:** Refactored `deleteGroupTag` in `GroupTagService` to completely eliminate swallowed exceptions, preventing silent failures and misleading audit log records.
+- **Unified Transaction Boundary:** Implemented an all-or-nothing database transaction (`$this->db->beginTransaction() ... commit() / rollBack()`) wrapping `oc_systemtag_object_mapping`, `oc_systemtag`, `oc_archive_tag_ownership`, and `oc_archive_tag_groups`.
+- **Pessimistic Row Locking:** Added `SELECT id FROM *oc_archive_tag_ownership WHERE tag_id = ? FOR UPDATE` and `SELECT id FROM *oc_systemtag WHERE id = ? FOR UPDATE` ensuring serializability during tag deletion and preventing concurrent state drift.
+- **Tag-In-Use Protection (HTTP 409):** Added active usage detection (`getTagUsageCount()`). Standard deletion strictly aborts with `TagInUseException` (HTTP 409 Conflict, error code `TAG_IN_USE`) if active files are attached to the tag, unless `--force` / `force: true` is explicitly provided.
+- **Self-Healing Reconciliation Engine:** Implemented `reconcileGroupTags($groupId)` and REST API `POST /api/group-tags/reconcile` capable of:
+  1. Auto-discovering orphaned Nextcloud system tags belonging to group folders and registering them in `oc_archive_tag_ownership`.
+  2. Cleaning up ghost ownership records where the underlying `oc_systemtag` no longer exists.
+  3. Auditing all reconciliation events in `oc_archive_tag_audit`.
+- **Frontend Portal Integration:**
+  - Added live usage badges (`X فایل`) to the tag pills in the Group Tag Manager drawer.
+  - Implemented force-delete confirmation dialogs when tags are in active use.
+  - Added a dedicated "🔄 همگام‌سازی و ترمیم تگ‌ها" (Reconcile Tags) action button with real-time feedback.
+- **Verification:** `tests/test_atomic_group_tag_deletion.py` (11/11 PASS, 100%) covering false-success elimination, rollback guarantees, tag-in-use 409 enforcement, cascade force-delete, orphan recovery, ghost cleanup, OCC CLI governance, and cross-group isolation. Full test suite expanded to 28 comprehensive test suites with zero regressions.

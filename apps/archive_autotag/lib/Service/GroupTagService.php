@@ -10,6 +10,8 @@ use OCP\SystemTag\ISystemTagObjectMapper;
 use OCP\SystemTag\TagNotFoundException;
 use OCP\SystemTag\TagAlreadyExistsException;
 use OCA\ArchiveAutoTag\Exception\SecurityPermissionException;
+use OCA\ArchiveAutoTag\Exception\TagInUseException;
+use OCA\ArchiveAutoTag\Exception\TagDeletionException;
 use Psr\Log\LoggerInterface;
 
 class GroupTagService {
@@ -88,7 +90,7 @@ class GroupTagService {
             $tagId = (int)$tag->getId();
 
             // Register tag ownership and group isolation
-            $this->tagOwnershipService->setTagOwner($tagId, $actorUid);
+            $this->tagOwnershipService->setTagOwner($tagId, $actorUid, 'ACTIVE');
             $this->tagOwnershipService->assignTagToGroup($tagId, $groupId);
 
             $this->logAuditEvent($actorUid, $groupId, 'create_tag', $tagId, $fullName, null, null, null, 'success', "Tag created for group {$groupId}");
@@ -109,18 +111,53 @@ class GroupTagService {
     }
 
     /**
-     * Delete a group-specific tag.
+     * Delete a group-specific tag atomically with strict consistency.
+     *
+     * @param string $actorUid The executing user ID
+     * @param string $groupId The target group
+     * @param int $tagId The tag ID to delete
+     * @param bool $force If true, cascades detachment from files; if false and in use, aborts with TagInUseException
+     * @return array
+     * @throws SecurityPermissionException If user is unauthorized or tag belongs to another group
+     * @throws TagNotFoundException If tag does not exist
+     * @throws TagInUseException If tag is in use and $force is false
+     * @throws TagDeletionException On low-level database or system failure
      */
-    public function deleteGroupTag(string $actorUid, string $groupId, int $tagId): array {
+    public function deleteGroupTag(string $actorUid, string $groupId, int $tagId, bool $force = false): array {
+        // 1. Validate Group Admin membership
         if (!$this->isUserAdminOfGroup($actorUid, $groupId)) {
             $this->logAuditEvent($actorUid, $groupId, 'delete_tag', $tagId, '', null, null, null, 'failure', 'User is not a group admin of this group.');
             throw new SecurityPermissionException("Forbidden: User '{$actorUid}' is not an authorized Group Admin for group '{$groupId}'.");
         }
 
-        // Verify tag belongs to group
-        $assignedGroups = $this->tagOwnershipService->getTagGroups($tagId);
-        if (!in_array($groupId, $assignedGroups, true)) {
-            // Check case-insensitively
+        $tagName = '';
+        $usageCount = 0;
+
+        // 2. Begin atomic transaction
+        $this->db->beginTransaction();
+
+        try {
+            // 3. Pessimistic row locking on tag ownership to serialize concurrent deletes
+            $lockSql = "SELECT tag_id, owner_uid, status FROM oc_archive_tag_ownership WHERE tag_id = ? FOR UPDATE";
+            $ownRow = $this->db->executeQuery($lockSql, [$tagId])->fetchAssociative();
+
+            // 4. Verify tag exists in oc_systemtag
+            $sQb = $this->db->getQueryBuilder();
+            $sQb->select('id', 'name')
+                ->from('systemtag')
+                ->where($sQb->expr()->eq('id', $sQb->createNamedParameter($tagId)));
+            $sysRow = $sQb->executeQuery()->fetchAssociative();
+
+            if (!$ownRow && !$sysRow) {
+                $this->db->rollBack();
+                $this->logAuditEvent($actorUid, $groupId, 'delete_tag', $tagId, '', null, null, null, 'failure', "Tag #{$tagId} not found.");
+                throw new TagNotFoundException("Tag #{$tagId} not found.");
+            }
+
+            $tagName = $sysRow ? (string)$sysRow['name'] : '';
+
+            // 5. Verify tag belongs to the requested group
+            $assignedGroups = $this->tagOwnershipService->getTagGroups($tagId);
             $match = false;
             foreach ($assignedGroups as $ag) {
                 if (strcasecmp($ag, $groupId) === 0) {
@@ -128,29 +165,204 @@ class GroupTagService {
                     break;
                 }
             }
+
+            // Also check prefix in tagName: "[groupId] ..."
+            if (!$match && $tagName !== '') {
+                $expectedPrefix = "[{$groupId}] ";
+                if (str_starts_with(strtolower($tagName), strtolower($expectedPrefix))) {
+                    $match = true;
+                }
+            }
+
             if (!$match) {
-                $this->logAuditEvent($actorUid, $groupId, 'delete_tag', $tagId, '', null, null, null, 'failure', "Tag #{$tagId} does not belong to group '{$groupId}'.");
+                $this->db->rollBack();
+                $this->logAuditEvent($actorUid, $groupId, 'delete_tag', $tagId, $tagName, null, null, null, 'failure', "Tag #{$tagId} does not belong to group '{$groupId}'.");
                 throw new SecurityPermissionException("Forbidden: Tag #{$tagId} does not belong to group '{$groupId}'.");
             }
-        }
 
-        $tagName = '';
+            // 6. Check if tag is in use (assigned to files)
+            $usageCount = $this->getTagUsageCount($tagId);
+            if ($usageCount > 0 && !$force) {
+                $this->db->rollBack();
+                $this->logAuditEvent($actorUid, $groupId, 'delete_tag', $tagId, $tagName, null, null, null, 'aborted', "Tag is currently assigned to {$usageCount} files and force flag was not provided.");
+                throw new TagInUseException("Tag '{$tagName}' (#{$tagId}) is currently in use across {$usageCount} file(s). Pass force=true to proceed.", $tagId, $usageCount);
+            }
+
+            // 7. Transition status to DELETING
+            $uQb = $this->db->getQueryBuilder();
+            $uQb->update('archive_tag_ownership')
+                ->set('status', $uQb->createNamedParameter('DELETING'))
+                ->where($uQb->expr()->eq('tag_id', $uQb->createNamedParameter($tagId)));
+            $uQb->executeStatement();
+
+            // 8. Delete file object mappings (cascading detachment)
+            $dMapQb = $this->db->getQueryBuilder();
+            $dMapQb->delete('systemtag_object_mapping')
+                   ->where($dMapQb->expr()->eq('systemtagid', $dMapQb->createNamedParameter($tagId)));
+            $dMapQb->executeStatement();
+
+            // 9. Delete group restrictions in core systemtag_group if present
+            try {
+                $dGrpCoreQb = $this->db->getQueryBuilder();
+                $dGrpCoreQb->delete('systemtag_group')
+                           ->where($dGrpCoreQb->expr()->eq('systemtagid', $dGrpCoreQb->createNamedParameter($tagId)));
+                $dGrpCoreQb->executeStatement();
+            } catch (\Throwable $t) {
+                // Table might not exist or be empty, continue
+            }
+
+            // 10. Delete Nextcloud system tag
+            $dSysQb = $this->db->getQueryBuilder();
+            $dSysQb->delete('systemtag')
+                   ->where($dSysQb->expr()->eq('id', $dSysQb->createNamedParameter($tagId)));
+            $dSysQb->executeStatement();
+
+            // 11. Delete archive app metadata: groups and ownership
+            $dTagGrpQb = $this->db->getQueryBuilder();
+            $dTagGrpQb->delete('archive_tag_groups')
+                      ->where($dTagGrpQb->expr()->eq('tag_id', $dTagGrpQb->createNamedParameter($tagId)));
+            $dTagGrpQb->executeStatement();
+
+            $dOwnQb = $this->db->getQueryBuilder();
+            $dOwnQb->delete('archive_tag_ownership')
+                   ->where($dOwnQb->expr()->eq('tag_id', $dOwnQb->createNamedParameter($tagId)));
+            $dOwnQb->executeStatement();
+
+            // 12. Commit transaction atomically
+            $this->db->commit();
+
+            // 13. Audit SUCCESS ONLY AFTER successful commit
+            $this->logAuditEvent($actorUid, $groupId, 'delete_tag', $tagId, $tagName, null, null, null, 'success', "Tag #{$tagId} ('{$tagName}') deleted by {$actorUid} (usage detached: {$usageCount})");
+
+            return [
+                'status' => 'success',
+                'tag_id' => $tagId,
+                'tag_name' => $tagName,
+                'usage_detached' => $usageCount,
+                'message' => 'Tag deleted successfully.',
+            ];
+        } catch (SecurityPermissionException | TagNotFoundException | TagInUseException $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->logAuditEvent($actorUid, $groupId, 'delete_tag', $tagId, $tagName, null, null, null, 'failure', "Deletion failed: " . $e->getMessage());
+            $this->logger->error("archive_autotag: Failed to delete group tag #{$tagId}: " . $e->getMessage());
+            throw new TagDeletionException("Failed to delete tag #{$tagId}: " . $e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
+     * Get the count of file object mappings for a specific tag.
+     */
+    public function getTagUsageCount(int $tagId): int {
         try {
-            $tagObj = $this->tagManager->getTag($tagId);
-            $tagName = $tagObj->getName();
-            $this->tagManager->deleteTags([$tagId]);
+            $qb = $this->db->getQueryBuilder();
+            $qb->select($qb->createFunction('COUNT(*) as cnt'))
+               ->from('systemtag_object_mapping')
+               ->where($qb->expr()->eq('systemtagid', $qb->createNamedParameter($tagId)));
+            $res = $qb->executeQuery()->fetchAssociative();
+            return $res ? (int)$res['cnt'] : 0;
         } catch (\Throwable $t) {
-            $this->logger->warning("archive_autotag: Tag #{$tagId} delete error: " . $t->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Reconcile group tags within a group:
+     * - Detect and restore orphaned system tags (in oc_systemtag matching [groupId] but missing from archive tables)
+     * - Purge ghost metadata records (in archive_tag_groups / archive_tag_ownership for non-existent tags)
+     * - Clean dangling systemtag_object_mapping records
+     */
+    public function reconcileGroupTags(string $actorUid, string $groupId): array {
+        if ($actorUid !== 'admin' && !$this->isUserAdminOfGroup($actorUid, $groupId)) {
+            throw new SecurityPermissionException("Forbidden: User '{$actorUid}' is not an authorized Group Admin for group '{$groupId}'.");
         }
 
-        $this->tagOwnershipService->deleteTagOwner($tagId);
+        $orphansRestored = [];
+        $ghostsPurged = [];
 
-        $this->logAuditEvent($actorUid, $groupId, 'delete_tag', $tagId, $tagName, null, null, null, 'success', "Tag #{$tagId} ('{$tagName}') deleted by {$actorUid}");
+        // 1. Find Orphan System Tags: oc_systemtag named [groupId] ... but missing from archive_tag_groups
+        $prefix = "[{$groupId}] %";
+        $oQb = $this->db->getQueryBuilder();
+        $oQb->select('t.id', 't.name')
+            ->from('systemtag', 't')
+            ->leftJoin('t', 'archive_tag_groups', 'g', $oQb->expr()->andX(
+                $oQb->expr()->eq('t.id', 'g.tag_id'),
+                $oQb->expr()->ilike('g.group_id', $oQb->createNamedParameter($groupId))
+            ))
+            ->where($oQb->expr()->ilike('t.name', $oQb->createNamedParameter($prefix)))
+            ->andWhere($oQb->expr()->isNull('g.id'));
+        $orphans = $oQb->executeQuery()->fetchAllAssociative();
+
+        foreach ($orphans as $orphan) {
+            $tId = (int)$orphan['id'];
+            $tName = (string)$orphan['name'];
+
+            // Restore in archive_tag_groups
+            $this->tagOwnershipService->assignTagToGroup($tId, $groupId);
+            // Restore in archive_tag_ownership if missing
+            $owner = $this->tagOwnershipService->getTagOwner($tId);
+            if ($owner === null) {
+                $this->tagOwnershipService->setTagOwner($tId, $actorUid, 'ACTIVE');
+            }
+            $orphansRestored[] = ['id' => $tId, 'name' => $tName];
+        }
+
+        // 2. Find Ghost Archive Records: archive_tag_groups for groupId pointing to non-existent tag
+        $gQb = $this->db->getQueryBuilder();
+        $gQb->select('g.id', 'g.tag_id')
+            ->from('archive_tag_groups', 'g')
+            ->leftJoin('g', 'systemtag', 't', $gQb->expr()->eq('g.tag_id', 't.id'))
+            ->where($gQb->expr()->ilike('g.group_id', $gQb->createNamedParameter($groupId)))
+            ->andWhere($gQb->expr()->isNull('t.id'));
+        $ghosts = $gQb->executeQuery()->fetchAllAssociative();
+
+        foreach ($ghosts as $ghost) {
+            $gId = (int)$ghost['id'];
+            $tId = (int)$ghost['tag_id'];
+
+            // Delete ghost records
+            $dG = $this->db->getQueryBuilder();
+            $dG->delete('archive_tag_groups')
+               ->where($dG->expr()->eq('id', $dG->createNamedParameter($gId)));
+            $dG->executeStatement();
+
+            $dO = $this->db->getQueryBuilder();
+            $dO->delete('archive_tag_ownership')
+               ->where($dO->expr()->eq('tag_id', $dO->createNamedParameter($tId)));
+            $dO->executeStatement();
+
+            $ghostsPurged[] = ['id' => $gId, 'tag_id' => $tId];
+        }
+
+        // 3. Find and prune dangling object mappings pointing to non-existent tags
+        $danglingCleaned = 0;
+        try {
+            $dMapSql = "DELETE FROM oc_systemtag_object_mapping WHERE systemtagid NOT IN (SELECT id FROM oc_systemtag)";
+            $danglingCleaned = $this->db->executeStatement($dMapSql);
+        } catch (\Throwable $t) {
+            // Ignore if subquery syntax varies
+        }
+
+        // 4. Audit
+        $details = sprintf(
+            "Reconciliation complete for group '%s': %d orphans restored, %d ghost records purged, %d dangling mappings pruned.",
+            $groupId, count($orphansRestored), count($ghostsPurged), $danglingCleaned
+        );
+        $this->logAuditEvent($actorUid, $groupId, 'reconcile_tag', 0, '', null, null, null, 'success', $details);
 
         return [
             'status' => 'success',
-            'tag_id' => $tagId,
-            'message' => 'Tag deleted successfully.',
+            'group_id' => $groupId,
+            'orphans_restored' => $orphansRestored,
+            'ghosts_purged' => $ghostsPurged,
+            'dangling_mappings_pruned' => $danglingCleaned,
+            'message' => $details,
         ];
     }
 
@@ -184,6 +396,7 @@ class GroupTagService {
 
         // Get file counts for each tag
         $fileCounts = [];
+        $tagStatuses = [];
         if (!empty($rows)) {
             $tagIds = array_map(fn($r) => (int)$r['id'], $rows);
             $cQb = $this->db->getQueryBuilder();
@@ -196,6 +409,16 @@ class GroupTagService {
             while ($cRow = $cRes->fetchAssociative()) {
                 $fileCounts[(int)$cRow['systemtagid']] = (int)$cRow['cnt'];
             }
+
+            // Fetch statuses
+            $sQb = $this->db->getQueryBuilder();
+            $sQb->select('tag_id', 'status')
+                ->from('archive_tag_ownership')
+                ->where($sQb->expr()->in('tag_id', $sQb->createNamedParameter($tagIds, IQueryBuilder::PARAM_INT_ARRAY)));
+            $sRes = $sQb->executeQuery();
+            while ($sRow = $sRes->fetchAssociative()) {
+                $tagStatuses[(int)$sRow['tag_id']] = (string)($sRow['status'] ?? 'ACTIVE');
+            }
         }
 
         $tags = [];
@@ -203,11 +426,16 @@ class GroupTagService {
             $tId = (int)$r['id'];
             $fullName = (string)$r['name'];
             $cleanName = $this->extractCleanTagName($fullName, $groupId);
+            $cnt = $fileCounts[$tId] ?? 0;
+            $stat = $tagStatuses[$tId] ?? 'ACTIVE';
+
             $tags[] = [
                 'id' => $tId,
                 'name' => $fullName,
                 'clean_name' => $cleanName,
-                'file_count' => $fileCounts[$tId] ?? 0,
+                'file_count' => $cnt,
+                'usage_count' => $cnt,
+                'status' => $stat,
             ];
         }
 

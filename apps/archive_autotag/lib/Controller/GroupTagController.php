@@ -5,6 +5,9 @@ namespace OCA\ArchiveAutoTag\Controller;
 
 use OCA\ArchiveAutoTag\Service\GroupTagService;
 use OCA\ArchiveAutoTag\Exception\SecurityPermissionException;
+use OCA\ArchiveAutoTag\Exception\TagInUseException;
+use OCA\ArchiveAutoTag\Exception\TagDeletionException;
+use OCP\SystemTag\TagNotFoundException;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -100,11 +103,11 @@ class GroupTagController extends Controller {
     }
 
     /**
-     * Delete a group-specific tag.
+     * Delete a group-specific tag atomically.
      */
     #[NoAdminRequired]
     #[NoCSRFRequired]
-    public function deleteTag(?string $group_id = null, $tag_id = null): DataResponse {
+    public function deleteTag(?string $group_id = null, $tag_id = null, $force = null): DataResponse {
         $user = $this->userSession->getUser();
         if ($user === null) {
             return new DataResponse(['status' => 'error', 'message' => 'Authentication required'], Http::STATUS_UNAUTHORIZED);
@@ -114,22 +117,92 @@ class GroupTagController extends Controller {
         $groupId = trim((string)($group_id ?? $body['group_id'] ?? ''));
         $tagIdRaw = $tag_id ?? $body['tag_id'] ?? null;
         $tagId = is_numeric($tagIdRaw) ? (int)$tagIdRaw : 0;
+        $forceVal = $force ?? $body['force'] ?? false;
+        $forceFlag = filter_var($forceVal, FILTER_VALIDATE_BOOLEAN);
 
         if ($groupId === '' || $tagId <= 0) {
             return new DataResponse(['status' => 'error', 'message' => 'Missing required parameters: group_id, tag_id'], Http::STATUS_BAD_REQUEST);
         }
 
         try {
-            $this->groupTagService->deleteGroupTag($user->getUID(), $groupId, $tagId);
+            $res = $this->groupTagService->deleteGroupTag($user->getUID(), $groupId, $tagId, $forceFlag);
             return new DataResponse([
                 'status' => 'success',
                 'message' => 'Group tag deleted successfully',
                 'tag_id' => $tagId,
+                'data' => $res,
+            ]);
+        } catch (TagInUseException $e) {
+            return new DataResponse([
+                'status' => 'conflict',
+                'code' => 'TAG_IN_USE',
+                'tag_id' => $e->getTagId(),
+                'usage_count' => $e->getUsageCount(),
+                'message' => $e->getMessage(),
+            ], Http::STATUS_CONFLICT);
+        } catch (TagNotFoundException $e) {
+            return new DataResponse([
+                'status' => 'error',
+                'code' => 'TAG_NOT_FOUND',
+                'message' => $e->getMessage(),
+            ], Http::STATUS_NOT_FOUND);
+        } catch (SecurityPermissionException $e) {
+            return new DataResponse([
+                'status' => 'error',
+                'code' => 'FORBIDDEN',
+                'message' => $e->getMessage(),
+            ], Http::STATUS_FORBIDDEN);
+        } catch (TagDeletionException $e) {
+            $this->logger->error("GroupTagController::deleteTag error: " . $e->getMessage());
+            return new DataResponse([
+                'status' => 'error',
+                'code' => 'DELETION_FAILED',
+                'message' => $e->getMessage(),
+            ], Http::STATUS_INTERNAL_SERVER_ERROR);
+        } catch (\Throwable $e) {
+            $this->logger->error("GroupTagController::deleteTag error: " . $e->getMessage());
+            return new DataResponse([
+                'status' => 'error',
+                'code' => 'INTERNAL_ERROR',
+                'message' => $e->getMessage(),
+            ], Http::STATUS_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Reconcile and self-heal group tags.
+     */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function reconcileTags(?string $group_id = null): DataResponse {
+        $user = $this->userSession->getUser();
+        if ($user === null) {
+            return new DataResponse(['status' => 'error', 'message' => 'Authentication required'], Http::STATUS_UNAUTHORIZED);
+        }
+
+        $body = $this->getJsonOrParams();
+        $groupId = trim((string)($group_id ?? $body['group_id'] ?? ''));
+
+        if ($groupId === '') {
+            $adminGroups = $this->groupTagService->getUserAdminGroups($user->getUID());
+            if (!empty($adminGroups)) {
+                $groupId = $adminGroups[0];
+            } else {
+                return new DataResponse(['status' => 'error', 'message' => 'Missing parameter: group_id'], Http::STATUS_BAD_REQUEST);
+            }
+        }
+
+        try {
+            $report = $this->groupTagService->reconcileGroupTags($user->getUID(), $groupId);
+            return new DataResponse([
+                'status' => 'success',
+                'message' => 'Group tags reconciled successfully',
+                'report' => $report,
             ]);
         } catch (SecurityPermissionException $e) {
             return new DataResponse(['status' => 'error', 'message' => $e->getMessage()], Http::STATUS_FORBIDDEN);
         } catch (\Throwable $e) {
-            $this->logger->error("GroupTagController::deleteTag error: " . $e->getMessage());
+            $this->logger->error("GroupTagController::reconcileTags error: " . $e->getMessage());
             return new DataResponse(['status' => 'error', 'message' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }

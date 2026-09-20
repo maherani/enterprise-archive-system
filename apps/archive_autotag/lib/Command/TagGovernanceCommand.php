@@ -5,11 +5,13 @@ namespace OCA\ArchiveAutoTag\Command;
 
 use OCA\ArchiveAutoTag\Service\AutoTagService;
 use OCA\ArchiveAutoTag\Service\TagOwnershipService;
+use OCA\ArchiveAutoTag\Service\GroupTagService;
 use OCP\IDBConnection;
 use OCP\IGroupManager;
 use OCP\SystemTag\ISystemTagManager;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -22,6 +24,7 @@ class TagGovernanceCommand extends Command {
         private IDBConnection $db,
         private IGroupManager $groupManager,
         private AutoTagService $autoTagService,
+        private ?GroupTagService $groupTagService = null,
     ) {
         parent::__construct();
     }
@@ -29,20 +32,22 @@ class TagGovernanceCommand extends Command {
     protected function configure(): void {
         $this->setName('archive:tag:gov')
             ->setDescription('Administrator tag governance: list, inspect, set owner, assign group, delete, and reconcile tags')
-            ->addArgument('action', InputArgument::REQUIRED, 'Action: list, delete, set-owner, set-group, remove-group, reconcile')
+            ->addArgument('action', InputArgument::REQUIRED, 'Action: list, delete, set-owner, set-group, remove-group, reconcile, reconcile-group')
             ->addArgument('tag', InputArgument::OPTIONAL, 'Tag ID or Tag Name')
-            ->addArgument('target', InputArgument::OPTIONAL, 'Owner username or Group ID');
+            ->addArgument('target', InputArgument::OPTIONAL, 'Owner username or Group ID')
+            ->addOption('force', 'f', InputOption::VALUE_NONE, 'Force deletion even if tag is in use by files (cascades unassignment)');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int {
         $action = strtolower((string)$input->getArgument('action'));
         $tagArg = (string)$input->getArgument('tag');
         $targetArg = (string)$input->getArgument('target');
+        $force = (bool)$input->getOption('force');
 
         switch ($action) {
             case 'list':
                 $qb = $this->db->getQueryBuilder();
-                $qb->select('t.id', 't.name', 't.visibility', 't.editable', 'o.owner_uid')
+                $qb->select('t.id', 't.name', 't.visibility', 't.editable', 'o.owner_uid', 'o.status')
                    ->from('systemtag', 't')
                    ->leftJoin('t', 'archive_tag_ownership', 'o', $qb->expr()->eq('t.id', 'o.tag_id'))
                    ->orderBy('t.id', 'ASC');
@@ -58,11 +63,20 @@ class TagGovernanceCommand extends Command {
                     $tid = (int)$r['id'];
                     $name = $r['name'];
                     $owner = $r['owner_uid'] ?? 'system';
+                    $status = $r['status'] ?? 'ACTIVE';
                     $groups = $this->tagOwnershipService->getTagGroups($tid);
                     $groupsStr = !empty($groups) ? implode(', ', $groups) : 'global';
                     $vis = ((int)$r['visibility'] === 1) ? 'visible' : 'hidden';
                     $edit = ((int)$r['editable'] === 1) ? 'user-assignable' : 'restricted';
-                    $output->writeln("  - [ID: <comment>{$tid}</comment>] '<info>{$name}</info>' | Groups: [<comment>{$groupsStr}</comment>] | Owner: <comment>{$owner}</comment> | ({$vis}, {$edit})");
+
+                    // Get usage count
+                    $cQb = $this->db->getQueryBuilder();
+                    $cQb->select($cQb->createFunction('COUNT(*) as cnt'))
+                        ->from('systemtag_object_mapping')
+                        ->where($cQb->expr()->eq('systemtagid', $cQb->createNamedParameter($tid)));
+                    $cnt = (int)($cQb->executeQuery()->fetchOne() ?: 0);
+
+                    $output->writeln("  - [ID: <comment>{$tid}</comment>] '<info>{$name}</info>' | Groups: [<comment>{$groupsStr}</comment>] | Owner: <comment>{$owner}</comment> | Status: <comment>{$status}</comment> | In use: <comment>{$cnt} files</comment> | ({$vis}, {$edit})");
                 }
                 return Command::SUCCESS;
 
@@ -111,9 +125,56 @@ class TagGovernanceCommand extends Command {
                     return Command::FAILURE;
                 }
 
-                $this->tagManager->deleteTags([$tagId]);
-                $output->writeln("<info>Successfully deleted tag ID {$tagId} ('{$tagArg}') across the entire system.</info>");
-                return Command::SUCCESS;
+                // Verify tag exists in systemtag or archive_tag_ownership
+                $exQb = $this->db->getQueryBuilder();
+                $exQb->select('id')->from('systemtag')->where($exQb->expr()->eq('id', $exQb->createNamedParameter($tagId)));
+                $tagExists = (bool)$exQb->executeQuery()->fetchAssociative();
+
+                if (!$tagExists) {
+                    $output->writeln("<error>Tag ID {$tagId} does not exist.</error>");
+                    return Command::FAILURE;
+                }
+
+                // Check active usage count
+                $cQb = $this->db->getQueryBuilder();
+                $cQb->select($cQb->createFunction('COUNT(*) as cnt'))
+                    ->from('systemtag_object_mapping')
+                    ->where($cQb->expr()->eq('systemtagid', $cQb->createNamedParameter($tagId)));
+                $usageCount = (int)($cQb->executeQuery()->fetchOne() ?: 0);
+
+                if ($usageCount > 0 && !$force) {
+                    $output->writeln("<error>Error: Tag #{$tagId} is currently assigned to {$usageCount} file(s). Use --force to detach and delete.</error>");
+                    return Command::FAILURE;
+                }
+
+                // Atomic transaction
+                $this->db->beginTransaction();
+                try {
+                    // 1. Delete object mappings
+                    $dMap = $this->db->getQueryBuilder();
+                    $dMap->delete('systemtag_object_mapping')
+                         ->where($dMap->expr()->eq('systemtagid', $dMap->createNamedParameter($tagId)));
+                    $dMap->executeStatement();
+
+                    // 2. Delete systemtag
+                    $dSys = $this->db->getQueryBuilder();
+                    $dSys->delete('systemtag')
+                         ->where($dSys->expr()->eq('id', $dSys->createNamedParameter($tagId)));
+                    $dSys->executeStatement();
+
+                    // 3. Delete archive metadata
+                    $this->tagOwnershipService->deleteTagOwner($tagId);
+
+                    $this->db->commit();
+                    $output->writeln("<info>Successfully and atomically deleted tag ID {$tagId} ('{$tagArg}') (detached from {$usageCount} files).</info>");
+                    return Command::SUCCESS;
+                } catch (\Throwable $t) {
+                    if ($this->db->inTransaction()) {
+                        $this->db->rollBack();
+                    }
+                    $output->writeln("<error>Failed to delete tag #{$tagId}: " . $t->getMessage() . "</error>");
+                    return Command::FAILURE;
+                }
 
             case 'set-owner':
                 if ($tagArg === '' || $targetArg === '') {
@@ -130,6 +191,31 @@ class TagGovernanceCommand extends Command {
                 $output->writeln("<info>Successfully updated owner of tag ID {$tagId} to '<comment>{$targetArg}</comment>'.</info>");
                 return Command::SUCCESS;
 
+            case 'reconcile-group':
+                $targetGroup = $targetArg !== '' ? $targetArg : $tagArg;
+                if ($targetGroup === '') {
+                    $output->writeln("<error>Usage: php occ archive:tag:gov reconcile-group <groupId></error>");
+                    return Command::FAILURE;
+                }
+
+                $output->writeln("<info>Reconciling group tags for group '{$targetGroup}'...</info>");
+                if ($this->groupTagService !== null) {
+                    try {
+                        $res = $this->groupTagService->reconcileGroupTags('admin', $targetGroup);
+                        $output->writeln("  - Orphans restored: <info>" . count($res['orphans_restored']) . "</info>");
+                        $output->writeln("  - Ghosts purged: <comment>" . count($res['ghosts_purged']) . "</comment>");
+                        $output->writeln("  - Dangling mappings cleaned: <comment>{$res['dangling_mappings_pruned']}</comment>");
+                        $output->writeln("<info>✓ Group tag reconciliation completed successfully.</info>");
+                        return Command::SUCCESS;
+                    } catch (\Throwable $t) {
+                        $output->writeln("<error>Reconciliation failed: " . $t->getMessage() . "</error>");
+                        return Command::FAILURE;
+                    }
+                } else {
+                    $output->writeln("<error>GroupTagService is not available in command container.</error>");
+                    return Command::FAILURE;
+                }
+
             case 'reconcile':
             case 'sync':
                 $output->writeln("<info>Reconciling enterprise archive tags...</info>");
@@ -141,7 +227,7 @@ class TagGovernanceCommand extends Command {
                 return Command::SUCCESS;
 
             default:
-                $output->writeln("<error>Unknown action: {$action}. Use list, delete, set-owner, set-group, remove-group, or reconcile.</error>");
+                $output->writeln("<error>Unknown action: {$action}. Use list, delete, set-owner, set-group, remove-group, reconcile, or reconcile-group.</error>");
                 return Command::FAILURE;
         }
     }

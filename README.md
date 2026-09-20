@@ -131,6 +131,14 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
     - Complete elimination of N+1 database roundtrips via single-batch ancestor queries and pre-fetching in bulk file filtering.
     - Interactive 5th tab preset integration in the web console and 11-point automated verification suite (`tests/test_file_ownership_effective_acl.py`) with 100% pass rate.
 
+20. **Atomic Group Tag Deletion & Consistency Engine (v2.1.3)**:
+    - Complete elimination of false-success anomalies in tag deletion lifecycle.
+    - Unified database transaction boundary spanning `oc_systemtag_object_mapping`, `oc_systemtag`, `oc_archive_tag_ownership`, and `oc_archive_tag_groups`.
+    - Pessimistic row locking (`SELECT ... FOR UPDATE`) preventing concurrent delete and race condition anomalies.
+    - Tag-in-use protection returning HTTP 409 Conflict (`TAG_IN_USE`) for active files, requiring explicit cascade confirmation (`force: true`).
+    - Self-healing reconciliation engine (`reconcileGroupTags`) and API `/api/group-tags/reconcile` resolving orphaned tags and ghost records.
+    - Live UI badges for tag file counts, force-delete confirmation modals, and one-click reconciliation in Archive Portal.
+
 ---
 
 ## Current Project State
@@ -153,6 +161,7 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
 - **Step 16 — Central Permission Resolver & Effective Permission Inspector (v2.1.0)**: Unified authorization engine (`CentralPermissionResolver`), granular 8-bit operation mask, UI permission debugger tab, and automated test suite `tests/test_central_permission_resolver.py` (100% pass rate).
 - **Step 17 — Fail-Closed Storage Isolation & Cache Hardening (v2.1.1)**: Strict Deny-by-Default storage wrapper, parent-directory upload authorization, on-demand cache reconciliation, and automated E2E test suite `tests/test_fail_close_isolation_wrapper.py` (100% pass rate).
 - **Step 18 — FileOwnershipService Redesign & Effective ACL Precedence (v2.1.2)**: Formal ownership decoupling, explicit revocation (mask 0), cascading folder grants, atomic upserts, N+1 query elimination, and automated E2E test suite `tests/test_file_ownership_effective_acl.py` (100% pass rate).
+- **Step 19 — Atomic Group Tag Deletion & Consistency Engine (v2.1.3)**: False-success elimination, atomic 4-table transaction boundary, pessimistic row locking, 409 Conflict tag-in-use protection, self-healing reconciliation engine, UI tag usage badges, and automated test suite `tests/test_atomic_group_tag_deletion.py` (100% pass rate).
 - **Step 15 — Custom Enterprise Archive Onboarding & 2-Slide Wizard**: Replaced default Nextcloud Hub 26 promotional screens with an authentic, Obsidian-themed, RTL-first 2-slide enterprise onboarding wizard.
 
 
