@@ -713,3 +713,19 @@ Status: **Completed**
 - **Distributed Correlation & Traceability:** Maintained end-to-end tracing across `request_id`, `correlation_id` (`X-Correlation-ID`), `client_id` (`X-Client-ID`), `actor_uid`, and `client_ip`.
 - **Database Migration Version2500:** Added `bytes_requested` (bigint), `transfer_status` (varchar 32), `stage` (varchar 32), and `duration_ms` (integer) columns along with indexes to `oc_archive_ai_audit`.
 - **Verification:** `tests/test_ai_audit_semantics.py` (8/8 PASS, 100%), with complete backward compatibility confirmed by `tests/test_ai_file_retrieval_api.py` (16/16 PASS) and `tests/test_reliable_audit_subsystem.py` (10/10 PASS). Comprehensive test suite expanded to 23 core test suites with 0 regressions.
+
+
+### Requirement 23: Real Browser End-to-End Testing Layer (Completed)
+- **Status:** Fully Implemented, Hardened, and Verified (v2.2.0)
+- **Playwright Headless Chromium Engine:** Established a dedicated browser automation layer running on headless Chromium inside Ubuntu 26.04 WSL, eliminating reliance on static HTTP/DOM inspection and preventing UI regressions.
+- **Page Object Model (POM) Architecture:** Structured frontend interactions across 7 reusable page models: `BasePage`, `LoginPage`, `PortalPage`, `UploadModal`, `FolderRequestModal`, `TagDrawer`, and `SwaggerPage`.
+- **Comprehensive 20 Scenarios Coverage:**
+  - `test_01_auth_and_portal.py` (5/5 PASS): Login session lifecycle, error containers, archive portal hydration, Obsidian dark theme, global navigation breadcrumbs, and in-memory directory navigation.
+  - `test_02_tags_and_filter.py` (3/3 PASS): Multi-tag intersection (AND filter), tag badges ribbon, group tag governance modal with client validation guards, tag reconciliation, and locate-in-folder drawer action.
+  - `test_03_upload_lifecycle.py` (3/3 PASS): Modal open/close backdrop dismissals, Drag & Drop dropzone staging, WebDAV file ingestion, real-time progress bar, and automated tagging reflection in DOM.
+  - `test_04_folder_workflow.py` (3/3 PASS): Group admin folder creation requests, super admin cartable approval with native confirmation dialogs, and admin rejection with mandatory reason prompts.
+  - `test_05_layout_and_ux.py` (5/5 PASS): Deep vertical scrolling with sticky navigation header, mobile viewport responsive adaptation (375x812), non-admin app menu isolation, app store protection (`/settings/apps` restricted), and root URL masking.
+  - `test_06_ai_swagger.py` (1/1 PASS): Air-gapped AI Swagger UI documentation rendering with 0 external CDN requests.
+- **Critical Frontend Bug Discovered & Fixed:** Real browser testing caught `ReferenceError: formatBytes is not defined` in `archive_portal.js:1187` during file staging, which would have crashed file uploads in production. Added standard byte formatting function with Persian numerals.
+- **Diagnostic Artifacts:** Auto-generates full-page failure screenshots (`artifacts/e2e_reports/screenshots/`) and Playwright execution traces (`artifacts/e2e_reports/traces/`).
+- **Master Runner:** Executable via `python3 run_e2e_tests.py` (20/20 PASS in ~82s).

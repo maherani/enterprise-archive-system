@@ -9,3 +9,7 @@ deploy/backups/
 
 __pycache__/
 *.pyc
+
+# Test report artifacts
+artifacts/e2e_reports/screenshots/*.png
+artifacts/e2e_reports/traces/*.zip

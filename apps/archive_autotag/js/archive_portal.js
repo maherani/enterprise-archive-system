@@ -52,6 +52,16 @@
         });
     }
 
+    // Helper: Format File Bytes
+    function formatBytes(bytes) {
+        if (!bytes || bytes === 0) return '۰ بایت';
+        var k = 1024;
+        var sizes = ['بایت', 'کیلوبایت', 'مگابایت', 'گیگابایت'];
+        var i = Math.floor(Math.log(bytes) / Math.log(k));
+        var val = (bytes / Math.pow(k, i)).toFixed(1);
+        return toPersianDigits(val) + ' ' + sizes[i];
+    }
+
     // Helper: Determine File Category & Styling Class
     function getFileMeta(fileName, mimetype) {
         var ext = (fileName || '').split('.').pop().toLowerCase();
@@ -2135,10 +2145,10 @@
             '      <div id="ea-gtag-create-msg" style="margin-top: 8px; font-size: 0.82rem; display: none;"></div>',
             '    </div>',
             '    <!-- Group Tags Table / List -->',
-            '    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-      <div style="font-weight: 700; font-size: 0.9rem; color: var(--ea-text-main);">فهرست تگ‌های ثبت‌شده برای گروه:</div>
-      <button id="ea-gtag-reconcile-btn" class="ea-btn" style="padding: 3px 10px; font-size: 0.8rem; background: rgba(59,130,246,0.15); border-color: rgba(59,130,246,0.4); color: #60a5fa;" title="شناسایی و ترمیم تگ‌های یتیم یا فانتوم">🔄 همگام‌سازی و ترمیم تگ‌ها</button>
-    </div>',
+            '    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">',
+            '      <div style="font-weight: 700; font-size: 0.9rem; color: var(--ea-text-main);">فهرست تگ‌های ثبت‌شده برای گروه:</div>',
+            '      <button id="ea-gtag-reconcile-btn" class="ea-btn" style="padding: 3px 10px; font-size: 0.8rem; background: rgba(59,130,246,0.15); border-color: rgba(59,130,246,0.4); color: #60a5fa;" title="شناسایی و ترمیم تگ‌های یتیم یا فانتوم">🔄 همگام‌سازی و ترمیم تگ‌ها</button>',
+            '    </div>',
             '    <div id="ea-gtag-list-container" style="max-height: 320px; overflow-y: auto; border: 1px solid var(--ea-border); border-radius: var(--ea-radius); background: var(--ea-surface);">',
             '      <div style="padding: 24px; text-align: center; color: var(--ea-text-muted);">⏳ در حال بارگذاری تگ‌ها...</div>',
             '    </div>',
