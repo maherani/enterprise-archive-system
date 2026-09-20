@@ -970,6 +970,10 @@
                 '<button id="ea-admin-manage-reqs-btn" class="ea-btn ' + (state.pendingRequestsCount > 0 ? 'ea-btn-primary' : '') + '" title="بررسی و مدیریت درخواست‌های ایجاد پوشه">',
                 '  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polyline points="9 11 12 14 22 4"/></svg>',
                 '  ' + counterBadge + '<span>مدیریت درخواست‌های پوشه</span>',
+                '</button>',
+                '<button id="ea-admin-ai-security-btn" class="ea-btn" title="مدیریت سرویس‌ها، توکن‌های امن، سیاست‌های احراز هویت نمایندگی و تست زنده AI API">',
+                '  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="14" r="1.5"/><circle cx="15" cy="14" r="1.5"/><path d="M9 18h6"/></svg>',
+                '  <span>🤖 مدیریت و تست AI API</span>',
                 '</button>'
             ].join('\n');
 
@@ -978,6 +982,9 @@
 
             var adminBtn = document.getElementById('ea-admin-manage-reqs-btn');
             if (adminBtn) adminBtn.onclick = function () { openAdminManageRequestsModal(); };
+
+            var aiSecBtn = document.getElementById('ea-admin-ai-security-btn');
+            if (aiSecBtn) aiSecBtn.onclick = function () { openAiSecurityConsoleModal('services'); };
         } else {
             container.innerHTML = '';
         }
@@ -2372,4 +2379,794 @@
     } else {
         init();
     }
+
+    // =========================================================================
+    // AI Security, Token Lifecycle & Interactive Sandbox Console (Prompt 01 UI)
+    // =========================================================================
+    var aiConsoleState = {
+        activeTab: 'services',
+        cachedOverview: null,
+        sandboxToken: '',
+        sandboxFileId: '623',
+        sandboxOnBehalf: '',
+    };
+
+    function openAiSecurityConsoleModal(initialTab) {
+        closeModal();
+        aiConsoleState.activeTab = initialTab || 'services';
+
+        var overlay = document.createElement('div');
+        overlay.id = 'ea-active-modal';
+        overlay.className = 'ea-modal-overlay';
+        overlay.innerHTML = [
+            '<div class="ea-modal-card ea-modal-card-xl" style="display:flex;flex-direction:column;max-height:92vh;">',
+            '  <div class="ea-modal-header" style="flex-shrink:0;">',
+            '    <div class="ea-modal-title">',
+            '      <svg width="22" height="22" fill="none" stroke="#f97316" stroke-width="2.2" viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="14" r="1.5"/><circle cx="15" cy="14" r="1.5"/><path d="M9 18h6"/></svg>',
+            '      <span>کنسول امنیت و مدیریت AI API &amp; Delegated Identity</span>',
+            '    </div>',
+            '    <div style="display:flex;align-items:center;gap:12px;">',
+            '      <a href="/index.php/apps/archive_autotag/api/docs" target="_blank" class="ea-btn ea-btn-sm" style="background:rgba(249,115,22,0.12);color:#f97316;border-color:rgba(249,115,22,0.35);" title="باز کردن Swagger UI محلی و مستقل">📖 Swagger UI</a>',
+            '      <button class="ea-modal-close" id="ea-modal-close-btn" title="بستن">✕</button>',
+            '    </div>',
+            '  </div>',
+            '  <div class="ea-ai-tabs" style="flex-shrink:0;">',
+            '    <button class="ea-ai-tab ' + (aiConsoleState.activeTab === 'services' ? 'active' : '') + '" data-tab="services">📌 سرویس‌ها و توکن‌ها</button>',
+            '    <button class="ea-ai-tab ' + (aiConsoleState.activeTab === 'delegations' ? 'active' : '') + '" data-tab="delegations">🛡️ سیاست‌های نمایندگی (Allowlist)</button>',
+            '    <button class="ea-ai-tab ' + (aiConsoleState.activeTab === 'audit' ? 'active' : '') + '" data-tab="audit">📊 لاگ‌های نظارتی (Audit Trail)</button>',
+            '    <button class="ea-ai-tab ' + (aiConsoleState.activeTab === 'sandbox' ? 'active' : '') + '" data-tab="sandbox">🧪 محیط تست زنده API Sandbox</button>',
+            '  </div>',
+            '  <div class="ea-modal-body" id="ea-ai-console-body" style="flex:1;overflow-y:auto;padding:24px;">',
+            '    <div style="text-align:center;padding:40px;color:var(--ea-text-muted);">در حال بارگذاری اطلاعات امنیتی AI...</div>',
+            '  </div>',
+            '  <div class="ea-modal-footer" style="flex-shrink:0;">',
+            '    <button class="ea-btn" id="ea-ai-modal-close-btn">بستن</button>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.appendChild(overlay);
+        document.getElementById('ea-modal-close-btn').onclick = closeModal;
+        document.getElementById('ea-ai-modal-close-btn').onclick = closeModal;
+        overlay.onclick = function (e) {
+            if (e.target === overlay) closeModal();
+        };
+
+        var tabButtons = overlay.querySelectorAll('.ea-ai-tab');
+        tabButtons.forEach(function (btn) {
+            btn.onclick = function () {
+                var tab = btn.getAttribute('data-tab');
+                aiConsoleState.activeTab = tab;
+                tabButtons.forEach(function (b) { b.classList.toggle('active', b === btn); });
+                renderAiConsoleCurrentTab();
+            };
+        });
+
+        loadAiConsoleOverview();
+    }
+
+    function loadAiConsoleOverview() {
+        var body = document.getElementById('ea-ai-console-body');
+        if (!body) return;
+
+        fetch('/index.php/apps/archive_autotag/api/ai/admin/overview', {
+            headers: { 'OCS-APIRequest': 'true' }
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data.status === 'success') {
+                aiConsoleState.cachedOverview = data;
+                renderAiConsoleCurrentTab();
+            } else {
+                body.innerHTML = '<div style="color:#ef4444;padding:20px;text-align:center;">خطا در دریافت اطلاعات: ' + escapeHtml(data.message || 'نامشخص') + '</div>';
+            }
+        })
+        .catch(function (err) {
+            body.innerHTML = '<div style="color:#ef4444;padding:20px;text-align:center;">خطای ارتباط با سرور: ' + escapeHtml(err.message) + '</div>';
+        });
+    }
+
+    function renderAiConsoleCurrentTab() {
+        var body = document.getElementById('ea-ai-console-body');
+        if (!body || !aiConsoleState.cachedOverview) return;
+
+        var data = aiConsoleState.cachedOverview;
+        if (aiConsoleState.activeTab === 'services') {
+            renderAiServicesTab(body, data);
+        } else if (aiConsoleState.activeTab === 'delegations') {
+            renderAiDelegationsTab(body, data);
+        } else if (aiConsoleState.activeTab === 'audit') {
+            renderAiAuditTab(body);
+        } else if (aiConsoleState.activeTab === 'sandbox') {
+            renderAiSandboxTab(body, data);
+        }
+    }
+
+    // Tab 1: Services & Tokens
+    function renderAiServicesTab(body, data) {
+        var m = data.metrics || {};
+        var html = [
+            '<div class="ea-ai-metrics">',
+            '  <div class="ea-ai-metric-card">',
+            '    <div class="ea-ai-metric-val">' + toPersianDigits(m.total_services || 0) + '</div>',
+            '    <div class="ea-ai-metric-label">سرویس‌های AI ثبت‌شده</div>',
+            '  </div>',
+            '  <div class="ea-ai-metric-card">',
+            '    <div class="ea-ai-metric-val">' + toPersianDigits(m.total_tokens || 0) + '</div>',
+            '    <div class="ea-ai-metric-label">توکن‌های رمزنگاری‌شده (SHA-256)</div>',
+            '  </div>',
+            '  <div class="ea-ai-metric-card">',
+            '    <div class="ea-ai-metric-val">' + toPersianDigits(m.total_delegations || 0) + '</div>',
+            '    <div class="ea-ai-metric-label">سیاست‌های نمایندگی فعال (Allowlist)</div>',
+            '  </div>',
+            '  <div class="ea-ai-metric-card">',
+            '    <div class="ea-ai-metric-val" style="color:#ef4444;">' + toPersianDigits(m.total_blocked_attempts || 0) + '</div>',
+            '    <div class="ea-ai-metric-label">تلاش‌های غیرمجاز مسدودشده</div>',
+            '  </div>',
+            '</div>'
+        ];
+
+        (data.services || []).forEach(function (svc) {
+            var adminGateBadge = svc.allow_admin_delegation
+                ? '<span class="ea-badge-rotating">⚠️ مجاز (غیر ایمن)</span>'
+                : '<span class="ea-badge-active">🔒 مسدود (ایمن - Zero Escalation)</span>';
+
+            html.push([
+                '<div style="background:var(--ea-surface-card);border:1px solid var(--ea-border);border-radius:var(--ea-radius-md);padding:20px;margin-bottom:24px;">',
+                '  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:12px;">',
+                '    <div>',
+                '      <div style="display:flex;align-items:center;gap:10px;">',
+                '        <h3 style="margin:0;font-size:1.15rem;font-weight:800;color:var(--ea-text-main);">' + escapeHtml(svc.display_name || svc.service_id) + '</h3>',
+                '        <span style="font-family:monospace;font-size:0.8rem;background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:4px;color:var(--ea-primary);">' + escapeHtml(svc.service_id) + '</span>',
+                '        <span class="ea-badge-active">فعال</span>',
+                '      </div>',
+                '      <p style="margin:6px 0 0;font-size:0.85rem;color:var(--ea-text-muted);">' + escapeHtml(svc.description || 'بدون توضیح') + '</p>',
+                '      <div style="margin-top:8px;font-size:0.8rem;color:var(--ea-text-subtle);display:flex;gap:18px;flex-wrap:wrap;">',
+                '        <span>کاربر پیش‌فرض سازمانی: <strong style="color:var(--ea-text-main);">' + escapeHtml(svc.default_actor_uid) + '</strong></span>',
+                '        <span>سیاست نمایندگی: <strong style="color:var(--ea-text-main);">' + escapeHtml(svc.delegation_policy) + '</strong></span>',
+                '        <span>جعل هویت Admin: ' + adminGateBadge + '</span>',
+                '      </div>',
+                '    </div>',
+                '    <div style="display:flex;gap:8px;">',
+                '      <button class="ea-btn ea-btn-sm ea-btn-primary ea-new-token-btn" data-service="' + escapeHtml(svc.service_id) + '">+ صدور توکن جدید</button>',
+                '      <button class="ea-btn ea-btn-sm ea-rotate-token-btn" data-service="' + escapeHtml(svc.service_id) + '">🔄 چرخش توکن (Rotate)</button>',
+                '    </div>',
+                '  </div>',
+                '  <div style="font-size:0.88rem;font-weight:700;color:var(--ea-text-muted);margin-bottom:10px;">توکن‌های احراز هویت این سرویس:</div>',
+                '  <div style="overflow-x:auto;">',
+                '    <table class="ea-table" style="width:100%;font-size:0.82rem;">',
+                '      <thead>',
+                '        <tr>',
+                '          <th>شناسه / نام توکن</th>',
+                '          <th>پیشوند امن (Prefix)</th>',
+                '          <th>وضعیت</th>',
+                '          <th>تاریخ صدور</th>',
+                '          <th>انقضا / مهلت تنفس</th>',
+                '          <th>عملیات</th>',
+                '        </tr>',
+                '      </thead>',
+                '      <tbody>'
+            ].join('\n'));
+
+            if (!svc.tokens || svc.tokens.length === 0) {
+                html.push('<tr><td colspan="6" style="text-align:center;color:var(--ea-text-muted);padding:14px;">هیچ توکنی برای این سرویس وجود ندارد.</td></tr>');
+            } else {
+                svc.tokens.forEach(function (tok) {
+                    var statusBadge = '<span class="ea-badge-active">ACTIVE</span>';
+                    if (tok.status === 'GRACE_PERIOD' || tok.status === 'ROTATING') {
+                        statusBadge = '<span class="ea-badge-rotating">GRACE_PERIOD</span>';
+                    } else if (tok.status === 'REVOKED') {
+                        statusBadge = '<span class="ea-badge-revoked">REVOKED</span>';
+                    }
+
+                    var expStr = tok.expires_at ? formatDate(tok.expires_at) : 'نامحدود';
+                    if (tok.grace_period_until) {
+                        expStr = 'تنفس تا ' + formatDate(tok.grace_period_until);
+                    }
+
+                    var actions = '';
+                    if (tok.status !== 'REVOKED') {
+                        actions = '<button class="ea-btn ea-btn-sm ea-revoke-token-btn" data-id="' + tok.id + '" style="background:rgba(239,68,68,0.15);color:#f87171;border-color:rgba(239,68,68,0.35);padding:3px 8px;font-size:0.75rem;">🚫 ابطال آنی</button>';
+                    } else {
+                        actions = '<span style="color:var(--ea-text-disabled);">باطل‌شده</span>';
+                    }
+
+                    html.push([
+                        '<tr>',
+                        '  <td><strong>#' + tok.id + '</strong> - ' + escapeHtml(tok.token_name || 'Service Token') + '</td>',
+                        '  <td><code style="background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px;color:var(--ea-primary);">' + escapeHtml(tok.token_prefix) + '...</code></td>',
+                        '  <td>' + statusBadge + '</td>',
+                        '  <td>' + formatDate(tok.created_at) + '</td>',
+                        '  <td>' + expStr + '</td>',
+                        '  <td>' + actions + '</td>',
+                        '</tr>'
+                    ].join('\n'));
+                });
+            }
+
+            html.push([
+                '      </tbody>',
+                '    </table>',
+                '  </div>',
+                '</div>'
+            ].join('\n'));
+        });
+
+        body.innerHTML = html.join('\n');
+
+        // Bind events
+        body.querySelectorAll('.ea-new-token-btn').forEach(function (btn) {
+            btn.onclick = function () {
+                promptCreateToken(btn.getAttribute('data-service'));
+            };
+        });
+        body.querySelectorAll('.ea-rotate-token-btn').forEach(function (btn) {
+            btn.onclick = function () {
+                promptRotateToken(btn.getAttribute('data-service'));
+            };
+        });
+        body.querySelectorAll('.ea-revoke-token-btn').forEach(function (btn) {
+            btn.onclick = function () {
+                promptRevokeToken(btn.getAttribute('data-id'));
+            };
+        });
+    }
+
+    // Tab 2: Delegation Policies
+    function renderAiDelegationsTab(body, data) {
+        var groups = data.available_groups || [];
+        var html = [
+            '<div class="ea-policy-banner">',
+            '  <strong>🛡️ معماری امنیت نمایندگی (Delegated Identity &amp; Deny-by-Default):</strong><br>',
+            '  سرویس‌های هوش مصنوعی صرفاً در صورتی مجاز به خواندن فایل از طرف کاربر (از طریق هدر <code>X-On-Behalf-Of</code>) هستند که کاربر یا گروه سازمانی او صریحاً در لیست مجاز (Allowlist) زیر ثبت شده باشد.<br>',
+            '  <strong>قانون قطعی:</strong> هرگونه درخواست با هویت <code>admin</code> به صورت سخت‌گیرانه با کد خطای <code>403 Forbidden</code> مسدود می‌شود تا از ارتقای سطح دسترسی (Privilege Escalation) جلوگیری گردد.',
+            '</div>',
+            '<div style="background:var(--ea-surface-card);border:1px solid var(--ea-border);border-radius:var(--ea-radius-md);padding:20px;margin-bottom:20px;">',
+            '  <h4 style="margin:0 0 14px;color:var(--ea-text-main);">+ افزودن سیاست نمایندگی جدید</h4>',
+            '  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">',
+            '    <div style="flex:1;min-width:180px;">',
+            '      <label style="display:block;font-size:0.8rem;color:var(--ea-text-muted);margin-bottom:4px;">سرویس هوش مصنوعی:</label>',
+            '      <select id="ea-del-service-select" class="ea-form-select">',
+        ];
+
+        (data.services || []).forEach(function (s) {
+            html.push('<option value="' + escapeHtml(s.service_id) + '">' + escapeHtml(s.display_name) + ' (' + escapeHtml(s.service_id) + ')</option>');
+        });
+
+        html.push([
+            '      </select>',
+            '    </div>',
+            '    <div style="width:160px;">',
+            '      <label style="display:block;font-size:0.8rem;color:var(--ea-text-muted);margin-bottom:4px;">نوع موجودیت:</label>',
+            '      <select id="ea-del-type-select" class="ea-form-select">',
+            '        <option value="GROUP">گروه سازمانی (GROUP)</option>',
+            '        <option value="USER">کاربر اختصاصی (USER)</option>',
+            '      </select>',
+            '    </div>',
+            '    <div style="flex:1;min-width:200px;" id="ea-del-subject-container">',
+            '      <label style="display:block;font-size:0.8rem;color:var(--ea-text-muted);margin-bottom:4px;">انتخاب گروه مجاز:</label>',
+            '      <select id="ea-del-subject-group" class="ea-form-select">',
+        ]);
+
+        groups.forEach(function (g) {
+            if (g !== 'admin') {
+                html.push('<option value="' + escapeHtml(g) + '">' + escapeHtml(g) + '</option>');
+            }
+        });
+
+        html.push([
+            '      </select>',
+            '      <input type="text" id="ea-del-subject-user" class="ea-form-input" placeholder="نام کاربری مثلاً Bakbari" style="display:none;" />',
+            '    </div>',
+            '    <button id="ea-add-delegation-btn" class="ea-btn ea-btn-primary" style="height:38px;">ثبت در لیست مجاز</button>',
+            '  </div>',
+            '</div>',
+            '<div style="background:var(--ea-surface-card);border:1px solid var(--ea-border);border-radius:var(--ea-radius-md);padding:20px;">',
+            '  <h4 style="margin:0 0 14px;color:var(--ea-text-main);">سیاست‌های نمایندگی ثبت‌شده (Allowlist):</h4>',
+            '  <div style="overflow-x:auto;">',
+            '    <table class="ea-table" style="width:100%;font-size:0.84rem;">',
+            '      <thead>',
+            '        <tr>',
+            '          <th>سرویس</th>',
+            '          <th>نوع موجودیت</th>',
+            '          <th>موضوع مجاز (Subject)</th>',
+            '          <th>تاریخ ایجاد</th>',
+            '          <th>عملیات</th>',
+            '        </tr>',
+            '      </thead>',
+            '      <tbody>'
+        ]);
+
+        var allDelCount = 0;
+        (data.services || []).forEach(function (s) {
+            (s.delegations || []).forEach(function (d) {
+                allDelCount++;
+                var typeBadge = d.subject_type === 'GROUP'
+                    ? '<span class="ea-badge-active">👥 گروه سازمانی</span>'
+                    : '<span class="ea-badge-rotating">👤 کاربر</span>';
+
+                html.push([
+                    '<tr>',
+                    '  <td><code style="color:var(--ea-primary);">' + escapeHtml(s.service_id) + '</code></td>',
+                    '  <td>' + typeBadge + '</td>',
+                    '  <td><strong style="color:var(--ea-text-main);">' + escapeHtml(d.subject_id) + '</strong></td>',
+                    '  <td>' + formatDate(d.created_at) + '</td>',
+                    '  <td>',
+                    '    <button class="ea-btn ea-btn-sm ea-del-remove-btn" data-id="' + d.id + '" style="background:rgba(239,68,68,0.15);color:#f87171;border-color:rgba(239,68,68,0.35);padding:3px 8px;font-size:0.75rem;">حذف سیاست</button>',
+                    '  </td>',
+                    '</tr>'
+                ].join('\n'));
+            });
+        });
+
+        if (allDelCount === 0) {
+            html.push('<tr><td colspan="5" style="text-align:center;color:var(--ea-text-muted);padding:16px;">هیچ قانون نمایندگی تعریف نشده است (سیاست Deny-All حاکم است).</td></tr>');
+        }
+
+        html.push([
+            '      </tbody>',
+            '    </table>',
+            '  </div>',
+            '</div>'
+        ].join('\n'));
+
+        body.innerHTML = html.join('\n');
+
+        // Toggle User vs Group Input
+        var typeSelect = document.getElementById('ea-del-type-select');
+        var groupInput = document.getElementById('ea-del-subject-group');
+        var userInput = document.getElementById('ea-del-subject-user');
+        if (typeSelect) {
+            typeSelect.onchange = function () {
+                if (typeSelect.value === 'USER') {
+                    groupInput.style.display = 'none';
+                    userInput.style.display = 'block';
+                } else {
+                    groupInput.style.display = 'block';
+                    userInput.style.display = 'none';
+                }
+            };
+        }
+
+        var addBtn = document.getElementById('ea-add-delegation-btn');
+        if (addBtn) {
+            addBtn.onclick = function () {
+                var sid = document.getElementById('ea-del-service-select').value;
+                var type = typeSelect.value;
+                var subject = type === 'USER' ? userInput.value.trim() : groupInput.value;
+                if (!subject) {
+                    alert('لطفاً نام کاربر یا گروه را وارد یا انتخاب کنید.');
+                    return;
+                }
+                submitAddDelegation(sid, type, subject);
+            };
+        }
+
+        body.querySelectorAll('.ea-del-remove-btn').forEach(function (btn) {
+            btn.onclick = function () {
+                var id = btn.getAttribute('data-id');
+                if (confirm('آیا از حذف این سیاست نمایندگی اطمینان دارید؟')) {
+                    submitRemoveDelegation(id);
+                }
+            };
+        });
+    }
+
+    // Tab 3: Audit Trail
+    function renderAiAuditTab(body) {
+        body.innerHTML = [
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">',
+            '  <h4 style="margin:0;color:var(--ea-text-main);">📋 گزارش لاگ‌های امنیتی اخیر (Audit Trail):</h4>',
+            '  <button id="ea-refresh-audit-btn" class="ea-btn ea-btn-sm">🔄 به‌روزرسانی زنده</button>',
+            '</div>',
+            '<div id="ea-audit-table-container">',
+            '  <div style="text-align:center;padding:30px;color:var(--ea-text-muted);">در حال دریافت آخرین لاگ‌ها...</div>',
+            '</div>'
+        ].join('\n');
+
+        document.getElementById('ea-refresh-audit-btn').onclick = function () {
+            loadAuditData();
+        };
+
+        loadAuditData();
+    }
+
+    function loadAuditData() {
+        var container = document.getElementById('ea-audit-table-container');
+        if (!container) return;
+
+        fetch('/index.php/apps/archive_autotag/api/ai/admin/audit?limit=40', {
+            headers: { 'OCS-APIRequest': 'true' }
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data.status !== 'success' || !data.logs) {
+                container.innerHTML = '<div style="color:#ef4444;padding:20px;text-align:center;">خطا در دریافت لاگ‌ها.</div>';
+                return;
+            }
+
+            var html = [
+                '<div style="overflow-x:auto;">',
+                '  <table class="ea-table" style="width:100%;font-size:0.8rem;">',
+                '    <thead>',
+                '      <tr>',
+                '        <th>زمان</th>',
+                '        <th>شناسه درخواست</th>',
+                '        <th>کلاینت IP</th>',
+                '        <th>سرویس / هویت</th>',
+                '        <th>کاربر موثر</th>',
+                '        <th>درخواست نمایندگی</th>',
+                '        <th>فایل ID</th>',
+                '        <th>نتیجه</th>',
+                '      </tr>',
+                '    </thead>',
+                '    <tbody>'
+            ];
+
+            if (data.logs.length === 0) {
+                html.push('<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--ea-text-muted);">هیچ رویدادی در لاگ ثبت نشده است.</td></tr>');
+            } else {
+                data.logs.forEach(function (l) {
+                    var badge = '<span class="ea-badge-active">' + escapeHtml(l.result) + '</span>';
+                    if (l.result === 'FORBIDDEN' || l.result === 'BLOCKED') {
+                        badge = '<span class="ea-badge-revoked">⛔ ' + escapeHtml(l.result) + '</span>';
+                    } else if (l.result === 'UNAUTHORIZED') {
+                        badge = '<span class="ea-badge-rotating">⚠️ 401 UNAUTHORIZED</span>';
+                    }
+
+                    var delStatus = l.delegation_status || 'NONE';
+                    var delBadge = '<span style="color:var(--ea-text-subtle);">' + escapeHtml(delStatus) + '</span>';
+                    if (delStatus === 'FORBIDDEN') {
+                        delBadge = '<span style="color:#f87171;font-weight:700;">⛔ FORBIDDEN</span>';
+                    } else if (delStatus === 'ALLOWED') {
+                        delBadge = '<span style="color:#4ade80;font-weight:700;">✅ ALLOWED</span>';
+                    }
+
+                    html.push([
+                        '<tr>',
+                        '  <td style="white-space:nowrap;">' + formatDate(l.created_at) + '</td>',
+                        '  <td><code style="font-size:0.75rem;">' + escapeHtml(l.request_id || '-') + '</code></td>',
+                        '  <td>' + escapeHtml(l.client_ip || '-') + '</td>',
+                        '  <td>' + escapeHtml(l.service_id || l.client_id || '-') + '</td>',
+                        '  <td><strong>' + escapeHtml(l.actor_uid || '-') + '</strong></td>',
+                        '  <td>' + escapeHtml(l.delegation_requested || '-') + ' (' + delBadge + ')</td>',
+                        '  <td>#' + escapeHtml(String(l.file_id || '-')) + '</td>',
+                        '  <td>' + badge + '</td>',
+                        '</tr>'
+                    ].join('\n'));
+                });
+            }
+
+            html.push([
+                '    </tbody>',
+                '  </table>',
+                '</div>'
+            ].join('\n'));
+
+            container.innerHTML = html.join('\n');
+        })
+        .catch(function (err) {
+            container.innerHTML = '<div style="color:#ef4444;padding:20px;text-align:center;">خطا: ' + escapeHtml(err.message) + '</div>';
+        });
+    }
+
+    // Tab 4: Interactive API Sandbox
+    function renderAiSandboxTab(body, data) {
+        var tokenOptions = [];
+        (data.services || []).forEach(function (s) {
+            (s.tokens || []).forEach(function (t) {
+                if (t.status === 'ACTIVE') {
+                    tokenOptions.push({
+                        label: s.service_id + ' - ' + t.token_name + ' (' + t.token_prefix + '...)',
+                        prefix: t.token_prefix
+                    });
+                }
+            });
+        });
+
+        body.innerHTML = [
+            '<div class="ea-policy-banner" style="background:rgba(59,130,246,0.08);border-color:rgba(59,130,246,0.3);color:#bfdbfe;">',
+            '  <strong>🧪 محیط تست زنده و اعتبارسنجی احراز هویت هوش مصنوعی (API Sandbox):</strong><br>',
+            '  در این بخش می‌توانید به صورت بلادرنگ از درون مرورگر، سناریوهای مختلف احراز هویت با توکن Bearer، تغییر هویت پویا با <code>X-On-Behalf-Of</code>، سد دفاعی جلوگیری از جعل هویت <code>admin</code> و سیاست Deny-by-Default را آزمایش کنید.',
+            '</div>',
+            '<div style="background:var(--ea-surface-card);border:1px solid var(--ea-border);border-radius:var(--ea-radius-md);padding:20px;">',
+            '  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">',
+            '    <div style="grid-column:1 / -1;">',
+            '      <label style="display:block;font-size:0.85rem;font-weight:700;color:var(--ea-text-main);margin-bottom:6px;">توکن احراز هویت (Bearer Token):</label>',
+            '      <input type="text" id="ea-sb-token" class="ea-form-input" style="font-family:monospace;" placeholder="مثلاً: ai_sec_token_... یا nc_ai_..." value="' + escapeHtml(aiConsoleState.sandboxToken || 'ai_sec_token_7021824a20719a37d5433ba2f96832d28edf57d81d307a8468d2864601e29d08') + '" />',
+            '      <span style="font-size:0.75rem;color:var(--ea-text-muted);">توکن پیش‌فرض اولیه سامانه به صورت خودکار در فیلد بالا درج شده است.</span>',
+            '    </div>',
+            '    <div>',
+            '      <label style="display:block;font-size:0.85rem;font-weight:700;color:var(--ea-text-main);margin-bottom:6px;">شناسه فایل آرشیو (File ID):</label>',
+            '      <input type="number" id="ea-sb-file-id" class="ea-form-input" value="' + escapeHtml(aiConsoleState.sandboxFileId || '623') + '" />',
+            '    </div>',
+            '    <div>',
+            '      <label style="display:block;font-size:0.85rem;font-weight:700;color:var(--ea-text-main);margin-bottom:6px;">هویت نمایندگی (X-On-Behalf-Of):</label>',
+            '      <input type="text" id="ea-sb-behalf" class="ea-form-input" placeholder="خالی = هویت پیش‌فرض سرویس" value="' + escapeHtml(aiConsoleState.sandboxOnBehalf || '') + '" />',
+            '    </div>',
+            '  </div>',
+            '  <div style="margin-top:10px;">',
+            '    <span style="font-size:0.8rem;color:var(--ea-text-muted);">تست‌های سریع با یک کلیک:</span>',
+            '    <div class="ea-quick-chips">',
+            '      <button class="ea-chip-btn" id="ea-chip-soc">👤 Bakbari (SOC - مجاز)</button>',
+            '      <button class="ea-chip-btn" id="ea-chip-cert">👤 maherani (CERT - مجاز)</button>',
+            '      <button class="ea-chip-btn" id="ea-chip-admin" style="color:#f87171;border-color:rgba(239,68,68,0.4);">⛔ admin (تست سد جعل هویت)</button>',
+            '      <button class="ea-chip-btn" id="ea-chip-fake" style="color:#facc15;border-color:rgba(234,179,8,0.4);">❓ stranger_user (تست Deny-by-Default)</button>',
+            '      <button class="ea-chip-btn" id="ea-chip-clear">❌ پاک کردن هویت</button>',
+            '    </div>',
+            '  </div>',
+            '  <div style="margin-top:20px;">',
+            '    <button id="ea-sb-run-btn" class="ea-btn ea-btn-primary" style="padding:10px 24px;font-size:0.95rem;">🚀 ارسال درخواست و اعتبارسنجی زنده</button>',
+            '  </div>',
+            '</div>',
+            '<div id="ea-sb-result-container" style="display:none;margin-top:20px;"></div>'
+        ].join('\n');
+
+        // Wire Chips
+        document.getElementById('ea-chip-soc').onclick = function () {
+            document.getElementById('ea-sb-behalf').value = 'Bakbari';
+        };
+        document.getElementById('ea-chip-cert').onclick = function () {
+            document.getElementById('ea-sb-behalf').value = 'maherani';
+        };
+        document.getElementById('ea-chip-admin').onclick = function () {
+            document.getElementById('ea-sb-behalf').value = 'admin';
+        };
+        document.getElementById('ea-chip-fake').onclick = function () {
+            document.getElementById('ea-sb-behalf').value = 'stranger_user_99';
+        };
+        document.getElementById('ea-chip-clear').onclick = function () {
+            document.getElementById('ea-sb-behalf').value = '';
+        };
+
+        // Wire Run Button
+        document.getElementById('ea-sb-run-btn').onclick = function () {
+            var token = document.getElementById('ea-sb-token').value.trim();
+            var fileId = parseInt(document.getElementById('ea-sb-file-id').value, 10);
+            var onBehalf = document.getElementById('ea-sb-behalf').value.trim();
+
+            aiConsoleState.sandboxToken = token;
+            aiConsoleState.sandboxFileId = String(fileId);
+            aiConsoleState.sandboxOnBehalf = onBehalf;
+
+            executeAiSandboxTest(token, fileId, onBehalf);
+        };
+    }
+
+    function executeAiSandboxTest(token, fileId, onBehalf) {
+        var resContainer = document.getElementById('ea-sb-result-container');
+        if (!resContainer) return;
+
+        resContainer.style.display = 'block';
+        resContainer.innerHTML = '<div style="text-align:center;padding:24px;color:var(--ea-text-muted);">در حال اجرای درخواست و ارزیابی دسترسی...</div>';
+
+        fetch('/index.php/apps/archive_autotag/api/ai/admin/test-api', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'OCS-APIRequest': 'true'
+            },
+            body: JSON.stringify({
+                token: token,
+                file_id: fileId,
+                on_behalf_of: onBehalf
+            })
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            var isSuccess = data.success === true;
+            var badgeColor = isSuccess ? '#22c55e' : (data.http_status === 403 ? '#ef4444' : '#eab308');
+            var bgGlass = isSuccess ? 'rgba(34,197,94,0.08)' : (data.http_status === 403 ? 'rgba(239,68,68,0.08)' : 'rgba(234,179,8,0.08)');
+            var borderCol = isSuccess ? 'rgba(34,197,94,0.35)' : (data.http_status === 403 ? 'rgba(239,68,68,0.35)' : 'rgba(234,179,8,0.35)');
+
+            var metaHtml = '';
+            if (data.file_meta && data.file_meta.file) {
+                var f = data.file_meta.file;
+                var tags = (f.tags || []).map(function (t) {
+                    return '<span style="background:rgba(249,115,22,0.15);color:#f97316;border:1px solid rgba(249,115,22,0.35);padding:1px 6px;border-radius:4px;font-size:0.75rem;">' + escapeHtml(t.name) + '</span>';
+                }).join(' ');
+
+                metaHtml = [
+                    '<div style="margin-top:14px;background:#05070a;border:1px solid #1e293b;border-radius:8px;padding:12px;">',
+                    '  <div style="font-size:0.8rem;color:var(--ea-text-muted);margin-bottom:6px;">متادیتای فایل بازیابی‌شده (Sanitized Metadata):</div>',
+                    '  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;font-size:0.85rem;">',
+                    '    <div>نام فایل: <strong style="color:#fff;">' + escapeHtml(f.name) + '</strong></div>',
+                    '    <div>حجم: <strong style="color:#fff;">' + escapeHtml(f.human_size) + '</strong></div>',
+                    '    <div>مالک فایل: <strong style="color:#fff;">' + escapeHtml(f.owner) + '</strong></div>',
+                    '    <div>نوع: <code style="color:#94a3b8;">' + escapeHtml(f.mimetype) + '</code></div>',
+                    '  </div>',
+                    '  <div style="margin-top:8px;">تگ‌های منتسب: ' + (tags || '<span style="color:#64748b;">بدون تگ</span>') + '</div>',
+                    '</div>'
+                ].join('\n');
+            }
+
+            resContainer.innerHTML = [
+                '<div style="background:' + bgGlass + ';border:1px solid ' + borderCol + ';border-radius:var(--ea-radius-md);padding:20px;">',
+                '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px;">',
+                '    <div style="display:flex;align-items:center;gap:12px;">',
+                '      <span style="font-size:1.1rem;font-weight:900;background:' + badgeColor + ';color:#000;padding:4px 12px;border-radius:6px;">' + escapeHtml(data.result_label || ('HTTP ' + data.http_status)) + '</span>',
+                '      <span style="font-size:0.85rem;color:var(--ea-text-muted);">شناسه رویداد نظارتی ثبت‌شده در دیتابیس: <code>' + escapeHtml(data.request_id || '-') + '</code></span>',
+                '    </div>',
+                '    <div style="font-size:0.8rem;color:var(--ea-text-subtle);">هویت موثر (Effective Actor): <strong style="color:var(--ea-text-main);">' + escapeHtml(data.actor_uid || '-') + '</strong></div>',
+                '  </div>',
+                '  <div style="font-size:0.92rem;line-height:1.6;color:var(--ea-text-main);margin-bottom:8px;">' + escapeHtml(data.reason || '') + '</div>',
+                metaHtml,
+                '</div>'
+            ].join('\n');
+        })
+        .catch(function (err) {
+            resContainer.innerHTML = '<div style="color:#ef4444;padding:16px;">خطا در ارسال درخواست تست: ' + escapeHtml(err.message) + '</div>';
+        });
+    }
+
+    // Modal: Show Plaintext Token (Only Once)
+    function showTokenCreatedDialog(token, prefix, expires, isRotation) {
+        var overlay = document.createElement('div');
+        overlay.className = 'ea-modal-overlay';
+        overlay.style.zIndex = '100002';
+        overlay.innerHTML = [
+            '<div class="ea-modal-card" style="max-width:600px;">',
+            '  <div class="ea-modal-header">',
+            '    <div class="ea-modal-title">',
+            '      <span style="color:#22c55e;">🔑 توکن احراز هویت جدید صادر شد</span>',
+            '    </div>',
+            '    <button class="ea-modal-close" id="ea-tok-diag-close">✕</button>',
+            '  </div>',
+            '  <div class="ea-modal-body">',
+            '    <div class="ea-policy-banner" style="background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.4);color:#fca5a5;">',
+            '      <strong>⚠️ توجه بسیار مهم امنیتی:</strong><br>',
+            '      این کلید خام فقط یک‌بار در این صفحه نمایش داده می‌شود. به دلیل ذخیره‌سازی هش رمزنگاری‌شده (SHA-256) در پایگاه داده، امکان بازیابی مجدد آن وجود نخواهد داشت.',
+            '    </div>',
+            '    <div style="font-size:0.85rem;color:var(--ea-text-muted);margin-bottom:6px;">کلید توکن خام (Raw Secret Token):</div>',
+            '    <div class="ea-token-display-box" id="ea-raw-token-box">' + escapeHtml(token) + '</div>',
+            '    <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:var(--ea-text-subtle);">',
+            '      <span>پیشوند: <code>' + escapeHtml(prefix) + '...</code></span>',
+            '      <span>انقضا: ' + escapeHtml(expires) + '</span>',
+            '    </div>',
+            '  </div>',
+            '  <div class="ea-modal-footer">',
+            '    <button class="ea-btn ea-btn-primary" id="ea-copy-token-btn">📋 کپی توکن در کلیپ‌بورد</button>',
+            '    <button class="ea-btn" id="ea-tok-diag-ok-btn">متوجه شدم و ذخیره کردم</button>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.appendChild(overlay);
+        var closeFn = function () { overlay.remove(); };
+        document.getElementById('ea-tok-diag-close').onclick = closeFn;
+        document.getElementById('ea-tok-diag-ok-btn').onclick = closeFn;
+
+        var copyBtn = document.getElementById('ea-copy-token-btn');
+        copyBtn.onclick = function () {
+            navigator.clipboard.writeText(token).then(function () {
+                copyBtn.innerText = '✅ کپی شد!';
+                setTimeout(function () { copyBtn.innerText = '📋 کپی توکن در کلیپ‌بورد'; }, 2000);
+            });
+        };
+    }
+
+    function promptCreateToken(serviceId) {
+        var name = prompt('نام توکن جدید را وارد کنید:', 'Token ' + new Date().toISOString().slice(0, 10));
+        if (name === null) return;
+
+        fetch('/index.php/apps/archive_autotag/api/ai/admin/tokens/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'OCS-APIRequest': 'true'
+            },
+            body: JSON.stringify({
+                service_id: serviceId,
+                token_name: name,
+                expires_days: 90
+            })
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data.status === 'success') {
+                showTokenCreatedDialog(data.raw_token, data.token_prefix, data.expires_at, false);
+                loadAiConsoleOverview();
+            } else {
+                alert('خطا: ' + (data.message || 'نامشخص'));
+            }
+        })
+        .catch(function (err) { alert('خطا: ' + err.message); });
+    }
+
+    function promptRotateToken(serviceId) {
+        var hoursStr = prompt('بازه تنفس (Grace Period) برای توکن قبلی چند ساعت باشد؟ (پیش‌فرض: ۲۴ ساعت)', '24');
+        if (hoursStr === null) return;
+        var hours = parseInt(hoursStr, 10) || 24;
+
+        fetch('/index.php/apps/archive_autotag/api/ai/admin/tokens/rotate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'OCS-APIRequest': 'true'
+            },
+            body: JSON.stringify({
+                service_id: serviceId,
+                grace_hours: hours
+            })
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data.status === 'success') {
+                showTokenCreatedDialog(data.new_raw_token, data.token_prefix, 'بازه تنفس تا: ' + data.grace_period_until, true);
+                loadAiConsoleOverview();
+            } else {
+                alert('خطا: ' + (data.message || 'نامشخص'));
+            }
+        })
+        .catch(function (err) { alert('خطا: ' + err.message); });
+    }
+
+    function promptRevokeToken(tokenId) {
+        if (!confirm('آیا مطمئن هستید که می‌خواهید توکن #' + tokenId + ' را فوراً باطل کنید؟ دسترسی این توکن در همان لحظه قطع خواهد شد.')) {
+            return;
+        }
+
+        fetch('/index.php/apps/archive_autotag/api/ai/admin/tokens/revoke', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'OCS-APIRequest': 'true'
+            },
+            body: JSON.stringify({ token_id: parseInt(tokenId, 10) })
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data.status === 'success') {
+                loadAiConsoleOverview();
+            } else {
+                alert('خطا: ' + (data.message || 'نامشخص'));
+            }
+        })
+        .catch(function (err) { alert('خطا: ' + err.message); });
+    }
+
+    function submitAddDelegation(serviceId, type, subject) {
+        fetch('/index.php/apps/archive_autotag/api/ai/admin/delegations/add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'OCS-APIRequest': 'true'
+            },
+            body: JSON.stringify({
+                service_id: serviceId,
+                subject_type: type,
+                subject_id: subject
+            })
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data.status === 'success') {
+                loadAiConsoleOverview();
+            } else {
+                alert('خطا: ' + (data.message || 'نامشخص'));
+            }
+        })
+        .catch(function (err) { alert('خطا: ' + err.message); });
+    }
+
+    function submitRemoveDelegation(delegationId) {
+        fetch('/index.php/apps/archive_autotag/api/ai/admin/delegations/remove', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'OCS-APIRequest': 'true'
+            },
+            body: JSON.stringify({ delegation_id: parseInt(delegationId, 10) })
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            if (data.status === 'success') {
+                loadAiConsoleOverview();
+            } else {
+                alert('خطا: ' + (data.message || 'نامشخص'));
+            }
+        })
+        .catch(function (err) { alert('خطا: ' + err.message); });
+    }
+
 })();
