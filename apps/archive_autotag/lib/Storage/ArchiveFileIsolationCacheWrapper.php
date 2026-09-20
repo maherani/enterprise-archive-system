@@ -33,8 +33,13 @@ class ArchiveFileIsolationCacheWrapper extends CacheWrapper {
         }
 
         $user = $this->userSession->getUser();
-        $userId = $user !== null ? $user->getUID() : null;
+        if ($user === null) {
+            // Internal / CLI / Service layer (e.g. AI API with Bearer token)
+            // Explicit authorization with actor context is handled by CentralPermissionResolver in service layer
+            return $entry;
+        }
 
+        $userId = $user->getUID();
         $fileId = (int)$entry->getId();
         if ($this->fileOwnershipService->canUserAccessFile($fileId, $userId)) {
             return $entry;

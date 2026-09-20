@@ -5,6 +5,9 @@ namespace OCA\ArchiveAutoTag\Controller;
 
 use OCA\ArchiveAutoTag\AppInfo\Application;
 use OCA\ArchiveAutoTag\Service\AiFileService;
+use OCA\ArchiveAutoTag\Security\Permission\CentralPermissionResolver;
+use OCA\ArchiveAutoTag\Security\Permission\IPermissionResolver;
+use OCA\ArchiveAutoTag\Security\Permission\PermissionOperation;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -27,6 +30,7 @@ class AiAdminController extends Controller {
         private readonly IDBConnection $db,
         private readonly AiFileService $aiFileService,
         private readonly LoggerInterface $logger,
+        private readonly ?IPermissionResolver $permissionResolver = null,
     ) {
         parent::__construct(Application::APP_ID, $request);
     }
@@ -126,6 +130,59 @@ class AiAdminController extends Controller {
         } catch (\Throwable $t) {
             return new DataResponse(['status' => 'error', 'message' => $t->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
+    }
+
+    /**
+     * Interactive Permission Inspector & Debugger for UI (Prompt 02)
+     */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function inspectPermission(
+        string $target_user = '',
+        string $target_type = 'file',
+        string $target_id = '',
+        string $operation = 'READ'
+    ): DataResponse {
+        if ($err = $this->checkAdmin()) return $err;
+
+        $targetUser = trim($target_user ?: 'Bakbari');
+        $targetType = strtolower(trim($target_type ?: 'file'));
+        $targetId = trim($target_id ?: '623');
+        $op = PermissionOperation::fromString($operation);
+
+        $resolver = $this->permissionResolver;
+        if ($resolver === null) {
+            try {
+                $resolver = \OC::$server->get(CentralPermissionResolver::class);
+            } catch (\Throwable $t) {}
+        }
+
+        if ($resolver === null) {
+            return new DataResponse(['status' => 'error', 'message' => 'Permission resolver service not available.'], Http::STATUS_INTERNAL_SERVER_ERROR);
+        }
+
+        $decision = null;
+        if ($targetType === 'folder') {
+            $decision = $resolver->evaluateFolder($targetUser, $targetId, $op);
+        } elseif ($targetType === 'tag') {
+            $decision = $resolver->evaluateTag($targetUser, (int)$targetId, $op);
+        } else {
+            $decision = $resolver->evaluateFile($targetUser, (int)$targetId, $op);
+        }
+
+        return new DataResponse([
+            'status' => 'success',
+            'user' => $targetUser,
+            'resource_type' => $targetType,
+            'resource_id' => $targetId,
+            'requested_operation' => strtoupper($operation),
+            'allowed' => $decision->allowed,
+            'matched_rule' => $decision->matchedRule,
+            'reason' => $decision->reason,
+            'effective_mask' => $decision->effectiveMask,
+            'effective_operations' => PermissionOperation::toString($decision->effectiveMask),
+            'audit_context' => $decision->auditContext,
+        ]);
     }
 
     /**

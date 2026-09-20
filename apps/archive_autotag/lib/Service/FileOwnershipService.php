@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace OCA\ArchiveAutoTag\Service;
 
+use OCA\ArchiveAutoTag\Security\Permission\CentralPermissionResolver;
+use OCA\ArchiveAutoTag\Security\Permission\IPermissionResolver;
+use OCA\ArchiveAutoTag\Security\Permission\PermissionOperation;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IGroupManager;
@@ -18,6 +21,7 @@ class FileOwnershipService {
         private IGroupManager $groupManager,
         private LoggerInterface $logger,
         private ?IUserManager $userManager = null,
+        private ?IPermissionResolver $permissionResolver = null,
     ) {
     }
 
@@ -45,7 +49,7 @@ class FileOwnershipService {
                   ]);
             $insQb->executeStatement();
         }
-        $this->logger->info("archive_autotag: Assigned file ID {$fileId} owner: {$ownerUid}");
+        $this->logger->info("archive_autotag: File ID {$fileId} registered with owner: {$ownerUid}");
     }
 
     public function getFileOwner(int $fileId): ?string {
@@ -93,23 +97,40 @@ class FileOwnershipService {
     }
 
     public function canUserAccessFile(int $fileId, ?string $userId = null): bool {
+        if ($fileId <= 0) {
+            return false;
+        }
+
         if ($userId === null) {
             $user = $this->userSession->getUser();
             if ($user === null) {
-                return true;
+                // Deny unauthenticated access (Strict Fail-Close)
+                return false;
             }
             $userId = $user->getUID();
         }
 
-        // 1. System administrators have full access to all files
+        // Primary: Delegate directly to CentralPermissionResolver as the Single Source of Truth
+        if ($this->permissionResolver !== null) {
+            return $this->permissionResolver->can($userId, $fileId, PermissionOperation::READ);
+        }
+
+        try {
+            $resolver = \OC::$server->get(CentralPermissionResolver::class);
+            if ($resolver instanceof IPermissionResolver) {
+                return $resolver->can($userId, $fileId, PermissionOperation::READ);
+            }
+        } catch (\Throwable $t) {
+            $this->logger->debug("FileOwnershipService: CentralPermissionResolver not available via container, using fallback: " . $t->getMessage());
+        }
+
+        // Fallback: Internal rules if container is bootstrapping
         if ($userId === 'admin' || $this->groupManager->isAdmin($userId)) {
             return true;
         }
 
-        // 2. Lookup file owner
         $owner = $this->getFileOwner($fileId);
         if ($owner === null) {
-            // Check storage of file to see if it belongs to personal user home
             $qb = $this->db->getQueryBuilder();
             $qb->select('storage', 'path')
                ->from('filecache')
@@ -128,29 +149,11 @@ class FileOwnershipService {
             }
         }
 
-        // 3. User is the uploader / owner of the file
         if ($owner !== null && $owner === $userId) {
             return true;
         }
 
-        // Fetch user groups
-        $currentUser = $this->userSession->getUser();
-        $userGroups = ($currentUser !== null && $currentUser->getUID() === $userId)
-            ? $this->groupManager->getUserGroupIds($currentUser)
-            : [];
-        if (empty($userGroups)) {
-            $userManager = $this->userManager ?? \OC::$server->getUserManager();
-            if ($userManager !== null) {
-                $uObj = $userManager->get($userId);
-                if ($uObj !== null) {
-                    $userGroups = $this->groupManager->getUserGroupIds($uObj);
-                }
-            }
-        }
-
-        // 4. Check explicit admin grants in archive_file_grants
-        // - Direct grant on this specific file always applies
-        // - Grant on an ancestor folder applies if the file was created by admin / system
+        $userGroups = $this->getUserGroups($userId);
         $ancestorIds = $this->getAncestorFolderIds($fileId);
         $eligibleGrantFileIds = [$fileId];
         if ($owner === 'admin' || $owner === 'system' || $owner === null) {
@@ -180,9 +183,6 @@ class FileOwnershipService {
             return true;
         }
 
-        // 5. Check native Nextcloud shares in oc_share where admin shared the resource
-        // - Direct share on the file applies to everyone
-        // - Share on parent/ancestor folders applies to admin-created files
         $eligibleShareSourceIds = [(string)$fileId];
         if ($owner === 'admin' || $owner === 'system' || $owner === null) {
             foreach ($ancestorIds as $aid) {
@@ -215,6 +215,21 @@ class FileOwnershipService {
         }
 
         return false;
+    }
+
+    private function getUserGroups(string $userId): array {
+        $currentUser = $this->userSession->getUser();
+        if ($currentUser !== null && $currentUser->getUID() === $userId) {
+            return $this->groupManager->getUserGroupIds($currentUser);
+        }
+        $userManager = $this->userManager ?? \OC::$server->getUserManager();
+        if ($userManager !== null) {
+            $uObj = $userManager->get($userId);
+            if ($uObj !== null) {
+                return $this->groupManager->getUserGroupIds($uObj);
+            }
+        }
+        return [];
     }
 
     public function grantAccess(int $fileId, string $granteeId, bool $isGroup = false, string $grantedBy = 'admin', int $permissions = 31): void {

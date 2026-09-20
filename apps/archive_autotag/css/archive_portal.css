@@ -1695,3 +1695,51 @@ body[theme="dark"] :root,
   border-color: var(--ea-primary);
   color: var(--ea-text-main);
 }
+
+/* Permission Inspector UI (Prompt 02) */
+.ea-perm-matrix {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.ea-perm-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.ea-perm-pill-granted {
+  background: rgba(34, 197, 94, 0.12);
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.35);
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.08);
+}
+
+.ea-perm-pill-denied {
+  background: rgba(100, 116, 139, 0.1);
+  color: #64748b;
+  border-color: rgba(100, 116, 139, 0.25);
+  opacity: 0.65;
+}
+
+.ea-inspector-audit-box {
+  background: #05070a;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 14px;
+  margin-top: 16px;
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  max-height: 220px;
+  overflow-y: auto;
+}

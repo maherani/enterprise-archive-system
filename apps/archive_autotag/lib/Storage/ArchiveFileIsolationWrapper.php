@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace OCA\ArchiveAutoTag\Storage;
 
+use OCA\ArchiveAutoTag\Security\Permission\CentralPermissionResolver;
+use OCA\ArchiveAutoTag\Security\Permission\IPermissionResolver;
+use OCA\ArchiveAutoTag\Security\Permission\PermissionOperation;
 use OCA\ArchiveAutoTag\Service\FileOwnershipService;
 use OC\Files\Storage\Wrapper\Wrapper;
 use OCP\Files\Cache\ICache;
@@ -15,17 +18,20 @@ class ArchiveFileIsolationWrapper extends Wrapper {
     private FileOwnershipService $fileOwnershipService;
     private IUserSession $userSession;
     private IGroupManager $groupManager;
+    private ?IPermissionResolver $permissionResolver;
 
     public function __construct(
         array $parameters,
         FileOwnershipService $fileOwnershipService,
         IUserSession $userSession,
         IGroupManager $groupManager,
+        ?IPermissionResolver $permissionResolver = null,
     ) {
         parent::__construct($parameters);
         $this->fileOwnershipService = $fileOwnershipService;
         $this->userSession = $userSession;
         $this->groupManager = $groupManager;
+        $this->permissionResolver = $permissionResolver;
     }
 
     #[\Override]
@@ -44,7 +50,7 @@ class ArchiveFileIsolationWrapper extends Wrapper {
 
     #[\Override]
     public function isReadable(string $path): bool {
-        if (!$this->isPathPermitted($path)) {
+        if (!$this->isPathPermitted($path, PermissionOperation::READ)) {
             return false;
         }
         return parent::isReadable($path);
@@ -52,7 +58,7 @@ class ArchiveFileIsolationWrapper extends Wrapper {
 
     #[\Override]
     public function isUpdatable(string $path): bool {
-        if (!$this->isPathPermitted($path)) {
+        if (!$this->isPathPermitted($path, PermissionOperation::WRITE)) {
             return false;
         }
         return parent::isUpdatable($path);
@@ -60,7 +66,7 @@ class ArchiveFileIsolationWrapper extends Wrapper {
 
     #[\Override]
     public function isDeletable(string $path): bool {
-        if (!$this->isPathPermitted($path)) {
+        if (!$this->isPathPermitted($path, PermissionOperation::DELETE)) {
             return false;
         }
         return parent::isDeletable($path);
@@ -68,7 +74,7 @@ class ArchiveFileIsolationWrapper extends Wrapper {
 
     #[\Override]
     public function file_exists(string $path): bool {
-        if (!$this->isPathPermitted($path)) {
+        if (!$this->isPathPermitted($path, PermissionOperation::READ_METADATA)) {
             return false;
         }
         return parent::file_exists($path);
@@ -76,20 +82,26 @@ class ArchiveFileIsolationWrapper extends Wrapper {
 
     #[\Override]
     public function fopen(string $path, string $mode) {
-        if (!$this->isPathPermitted($path)) {
+        $op = (str_contains($mode, 'w') || str_contains($mode, 'a') || str_contains($mode, '+'))
+            ? PermissionOperation::WRITE
+            : PermissionOperation::READ;
+
+        if (!$this->isPathPermitted($path, $op)) {
             return false;
         }
         return parent::fopen($path, $mode);
     }
 
-    private function isPathPermitted(string $path): bool {
-        $path = trim($path, '/');
-        if ($path === '' || $this->is_dir($path)) {
+    private function isPathPermitted(string $path, int $operation = PermissionOperation::READ): bool {
+        $cleanPath = trim(trim($path, '/'), '.');
+        if ($cleanPath === '') {
             return true;
         }
 
         $user = $this->userSession->getUser();
         if ($user === null) {
+            // Internal / CLI / Service context (e.g. AI API with Bearer token)
+            // Authorization is explicitly enforced by CentralPermissionResolver in the service layer
             return true;
         }
         $userId = $user->getUID();
@@ -99,16 +111,50 @@ class ArchiveFileIsolationWrapper extends Wrapper {
             return true;
         }
 
+        $resolver = $this->getResolver();
+
+        // 1. Directory Check
+        if ($this->is_dir($path)) {
+            if ($resolver !== null) {
+                return $resolver->evaluateFolder($userId, $cleanPath, $operation)->allowed;
+            }
+            return true;
+        }
+
+        // 2. File Check
         $cache = $this->getWrapperStorage()->getCache('');
         $entry = $cache->get($path);
+        
         if (!$entry) {
             return true;
         }
 
         if ($entry->getMimetype() === 'httpd/unix-directory') {
+            if ($resolver !== null) {
+                return $resolver->evaluateFolder($userId, $cleanPath, $operation)->allowed;
+            }
             return true;
         }
 
-        return $this->fileOwnershipService->canUserAccessFile((int)$entry->getId(), $userId);
+        $fileId = (int)$entry->getId();
+        if ($resolver !== null) {
+            return $resolver->can($userId, $fileId, $operation);
+        }
+
+        return $this->fileOwnershipService->canUserAccessFile($fileId, $userId);
+    }
+
+    private function getResolver(): ?IPermissionResolver {
+        if ($this->permissionResolver !== null) {
+            return $this->permissionResolver;
+        }
+        try {
+            $resolver = \OC::$server->get(CentralPermissionResolver::class);
+            if ($resolver instanceof IPermissionResolver) {
+                $this->permissionResolver = $resolver;
+                return $resolver;
+            }
+        } catch (\Throwable $t) {}
+        return null;
     }
 }

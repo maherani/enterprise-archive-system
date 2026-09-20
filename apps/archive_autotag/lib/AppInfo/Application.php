@@ -65,6 +65,12 @@ class Application extends App implements IBootstrap {
 
         // Native Multi-Tag Intersection Filter in Nextcloud Files Web UI
         $context->registerEventListener(LoadAdditionalScriptsEvent::class, LoadAdditionalScriptsListener::class);
+
+        // Central Permission Resolver (Unified Authorization Single Source of Truth)
+        $context->registerService(
+            \OCA\ArchiveAutoTag\Security\Permission\IPermissionResolver::class,
+            fn($c) => $c->get(\OCA\ArchiveAutoTag\Security\Permission\CentralPermissionResolver::class)
+        );
     }
 
     public function boot(IBootContext $context): void {
@@ -176,11 +182,16 @@ class Application extends App implements IBootstrap {
                 $fileOwnershipService = $container->get(FileOwnershipService::class);
                 $userSession = $container->get(IUserSession::class);
                 $groupManager = $container->get(IGroupManager::class);
+                $resolver = null;
+                try {
+                    $resolver = $container->get(\OCA\ArchiveAutoTag\Security\Permission\CentralPermissionResolver::class);
+                } catch (\Throwable $t) {}
                 return new ArchiveFileIsolationWrapper(
                     ['storage' => $storage, 'mountPoint' => $mountPoint],
                     $fileOwnershipService,
                     $userSession,
                     $groupManager,
+                    $resolver
                 );
             },
             10

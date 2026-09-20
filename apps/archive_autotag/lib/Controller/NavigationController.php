@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 namespace OCA\ArchiveAutoTag\Controller;
 
+use OCA\ArchiveAutoTag\Security\Permission\CentralPermissionResolver;
+use OCA\ArchiveAutoTag\Security\Permission\IPermissionResolver;
+use OCA\ArchiveAutoTag\Security\Permission\PermissionOperation;
 use OCA\ArchiveAutoTag\Service\FolderRequestService;
 use OCA\ArchiveAutoTag\Service\TagOwnershipService;
 use OCP\AppFramework\Controller;
@@ -29,8 +32,23 @@ class NavigationController extends Controller {
         private TagOwnershipService $tagOwnershipService,
         private ISystemTagManager $tagManager,
         private FolderRequestService $folderRequestService,
+        private ?IPermissionResolver $permissionResolver = null,
     ) {
         parent::__construct($appName, $request);
+    }
+
+    private function getResolver(): ?IPermissionResolver {
+        if ($this->permissionResolver !== null) {
+            return $this->permissionResolver;
+        }
+        try {
+            $resolver = \OC::$server->get(CentralPermissionResolver::class);
+            if ($resolver instanceof IPermissionResolver) {
+                $this->permissionResolver = $resolver;
+                return $resolver;
+            }
+        } catch (\Throwable $t) {}
+        return null;
     }
 
     /**
@@ -109,7 +127,6 @@ class NavigationController extends Controller {
         ];
 
         // 2. Scan top-level folders under Enterprise_Archive
-        // Resolve visible tags for current user
         $visibleTagIds = $this->tagOwnershipService->getVisibleTagIds($userId);
         $allTags = $this->tagManager->getAllTags(true);
         $tagMapByName = [];
@@ -117,7 +134,6 @@ class NavigationController extends Controller {
             $tagMapByName[$t->getName()] = (int)$t->getId();
         }
 
-        // If tag for Enterprise_Archive exists
         if (isset($tagMapByName['Enterprise_Archive'])) {
             $items[1]['tag_id'] = $tagMapByName['Enterprise_Archive'];
         }
@@ -127,6 +143,8 @@ class NavigationController extends Controller {
             return strcmp($a->getName(), $b->getName());
         });
 
+        $resolver = $this->getResolver();
+
         foreach ($subNodes as $node) {
             if (!($node instanceof Folder)) {
                 continue;
@@ -135,23 +153,22 @@ class NavigationController extends Controller {
             $folderName = $node->getName();
             $folderRelPath = 'Enterprise_Archive/' . $folderName;
 
-            // Check Access Permission:
+            // Unified Access Check via CentralPermissionResolver
             if ($isAdmin) {
                 $hasAccess = true;
             } else {
-                // Non-admin:
-                // 1) Folder name matches one of user's groups
-                $matchesGroup = in_array($folderName, $userGroups, true);
-
-                // 2) Tag permission: tag exists and is in user's visibleTagIds
-                $tagId = $tagMapByName[$folderName] ?? null;
-                $tagVisible = $tagId !== null && in_array($tagId, $visibleTagIds, true);
-
-                $hasAccess = $matchesGroup || $tagVisible;
+                if ($resolver !== null) {
+                    $decision = $resolver->evaluateFolder($userId, $folderRelPath, PermissionOperation::READ_METADATA);
+                    $hasAccess = $decision->allowed;
+                } else {
+                    $matchesGroup = in_array($folderName, $userGroups, true);
+                    $tagId = $tagMapByName[$folderName] ?? null;
+                    $tagVisible = $tagId !== null && in_array($tagId, $visibleTagIds, true);
+                    $hasAccess = $matchesGroup || $tagVisible;
+                }
             }
 
             if (!$hasAccess) {
-                // Strict zero-leakage: skip unauthorized department folder completely!
                 continue;
             }
 

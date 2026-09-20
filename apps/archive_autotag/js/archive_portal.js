@@ -2415,6 +2415,7 @@
             '    <button class="ea-ai-tab ' + (aiConsoleState.activeTab === 'delegations' ? 'active' : '') + '" data-tab="delegations">🛡️ سیاست‌های نمایندگی (Allowlist)</button>',
             '    <button class="ea-ai-tab ' + (aiConsoleState.activeTab === 'audit' ? 'active' : '') + '" data-tab="audit">📊 لاگ‌های نظارتی (Audit Trail)</button>',
             '    <button class="ea-ai-tab ' + (aiConsoleState.activeTab === 'sandbox' ? 'active' : '') + '" data-tab="sandbox">🧪 محیط تست زنده API Sandbox</button>',
+            '    <button class="ea-ai-tab ' + (aiConsoleState.activeTab === 'inspector' ? 'active' : '') + '" data-tab="inspector">🔍 بازرس مجوزهای موثر (Permission Inspector)</button>',
             '  </div>',
             '  <div class="ea-modal-body" id="ea-ai-console-body" style="flex:1;overflow-y:auto;padding:24px;">',
             '    <div style="text-align:center;padding:40px;color:var(--ea-text-muted);">در حال بارگذاری اطلاعات امنیتی AI...</div>',
@@ -2479,6 +2480,8 @@
             renderAiAuditTab(body);
         } else if (aiConsoleState.activeTab === 'sandbox') {
             renderAiSandboxTab(body, data);
+        } else if (aiConsoleState.activeTab === 'inspector') {
+            renderPermissionInspectorTab(body);
         }
     }
 

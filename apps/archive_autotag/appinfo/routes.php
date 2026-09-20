@@ -36,6 +36,7 @@ return [
         ['name' => 'AiAdmin#removeDelegation', 'url' => '/api/ai/admin/delegations/remove', 'verb' => 'POST'],
         ['name' => 'AiAdmin#audit', 'url' => '/api/ai/admin/audit', 'verb' => 'GET'],
         ['name' => 'AiAdmin#testApi', 'url' => '/api/ai/admin/test-api', 'verb' => 'POST'],
+        ['name' => 'AiAdmin#inspectPermission', 'url' => '/api/permission/inspect', 'verb' => 'GET'],
 
         // Global Access-Aware Navigation & Current Path
         ['name' => 'Navigation#getResources', 'url' => '/api/nav/resources', 'verb' => 'GET'],
@@ -79,6 +80,7 @@ return [
         ['name' => 'AiAdmin#removeDelegation', 'url' => '/api/ai/admin/delegations/remove', 'verb' => 'POST'],
         ['name' => 'AiAdmin#audit', 'url' => '/api/ai/admin/audit', 'verb' => 'GET'],
         ['name' => 'AiAdmin#testApi', 'url' => '/api/ai/admin/test-api', 'verb' => 'POST'],
+        ['name' => 'AiAdmin#inspectPermission', 'url' => '/api/permission/inspect', 'verb' => 'GET'],
 
         // Global Access-Aware Navigation & Current Path
         ['name' => 'Navigation#getResources', 'url' => '/api/nav/resources', 'verb' => 'GET'],
