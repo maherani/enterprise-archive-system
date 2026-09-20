@@ -41,33 +41,48 @@ class AiFileController extends Controller {
         // 1. Authentication Check
         $auth = $this->aiFileService->authenticateRequest($this->request);
         if (!$auth['authenticated']) {
+            $statusCode = (int)($auth['status_code'] ?? Http::STATUS_UNAUTHORIZED);
+            $resultStatus = ($statusCode === Http::STATUS_FORBIDDEN) ? 'FORBIDDEN' : 'UNAUTHORIZED';
+
             $this->aiFileService->recordAudit(
                 $requestId,
-                'anonymous',
-                $auth['client_id'],
+                $auth['actor_uid'] ?: 'anonymous',
+                $auth['client_id'] ?: 'unknown',
                 $fileId,
                 '',
                 $auth['auth_type'],
-                'UNAUTHORIZED',
+                $resultStatus,
                 $clientIp,
                 0,
-                $auth['error']
+                $auth['error'],
+                $auth['service_id'] ?? 'unknown',
+                $auth['token_id'] ?? null,
+                $auth['delegation_requested'] ?? null,
+                $auth['delegation_status'] ?? 'NONE'
             );
+
+            $headers = [
+                'X-Request-ID' => $requestId,
+            ];
+            if ($statusCode === Http::STATUS_UNAUTHORIZED) {
+                $headers['WWW-Authenticate'] = 'Basic realm="Enterprise Archive AI API", Bearer realm="Enterprise Archive AI API"';
+            }
 
             return new JSONResponse([
                 'status' => 'error',
                 'message' => $auth['error'],
-                'code' => Http::STATUS_UNAUTHORIZED,
+                'code' => $statusCode,
                 'request_id' => $requestId,
-            ], Http::STATUS_UNAUTHORIZED, [
-                'WWW-Authenticate' => 'Basic realm="Enterprise Archive AI API", Bearer realm="Enterprise Archive AI API"',
-                'X-Request-ID' => $requestId,
-            ]);
+            ], $statusCode, $headers);
         }
 
         $actorUid = (string)$auth['actor_uid'];
         $clientId = (string)$auth['client_id'];
         $authType = (string)$auth['auth_type'];
+        $serviceId = (string)($auth['service_id'] ?? 'unknown');
+        $tokenId = $auth['token_id'] ?? null;
+        $delegationRequested = $auth['delegation_requested'] ?? null;
+        $delegationStatus = (string)($auth['delegation_status'] ?? 'NONE');
 
         // 2. Authorization & File Existence Check
         $val = $this->aiFileService->validateAndGetFileNode($fileId, $actorUid);
@@ -85,7 +100,11 @@ class AiFileController extends Controller {
                 $resultStatus,
                 $clientIp,
                 0,
-                $val['error_message']
+                $val['error_message'],
+                $serviceId,
+                $tokenId,
+                $delegationRequested,
+                $delegationStatus
             );
 
             return new JSONResponse([
@@ -115,7 +134,11 @@ class AiFileController extends Controller {
             'ALLOWED',
             $clientIp,
             $fileSize,
-            null
+            null,
+            $serviceId,
+            $tokenId,
+            $delegationRequested,
+            $delegationStatus
         );
 
         // 4. Stream file without in-memory buffering
@@ -161,12 +184,13 @@ class AiFileController extends Controller {
         $requestId = (string)($this->request->getHeader('X-Request-ID') ?: ('req_ai_' . bin2hex(random_bytes(8))));
         $auth = $this->aiFileService->authenticateRequest($this->request);
         if (!$auth['authenticated']) {
+            $statusCode = (int)($auth['status_code'] ?? Http::STATUS_UNAUTHORIZED);
             return new JSONResponse([
                 'status' => 'error',
                 'message' => $auth['error'],
-                'code' => Http::STATUS_UNAUTHORIZED,
+                'code' => $statusCode,
                 'request_id' => $requestId,
-            ], Http::STATUS_UNAUTHORIZED);
+            ], $statusCode);
         }
 
         $actorUid = (string)$auth['actor_uid'];
@@ -196,8 +220,8 @@ class AiFileController extends Controller {
             'openapi' => '3.0.3',
             'info' => [
                 'title' => 'Enterprise Archive AI File Retrieval API',
-                'version' => '1.0.0',
-                'description' => 'Secure, permission-enforced API providing air-gapped file delivery to internal AI assistants and automated workers without compromising archive ACLs or data boundaries.',
+                'version' => '2.0.9',
+                'description' => 'Secure, permission-enforced API providing air-gapped file delivery to internal AI assistants and automated workers without compromising archive ACLs or data boundaries. Hardened with cryptographic token rotation, SHA-256 database hashing, and deny-by-default delegation allowlists.',
                 'contact' => [
                     'name' => 'Enterprise Archive Security Team',
                     'url' => 'http://docs.maskan'
@@ -220,7 +244,7 @@ class AiFileController extends Controller {
                         'type' => 'http',
                         'scheme' => 'bearer',
                         'bearerFormat' => 'API Token',
-                        'description' => 'Dedicated AI Service Token for automated daemons and background agents'
+                        'description' => 'Dedicated AI Service Token for automated daemons and background agents. Validated via SHA-256 hash lookup.'
                     ],
                     'apiKeyAuth' => [
                         'type' => 'apiKey',
@@ -294,7 +318,7 @@ class AiFileController extends Controller {
                                 'name' => 'X-On-Behalf-Of',
                                 'in' => 'header',
                                 'required' => false,
-                                'description' => 'Delegated user UID when calling via AI Service Token to enforce per-user RAG boundaries',
+                                'description' => 'Delegated user UID when calling via AI Service Token. Enforces strict deny-by-default allowlist policy. Delegation to administrative accounts is prohibited.',
                                 'schema' => ['type' => 'string', 'example' => 'archive_user1']
                             ],
                             [
@@ -340,7 +364,7 @@ class AiFileController extends Controller {
                                 ]
                             ],
                             '401' => [
-                                'description' => 'Authentication missing or invalid credentials',
+                                'description' => 'Authentication missing, invalid credentials, or non-existent delegated identity',
                                 'content' => [
                                     'application/json' => [
                                         'schema' => ['$ref' => '#/components/schemas/ErrorResponse']
@@ -348,7 +372,7 @@ class AiFileController extends Controller {
                                 ]
                             ],
                             '403' => [
-                                'description' => 'Forbidden - Caller does not have permission to access requested archive file',
+                                'description' => 'Forbidden - Caller does not have file access, delegation to admin is prohibited, or delegation policy denied',
                                 'content' => [
                                     'application/json' => [
                                         'schema' => ['$ref' => '#/components/schemas/ErrorResponse']
@@ -378,6 +402,13 @@ class AiFileController extends Controller {
                                 'required' => true,
                                 'description' => 'Target archive file numeric identifier',
                                 'schema' => ['type' => 'integer', 'example' => 660]
+                            ],
+                            [
+                                'name' => 'X-On-Behalf-Of',
+                                'in' => 'header',
+                                'required' => false,
+                                'description' => 'Delegated user UID when calling via AI Service Token',
+                                'schema' => ['type' => 'string', 'example' => 'archive_user1']
                             ]
                         ],
                         'responses' => [

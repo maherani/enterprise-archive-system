@@ -35,9 +35,9 @@ class AiFileService {
     }
 
     /**
-     * Authenticate incoming request using dual-mode mechanism:
+     * Authenticate incoming request using hardened dual-mode mechanism:
      * 1. Nextcloud Native User Session / HTTP Basic Auth
-     * 2. Dedicated AI Service Bearer Token or X-API-KEY
+     * 2. Dedicated Cryptographically Secure AI Service Bearer Token with Hashed Lookup & Delegated Identity Policy Enforcement
      */
     public function authenticateRequest(IRequest $request): array {
         // 1. Check Native User Session / Basic Auth
@@ -48,7 +48,12 @@ class AiFileService {
                 'actor_uid' => $currentUser->getUID(),
                 'auth_type' => 'BASIC_AUTH',
                 'client_id' => (string)($request->getHeader('X-Client-ID') ?: 'user_client'),
+                'service_id' => 'user_session',
+                'token_id' => null,
+                'delegation_status' => 'NONE',
+                'delegation_requested' => null,
                 'error' => null,
+                'status_code' => 200,
             ];
         }
 
@@ -63,45 +68,312 @@ class AiFileService {
             $token = $apiKeyHeader;
         }
 
-        if ($token !== '') {
-            $configuredToken = (string)$this->config->getAppValue('archive_autotag', 'ai_service_token', '');
-            if ($configuredToken !== '' && hash_equals($configuredToken, $token)) {
-                // Check for Delegated User (X-On-Behalf-Of header)
-                $onBehalfOf = trim((string)$request->getHeader('X-On-Behalf-Of'));
-                $actorUid = $this->config->getAppValue('archive_autotag', 'ai_default_user', 'api_worker');
+        if ($token === '') {
+            return [
+                'authenticated' => false,
+                'actor_uid' => null,
+                'auth_type' => 'NONE',
+                'client_id' => 'unknown',
+                'service_id' => 'unknown',
+                'token_id' => null,
+                'delegation_status' => 'NONE',
+                'delegation_requested' => null,
+                'error' => 'Authentication required. Provide valid HTTP Basic Auth, Bearer Token, or X-API-KEY',
+                'status_code' => 401,
+            ];
+        }
 
-                if ($onBehalfOf !== '') {
-                    if ($this->userManager->userExists($onBehalfOf)) {
-                        $actorUid = $onBehalfOf;
-                    } else {
-                        return [
-                            'authenticated' => false,
-                            'actor_uid' => null,
-                            'auth_type' => 'BEARER_TOKEN',
-                            'client_id' => 'unknown',
-                            'error' => "Delegated user '{$onBehalfOf}' does not exist in archive system",
-                        ];
-                    }
+        // Resolve token from database using secure hash and prefix index
+        $prefix = substr($token, 0, 12);
+        $hash = hash('sha256', $token);
+
+        $tokenRecord = null;
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('*')
+               ->from('archive_ai_tokens')
+               ->where($qb->expr()->eq('token_prefix', $qb->createNamedParameter($prefix)));
+            $res = $qb->executeQuery();
+            while ($row = $res->fetchAssociative()) {
+                if (hash_equals((string)$row['token_hash'], $hash)) {
+                    $tokenRecord = $row;
+                    break;
                 }
+            }
+        } catch (\Throwable $e) {
+            // In case table does not exist or schema updating
+        }
 
-                $clientId = (string)($request->getHeader('X-Client-ID') ?: 'ai_service');
-                return [
-                    'authenticated' => true,
-                    'actor_uid' => $actorUid,
-                    'auth_type' => 'BEARER_TOKEN',
-                    'client_id' => $clientId,
-                    'error' => null,
+        // Graceful fallback for legacy token stored in appconfig before migration
+        if ($tokenRecord === null) {
+            $legacyConfigToken = (string)$this->config->getAppValue('archive_autotag', 'ai_service_token', '');
+            if ($legacyConfigToken !== '' && hash_equals($legacyConfigToken, $token)) {
+                $tokenRecord = [
+                    'id' => null,
+                    'service_id' => 'default_ai_service',
+                    'token_name' => 'Legacy Unmigrated Token',
+                    'status' => 'ACTIVE',
+                    'expires_at' => null,
+                    'grace_period_until' => null,
                 ];
             }
         }
 
+        if ($tokenRecord === null) {
+            return [
+                'authenticated' => false,
+                'actor_uid' => null,
+                'auth_type' => 'BEARER_TOKEN',
+                'client_id' => 'unknown',
+                'service_id' => 'unknown',
+                'token_id' => null,
+                'delegation_status' => 'NONE',
+                'delegation_requested' => null,
+                'error' => 'Invalid Bearer token or API key provided',
+                'status_code' => 401,
+            ];
+        }
+
+        // Check token lifecycle: status, expiration, grace period
+        $now = time();
+        $tokenStatus = (string)($tokenRecord['status'] ?? 'ACTIVE');
+        $expiresAt = !empty($tokenRecord['expires_at']) ? (int)$tokenRecord['expires_at'] : null;
+        $graceUntil = !empty($tokenRecord['grace_period_until']) ? (int)$tokenRecord['grace_period_until'] : null;
+        $serviceId = (string)$tokenRecord['service_id'];
+        $tokenId = !empty($tokenRecord['id']) ? (int)$tokenRecord['id'] : null;
+
+        if ($tokenStatus === 'REVOKED') {
+            return [
+                'authenticated' => false,
+                'actor_uid' => null,
+                'auth_type' => 'BEARER_TOKEN',
+                'client_id' => 'unknown',
+                'service_id' => $serviceId,
+                'token_id' => $tokenId,
+                'delegation_status' => 'NONE',
+                'delegation_requested' => null,
+                'error' => 'Token has been revoked. Re-authentication required.',
+                'status_code' => 401,
+            ];
+        }
+
+        if ($tokenStatus === 'EXPIRED' || ($expiresAt !== null && $now > $expiresAt)) {
+            return [
+                'authenticated' => false,
+                'actor_uid' => null,
+                'auth_type' => 'BEARER_TOKEN',
+                'client_id' => 'unknown',
+                'service_id' => $serviceId,
+                'token_id' => $tokenId,
+                'delegation_status' => 'NONE',
+                'delegation_requested' => null,
+                'error' => 'Token has expired. Please rotate or obtain a new token.',
+                'status_code' => 401,
+            ];
+        }
+
+        if ($tokenStatus === 'GRACE_PERIOD') {
+            if ($graceUntil !== null && $now > $graceUntil) {
+                return [
+                    'authenticated' => false,
+                    'actor_uid' => null,
+                    'auth_type' => 'BEARER_TOKEN',
+                    'client_id' => 'unknown',
+                    'service_id' => $serviceId,
+                    'token_id' => $tokenId,
+                    'delegation_status' => 'NONE',
+                    'delegation_requested' => null,
+                    'error' => 'Token grace period has ended. Token is no longer valid.',
+                    'status_code' => 401,
+                ];
+            }
+        }
+
+        // Fetch Service Metadata & Delegation Policies
+        $serviceRecord = null;
+        try {
+            $sqb = $this->db->getQueryBuilder();
+            $sqb->select('*')
+                ->from('archive_ai_services')
+                ->where($sqb->expr()->eq('service_id', $sqb->createNamedParameter($serviceId)));
+            $serviceRecord = $sqb->executeQuery()->fetchAssociative();
+        } catch (\Throwable $e) {}
+
+        $defaultActorUid = 'api_worker';
+        $delegationPolicy = 'SPECIFIC_GROUPS';
+        $allowAdminDelegation = false;
+        $isServiceActive = true;
+
+        if ($serviceRecord) {
+            $defaultActorUid = (string)($serviceRecord['default_actor_uid'] ?: 'api_worker');
+            $delegationPolicy = strtoupper((string)($serviceRecord['delegation_policy'] ?: 'SPECIFIC_GROUPS'));
+            $allowAdminDelegation = (bool)($serviceRecord['allow_admin_delegation'] ?? false);
+            $isServiceActive = (bool)($serviceRecord['is_active'] ?? true);
+        }
+
+        if (!$isServiceActive) {
+            return [
+                'authenticated' => false,
+                'actor_uid' => null,
+                'auth_type' => 'BEARER_TOKEN',
+                'client_id' => 'unknown',
+                'service_id' => $serviceId,
+                'token_id' => $tokenId,
+                'delegation_status' => 'NONE',
+                'delegation_requested' => null,
+                'error' => "AI Service '{$serviceId}' is disabled by security policy.",
+                'status_code' => 401,
+            ];
+        }
+
+        // Record last used timestamp & IP
+        if ($tokenId !== null) {
+            try {
+                $uqb = $this->db->getQueryBuilder();
+                $uqb->update('archive_ai_tokens')
+                    ->set('last_used_at', $uqb->createNamedParameter($now))
+                    ->set('last_used_ip', $uqb->createNamedParameter((string)$request->getRemoteAddress()))
+                    ->where($uqb->expr()->eq('id', $uqb->createNamedParameter($tokenId)));
+                $uqb->executeStatement();
+            } catch (\Throwable $e) {}
+        }
+
+        $clientId = (string)($request->getHeader('X-Client-ID') ?: $serviceId);
+        $onBehalfOf = trim((string)$request->getHeader('X-On-Behalf-Of'));
+
+        // Case A: No Delegation Requested -> Use default actor UID
+        if ($onBehalfOf === '') {
+            return [
+                'authenticated' => true,
+                'actor_uid' => $defaultActorUid,
+                'auth_type' => 'BEARER_TOKEN',
+                'client_id' => $clientId,
+                'service_id' => $serviceId,
+                'token_id' => $tokenId,
+                'delegation_status' => 'NONE',
+                'delegation_requested' => null,
+                'error' => null,
+                'status_code' => 200,
+            ];
+        }
+
+        // Case B: Delegation Requested via X-On-Behalf-Of
+        // 1. Delegated user must exist
+        if (!$this->userManager->userExists($onBehalfOf)) {
+            return [
+                'authenticated' => false,
+                'actor_uid' => null,
+                'auth_type' => 'BEARER_TOKEN',
+                'client_id' => $clientId,
+                'service_id' => $serviceId,
+                'token_id' => $tokenId,
+                'delegation_status' => 'DENIED_USER_NOT_FOUND',
+                'delegation_requested' => $onBehalfOf,
+                'error' => "Delegated user '{$onBehalfOf}' does not exist in archive system",
+                'status_code' => 401,
+            ];
+        }
+
+        // 2. Admin Delegation Hard Protection (Zero-Privilege Escalation Gate)
+        $isAdmin = ($onBehalfOf === 'admin' || $this->groupManager->isAdmin($onBehalfOf));
+        if ($isAdmin && !$allowAdminDelegation) {
+            return [
+                'authenticated' => false,
+                'actor_uid' => null,
+                'auth_type' => 'BEARER_TOKEN',
+                'client_id' => $clientId,
+                'service_id' => $serviceId,
+                'token_id' => $tokenId,
+                'delegation_status' => 'DENIED_ADMIN_PROTECTION',
+                'delegation_requested' => $onBehalfOf,
+                'error' => "Delegation to administrative accounts is strictly prohibited by security policy.",
+                'status_code' => 403,
+            ];
+        }
+
+        // 3. Delegation Policy Check (Deny-by-default)
+        $delegationAllowed = $this->isDelegationPermitted($serviceId, $delegationPolicy, $onBehalfOf);
+        if (!$delegationAllowed) {
+            return [
+                'authenticated' => false,
+                'actor_uid' => null,
+                'auth_type' => 'BEARER_TOKEN',
+                'client_id' => $clientId,
+                'service_id' => $serviceId,
+                'token_id' => $tokenId,
+                'delegation_status' => 'DENIED_POLICY',
+                'delegation_requested' => $onBehalfOf,
+                'error' => "AI service '{$serviceId}' is not authorized to act on behalf of user '{$onBehalfOf}'.",
+                'status_code' => 403,
+            ];
+        }
+
         return [
-            'authenticated' => false,
-            'actor_uid' => null,
-            'auth_type' => 'NONE',
-            'client_id' => 'unknown',
-            'error' => 'Authentication required. Provide valid HTTP Basic Auth, Bearer Token, or X-API-KEY',
+            'authenticated' => true,
+            'actor_uid' => $onBehalfOf,
+            'auth_type' => 'BEARER_TOKEN',
+            'client_id' => $clientId,
+            'service_id' => $serviceId,
+            'token_id' => $tokenId,
+            'delegation_status' => 'ALLOWED',
+            'delegation_requested' => $onBehalfOf,
+            'error' => null,
+            'status_code' => 200,
         ];
+    }
+
+    /**
+     * Check if delegation to target user is allowed under the service policy.
+     */
+    private function isDelegationPermitted(string $serviceId, string $policy, string $targetUid): bool {
+        if ($policy === 'DENY_ALL') {
+            return false;
+        }
+
+        try {
+            // 1. Check user-specific delegation rule
+            if ($policy === 'SPECIFIC_USERS' || $policy === 'SPECIFIC_USERS_AND_GROUPS') {
+                $uqb = $this->db->getQueryBuilder();
+                $uqb->select('id')
+                    ->from('archive_ai_delegations')
+                    ->where($uqb->expr()->eq('service_id', $uqb->createNamedParameter($serviceId)))
+                    ->andWhere($uqb->expr()->eq('subject_type', $uqb->createNamedParameter('USER')))
+                    ->andWhere($uqb->expr()->eq('subject_id', $uqb->createNamedParameter($targetUid)));
+                if ($uqb->executeQuery()->fetchOne()) {
+                    return true;
+                }
+                if ($policy === 'SPECIFIC_USERS') {
+                    return false;
+                }
+            }
+
+            // 2. Check group-specific delegation rule
+            if ($policy === 'SPECIFIC_GROUPS' || $policy === 'SPECIFIC_USERS_AND_GROUPS') {
+                $user = $this->userManager->get($targetUid);
+                if ($user === null) {
+                    return false;
+                }
+                $userGroups = $this->groupManager->getUserGroupIds($user);
+                if (empty($userGroups)) {
+                    return false;
+                }
+
+                $gqb = $this->db->getQueryBuilder();
+                $gqb->select('subject_id')
+                    ->from('archive_ai_delegations')
+                    ->where($gqb->expr()->eq('service_id', $gqb->createNamedParameter($serviceId)))
+                    ->andWhere($gqb->expr()->eq('subject_type', $gqb->createNamedParameter('GROUP')))
+                    ->andWhere($gqb->expr()->in('subject_id', $gqb->createNamedParameter($userGroups, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)));
+                if ($gqb->executeQuery()->fetchOne()) {
+                    return true;
+                }
+            }
+        } catch (\Throwable $e) {
+            $this->logger->error("archive_autotag_ai: Delegation check error: " . $e->getMessage());
+            return false;
+        }
+
+        return false;
     }
 
     /**
@@ -201,7 +473,7 @@ class AiFileService {
     }
 
     /**
-     * Record structured audit entry for all AI retrieval requests.
+     * Record structured audit entry for all AI retrieval requests with service principal and delegation status.
      */
     public function recordAudit(
         string $requestId,
@@ -213,7 +485,11 @@ class AiFileService {
         string $result,
         string $clientIp,
         int $bytesServed = 0,
-        ?string $errorMessage = null
+        ?string $errorMessage = null,
+        string $serviceId = 'unknown',
+        ?int $tokenId = null,
+        ?string $delegationRequested = null,
+        string $delegationStatus = 'NONE'
     ): void {
         try {
             $now = time();
@@ -231,12 +507,36 @@ class AiFileService {
                    'bytes_served' => $qb->createNamedParameter($bytesServed),
                    'error_message' => $qb->createNamedParameter($errorMessage),
                    'created_at' => $qb->createNamedParameter($now),
+                   'service_id' => $qb->createNamedParameter($serviceId),
+                   'token_id' => $qb->createNamedParameter($tokenId),
+                   'delegation_requested' => $qb->createNamedParameter($delegationRequested),
+                   'delegation_status' => $qb->createNamedParameter($delegationStatus),
                ]);
             $qb->executeStatement();
 
-            $this->logger->info("archive_autotag_ai: [{$requestId}] File {$fileId} ({$fileName}) accessed by '{$actorUid}' via {$authType}: Result={$result}");
+            $this->logger->info("archive_autotag_ai: [{$requestId}] File {$fileId} ({$fileName}) accessed by '{$actorUid}' via {$authType} (Service: {$serviceId}, Delegation: {$delegationStatus}): Result={$result}");
         } catch (\Throwable $t) {
-            $this->logger->error("archive_autotag_ai: Failed to record audit log: " . $t->getMessage());
+            // Fallback for pre-migration schema
+            try {
+                $qb = $this->db->getQueryBuilder();
+                $qb->insert('archive_ai_audit')
+                   ->values([
+                       'request_id' => $qb->createNamedParameter($requestId),
+                       'actor_uid' => $qb->createNamedParameter($actorUid),
+                       'client_id' => $qb->createNamedParameter($clientId),
+                       'file_id' => $qb->createNamedParameter($fileId),
+                       'file_name' => $qb->createNamedParameter($fileName),
+                       'auth_type' => $qb->createNamedParameter($authType),
+                       'result' => $qb->createNamedParameter($result),
+                       'client_ip' => $qb->createNamedParameter($clientIp),
+                       'bytes_served' => $qb->createNamedParameter($bytesServed),
+                       'error_message' => $qb->createNamedParameter($errorMessage),
+                       'created_at' => $qb->createNamedParameter($now),
+                   ]);
+                $qb->executeStatement();
+            } catch (\Throwable $t2) {
+                $this->logger->error("archive_autotag_ai: Failed to record audit log: " . $t2->getMessage());
+            }
         }
     }
 
