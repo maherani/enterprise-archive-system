@@ -816,3 +816,12 @@ un_e2e_tests.py, 100%).
   - GroupTagService::deleteGroupTag strictly blocks deletion of tags owned by system or dmin or missing the group prefix, throwing SecurityPermissionException (HTTP 403 Forbidden).
   - Frontend UI defense-in-depth displays 🔒 تگ سیستمی for protected tags if ever received.
   - Documented in docs/requirements/15_group_admin_tag_governance.md Section 5.4.
+
+
+---
+
+## Canonical Requirement & Prompt Consolidation
+
+از این نقطه، `docs/requirements/` مرجع اصلی نیازمندی‌های زنده پروژه است و تعداد نیازمندی‌های Canonical برابر **۲۸** است. Promptهای تاریخی که صرفاً همان نیازمندی‌ها را تکرار می‌کردند حذف و محتوای آن‌ها در Requirement متناظر ادغام شده است.
+
+برای traceability، نگاشت Promptهای تاریخی به Requirementهای نهایی در `docs/requirements/README.md` و `Prompts/README.md` ثبت شده است. برای وضعیت واقعی implementation و verification، `PROJECT_STATE.md`، کد و تست‌های موجود ملاک هستند.
