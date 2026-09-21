@@ -919,21 +919,11 @@
                 '  <div class="ea-empty-title">این پوشه خالی است یا سندی در این مسیر یافت نشد</div>',
                 '  <div class="ea-empty-desc">می‌توانید به سطوح بالاتر برگردید یا اسناد دیگر را جستجو نمایید.</div>',
                 '  <div style="display: flex; gap: 8px; justify-content: center; margin-top: 14px; flex-wrap: wrap;">',
-                '    <button class="ea-btn ea-btn-primary" id="ea-empty-upload-btn" title="بارگذاری فایل در این پوشه">',
-                '      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
-                '      <span>بارگذاری فایل</span>',
-                '    </button>',
                 (state.currentFolderDir && state.currentFolderDir !== '/' ? '    <button class="ea-btn ea-btn-primary" id="ea-empty-up-btn">⬆ رفتن به پوشه بالا</button>' : ''),
                 '    <button class="ea-btn ea-btn-secondary" id="ea-empty-exit-btn">بازگشت به همه اسناد</button>',
                 '  </div>',
                 '</div>'
             ].join('');
-            var folderUploadBtn = document.getElementById('ea-empty-upload-btn');
-            if (folderUploadBtn) {
-                folderUploadBtn.addEventListener('click', function () {
-                    openUploadModal(null, state.currentFolderDir);
-                });
-            }
             var upBtn = document.getElementById('ea-empty-up-btn');
             if (upBtn) {
                 upBtn.addEventListener('click', function () {
