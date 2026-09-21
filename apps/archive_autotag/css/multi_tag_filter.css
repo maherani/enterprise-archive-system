@@ -514,3 +514,154 @@ table[data-cy-files-list],
 .ea-share-perm-label input[type="checkbox"] {
   cursor: pointer;
 }
+
+
+/* =========================================================================
+   Collapsible Sidebar Drawer & Full-Width 2-Line Table Layout
+   ========================================================================= */
+
+/* Smooth sliding transitions */
+.app-navigation.files-navigation {
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+                opacity 0.25s ease !important;
+    position: relative;
+}
+
+.app-content, #app-content-vue, #app-content {
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+                flex 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* Collapsed Drawer State (Full width expansion across entire screen) */
+body.ea-sidebar-collapsed .app-navigation.files-navigation {
+    display: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    flex: 0 0 0px !important;
+    overflow: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+body.ea-sidebar-collapsed .app-content,
+body.ea-sidebar-collapsed #app-content-vue,
+body.ea-sidebar-collapsed #app-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    left: 0 !important;
+}
+
+/* Table and filter containers: Expand to full width */
+.archive-tag-results-container,
+.archive-tag-filter-container {
+    width: calc(100% - 32px) !important;
+    max-width: 100% !important;
+    margin: 12px 16px !important;
+    box-sizing: border-box !important;
+}
+
+/* Table layout */
+.archive-results-table {
+    width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+}
+
+.archive-results-table th, 
+.archive-results-table td {
+    vertical-align: middle !important;
+    box-sizing: border-box !important;
+}
+
+/* 2-line clamp for cell content (نام سند و مسیر در بایگانی) */
+.archive-file-name-cell a {
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.45 !important;
+    max-height: 2.9em !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+}
+
+.archive-file-path-badge {
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.45 !important;
+    max-height: calc(2.9em + 10px) !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+    box-sizing: border-box !important;
+}
+
+/* Sidebar Top Header with Close Button */
+.ea-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: #11141b;
+    border-bottom: 1px solid #202632;
+    color: #f8fafc;
+    font-weight: 700;
+    font-size: 13px;
+    direction: rtl;
+}
+
+.ea-sidebar-close-btn {
+    background: #181d27;
+    border: 1px solid #2d3647;
+    color: #94a3b8;
+    border-radius: 6px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.ea-sidebar-close-btn:hover {
+    background: #202632;
+    color: #f97316;
+    border-color: #f97316;
+}
+
+/* Filter Bar Toggle Button */
+.ea-filter-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 16px;
+    font-size: 12.5px;
+    font-weight: 600;
+    background: #181d27;
+    color: #f97316;
+    border: 1px solid #f97316;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+    white-space: nowrap;
+    margin-left: 10px;
+}
+
+.ea-filter-toggle-btn:hover {
+    background: #f97316;
+    color: #ffffff;
+    box-shadow: 0 2px 10px rgba(249, 115, 22, 0.35);
+}

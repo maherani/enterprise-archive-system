@@ -116,6 +116,7 @@
             if (data && data.status === 'success' && Array.isArray(data.tags)) {
                 state.allTags = data.tags;
                 renderFilterBar();
+        setupSidebarDrawer();
             }
         })
         .catch(function (err) {
@@ -146,6 +147,82 @@
         }
 
         return null;
+    }
+
+
+    /**
+     * Collapsible Sidebar Drawer Management for All Users
+     */
+    function setupSidebarDrawer() {
+        // Read preference or default to collapsed for wide table experience
+        var stored = localStorage.getItem('ea_sidebar_collapsed');
+        if (stored === '1' || stored === null) {
+            document.body.classList.add('ea-sidebar-collapsed');
+        } else {
+            document.body.classList.remove('ea-sidebar-collapsed');
+        }
+
+        // 1. Inject Floating Tab on left edge
+        if (!document.getElementById('ea-floating-sidebar-tab')) {
+            var tab = document.createElement('button');
+            tab.id = 'ea-floating-sidebar-tab';
+            tab.type = 'button';
+            tab.className = 'ea-floating-sidebar-tab';
+            tab.title = 'نمایش منوی فایل‌ها (کشویی)';
+            tab.innerHTML = '<span>☰ منوی فایل‌ها</span>';
+            tab.addEventListener('click', function () {
+                toggleSidebar(false);
+            });
+            document.body.appendChild(tab);
+        }
+
+        // 2. Inject Sidebar Header inside .app-navigation
+        var nav = document.querySelector('.app-navigation');
+        if (nav && !nav.querySelector('.ea-sidebar-header')) {
+            var header = document.createElement('div');
+            header.className = 'ea-sidebar-header';
+            header.innerHTML = '<span>📁 دسترسی به فایل‌ها</span><button type="button" class="ea-sidebar-close-btn" title="بستن منو (کشویی)">◀</button>';
+            header.querySelector('.ea-sidebar-close-btn').addEventListener('click', function () {
+                toggleSidebar(true);
+            });
+            nav.insertBefore(header, nav.firstChild);
+        }
+
+        // 3. Inject Toggle Button in Filter Header
+        var controls = document.querySelector('.archive-tag-filter-controls');
+        if (controls && !controls.querySelector('.ea-filter-toggle-btn')) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'ea-filter-toggle-btn';
+            btn.innerHTML = '<span>☵ منوی فایل‌ها</span>';
+            btn.addEventListener('click', function () {
+                var isCurrentlyCollapsed = document.body.classList.contains('ea-sidebar-collapsed');
+                toggleSidebar(!isCurrentlyCollapsed);
+            });
+            controls.insertBefore(btn, controls.firstChild);
+        }
+
+        updateToggleButtonsState();
+    }
+
+    function toggleSidebar(collapse) {
+        if (collapse) {
+            document.body.classList.add('ea-sidebar-collapsed');
+            localStorage.setItem('ea_sidebar_collapsed', '1');
+        } else {
+            document.body.classList.remove('ea-sidebar-collapsed');
+            localStorage.setItem('ea_sidebar_collapsed', '0');
+        }
+        updateToggleButtonsState();
+    }
+
+    function updateToggleButtonsState() {
+        var isCollapsed = document.body.classList.contains('ea-sidebar-collapsed');
+        var btn = document.querySelector('.ea-filter-toggle-btn');
+        if (btn) {
+            btn.innerHTML = isCollapsed ? '<span>▶ باز کردن منو</span>' : '<span>◀ بستن منو</span>';
+            btn.title = isCollapsed ? 'باز کردن منوی فایل‌ها' : 'بستن منوی فایل‌ها برای مشاهده عریض جدول';
+        }
     }
 
     function ensureMounted() {
@@ -201,6 +278,7 @@
         }
 
         renderFilterBar();
+        setupSidebarDrawer();
 
         if (state.selectedTagIds.size > 0) {
             fetchFilteredFiles();
@@ -291,6 +369,7 @@
                     state.selectedTagIds.add(tagId);
                 }
                 renderFilterBar();
+        setupSidebarDrawer();
                 onFilterChange();
             });
         });
@@ -304,6 +383,7 @@
                 var tagId = parseInt(this.getAttribute('data-remove-id'), 10);
                 state.selectedTagIds.delete(tagId);
                 renderFilterBar();
+        setupSidebarDrawer();
                 onFilterChange();
             });
         });
@@ -316,6 +396,7 @@
                 e.stopPropagation();
                 state.selectedTagIds.clear();
                 renderFilterBar();
+        setupSidebarDrawer();
                 onFilterChange();
             });
         }
@@ -352,6 +433,7 @@
                                 state.selectedTagIds.add(tid);
                             }
                             renderFilterBar();
+        setupSidebarDrawer();
                             onFilterChange();
                         });
                     });
@@ -539,10 +621,10 @@
             '</div>' +
             '<table class="archive-results-table">' +
                 '<colgroup>' +
-                    '<col style="width: 28%;">' +
-                    '<col style="width: 32%;">' +
-                    '<col style="width: 10%;">' +
-                    '<col style="width: 30%;">' +
+                    '<col style="width: 36%;">' +
+                    '<col style="width: 36%;">' +
+                    '<col style="width: 90px;">' +
+                    '<col style="width: 240px;">' +
                 '</colgroup>' +
                 '<thead>' +
                     '<tr>' +
@@ -588,6 +670,7 @@
                 if (state.selectedTagIds.size > 0) {
                     state.selectedTagIds.clear();
                     renderFilterBar();
+        setupSidebarDrawer();
                 }
 
                 navigateToDirectory(targetDir, webUrl);
