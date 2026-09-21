@@ -118,3 +118,37 @@
 - `tests/test_file_location_navigation.py` — ۵ از ۵ پاس شد (۱۰۰٪ OK).
 - `tests/test_archive_portal.py` — ۵ از ۵ پاس شد (۱۰۰٪ OK).
 - `tests/test_air_gapped_isolation.py` — ۹ از ۹ پاس شد (۱۰۰٪ OK).
+
+
+---
+
+## ۶. تجمیع سوابق Prompt و معیارهای نهایی
+
+این بخش محتوای تاریخی Promptهای 09، 10، 12 و 13 را در همین Requirement ادغام می‌کند. از این پس این Requirement تنها مرجع رسمی رفتار Navigation است و فایل‌های Prompt مستقل برای همین موضوع نگهداری نمی‌شوند.
+
+### ۶.۱ پوشش کامل صفحات و مسیرها
+Navigation باید در تمام contextهای مرتبط سامانه قابل استفاده و قابل اثبات باشد، از جمله Archive Portal، Files، Folder View، Search و Multi-Tag Results، Admin UI، Folder Request UI، Group Tag UI، Settings در صورت دسترسی، مسیرهای خطا و fallback در صورت وجود، و Login/redirect در contextهای مرتبط. وجود Navigation باید هم در سطح injection/mount و هم در سطح رفتار واقعی Browser قابل بررسی باشد. ایجاد Navigation تکراری، mount پشت Header یا شکست Layout مجاز نیست.
+
+### ۶.۲ Navigation Semantics و Accessibility
+- مقصدهای واقعی باید با Link استاندارد و href معتبر نمایش داده شوند.
+- Actionهایی که Navigation نیستند باید با button پیاده‌سازی شوند.
+- استفاده از javascript:void(0) یا inline JavaScript در href مجاز نیست.
+- Keyboard navigation شامل Tab و Enter و در مورد buttonها Space باید حفظ شود.
+- focus و escaping مسیرها باید امن باقی بماند.
+- Routing بومی Nextcloud و encoding مسیرها نباید با این اصلاحات دچار Regression شود.
+
+### ۶.۳ Lifecycle و حذف Polling مداوم
+- Navigation نباید برای mount یا refresh به polling دوره‌ای ثابت مانند setInterval متکی باشد.
+- lifecycle/routing events و observerهای لازم باید جایگزین polling شوند.
+- observer و event handler تکراری یا memory leak مجاز نیست.
+- رفتار Navigation در initial load، route change، Files app lifecycle و DOM mutation باید حفظ شود.
+- active state و resource visibility باید بدون اجرای مداوم و غیرضروری JavaScript به‌روزرسانی شوند.
+
+### ۶.۴ معیار پذیرش تکمیلی
+[ ] تمام contextهای قابل دسترس و مرتبط دارای Navigation صحیح هستند.
+[ ] هیچ resource غیرمجاز از طریق Navigation افشا نمی‌شود.
+[ ] هیچ javascript:void(0) یا inline navigation script وجود ندارد.
+[ ] Navigation برای keyboard قابل استفاده است.
+[ ] polling مداوم 400ms حذف شده یا به mechanism مبتنی بر lifecycle/event تبدیل شده است.
+[ ] mount و refresh بدون duplicate listener و بدون memory leak انجام می‌شود.
+[ ] تست Browser رفتار واقعی Navigation را در مسیرهای اصلی و تغییر route اثبات می‌کند.
