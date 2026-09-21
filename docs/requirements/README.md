@@ -37,11 +37,12 @@
 | **25** | **ثبت اجباری متادیتای سند قبل از بارگذاری در بایگانی (Fail-Closed Document Metadata)** | [`25_Mandatory Document Metadata Capture Before Archive Upload`](25_Mandatory%20Document%20Metadata%20Capture%20Before%20Archive%20Upload) | مستقل / متادیتا و کنترل دسترسی | 02, 08, 17, 18, 21, 23 | لایه متادیتای الزامی اسناد، جدول oc_archive_document_metadata، رد درخواست بارگذاری بدون متادیتا (422)، یکپارچگی با دراور سریع و جستجوی پورتال | عملیاتی و نهایی (v2.4.0) |
 | **26** | **حذف امن فایل‌ها و پوشه‌ها توسط مدیر ارشد سامانه (Secure System Administrator File & Folder Deletion)** | [`26_secure_admin_deletion.md`](26_secure_admin_deletion.md) | مستقل / حاکمیت امنیتی و چرخه حیات اسناد | 08, 17, 18, 21, 23, 25 | حذف دائم و امن فایل و پوشه صرفاً توسط System Admin، عملیات DELETE=8 با CentralPermissionResolver، پاکسازی آبشاری متادیتا و دسترسی‌ها، ممیزی تراکنشی ReliableAudit و مودال تایید ادمین | عملیاتی و نهایی (v2.6.0) |
 | **27** | **جدول اسناد واکنش‌گرا، خوانا و با قابلیت تغییر اندازه ستون‌ها توسط کاربر (Responsive, Readable and User-Resizable Archive Table)** | [`27_Responsive, Readable and User-Resizable Archive Table`](27_Responsive,%20Readable%20and%20User-Resizable%20Archive%20Table) | مستقل / رابط کاربری و فرانت‌اند | 09, 10, 23 | چیدمان ستون‌های جدول با colgroup، کلمپ ۳ خطی متن‌های طولانی، تغییر عرض با ماوس در محیط RTL، ماندگاری در LocalStorage کاربر و دکمه بازنشانی ابعاد | عملیاتی و نهایی (v2.5.0) |
+| **28** | **مدیریت متمرکز تگ‌ها ویژه مدیر ارشد سامانه (Central Tag Management for System Administrator)** | [`28_central_tag_management.md`](28_central_tag_management.md) | مستقل / حاکمیت تگ و طبقه‌بندی اسناد | 02, 08, 15, 17, 20, 24 | کنسول متمرکز ادمین، ایجاد تگ‌های سراسری و گروهی، حذف ایمن با قفل سطری و خطای 409 تضاد، تخصیص/لغو تگ فایل و پوشه در دراور، ممیزی Fail-Closed و موتور همگام‌سازی Reconcile | عملیاتی و نهایی (v2.7.0) |
 
 ---
 
 ## ۲. ساختار استاندارد ۲۳گانه هر سند نیازمندی
-تمامی ۲۰ سند نیازمندی دارای ساختار کاملاً یکپارچه و استاندارد شامل بخش‌های زیر هستند:
+تمامی  اسناد نیازمندی دارای ساختار کاملاً یکپارچه و استاندارد شامل بخش‌های زیر هستند:
 1. **شرح نیازمندی (Problem Statement & Business Need)**
 2. **نیازمندی‌های تابعی (Functional Requirements)**
 3. **نیازمندی‌های غیرتابعی (Non-Functional Requirements)**

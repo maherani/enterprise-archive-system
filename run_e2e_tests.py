@@ -54,7 +54,7 @@ def run_e2e():
         print("Diagnostic screenshots and traces saved to: artifacts/e2e_reports/")
         sys.exit(1)
     else:
-        print("\n✅ ALL 20 REAL BROWSER E2E SCENARIOS PASSED SUCCESSFULLY!")
+        print(f"\n✅ ALL {result.testsRun} REAL BROWSER E2E SCENARIOS PASSED SUCCESSFULLY!")
         sys.exit(0)
 
 

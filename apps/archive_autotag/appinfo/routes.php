@@ -68,6 +68,14 @@ return [
 
         // Secure System Administrator Deletion (Requirement 26)
         ['name' => 'ArchiveResource#delete', 'url' => '/api/resource/delete', 'verb' => 'POST'],
+        // Central System Administrator Tag Management (Requirement 28)
+        ['name' => 'AdminTag#listAllTags', 'url' => '/api/admin/tags', 'verb' => 'GET'],
+        ['name' => 'AdminTag#createTag', 'url' => '/api/admin/tags/create', 'verb' => 'POST'],
+        ['name' => 'AdminTag#deleteTag', 'url' => '/api/admin/tags/delete', 'verb' => 'POST'],
+        ['name' => 'AdminTag#assignTag', 'url' => '/api/admin/tags/assign', 'verb' => 'POST'],
+        ['name' => 'AdminTag#removeTag', 'url' => '/api/admin/tags/remove', 'verb' => 'POST'],
+        ['name' => 'AdminTag#reconcileTags', 'url' => '/api/admin/tags/reconcile', 'verb' => 'POST'],
+
 
     ],
     'ocs' => [
@@ -132,6 +140,14 @@ return [
 
         // Secure System Administrator Deletion (Requirement 26)
         ['name' => 'ArchiveResource#delete', 'url' => '/api/resource/delete', 'verb' => 'POST'],
+        // Central System Administrator Tag Management (Requirement 28)
+        ['name' => 'AdminTag#listAllTags', 'url' => '/api/admin/tags', 'verb' => 'GET'],
+        ['name' => 'AdminTag#createTag', 'url' => '/api/admin/tags/create', 'verb' => 'POST'],
+        ['name' => 'AdminTag#deleteTag', 'url' => '/api/admin/tags/delete', 'verb' => 'POST'],
+        ['name' => 'AdminTag#assignTag', 'url' => '/api/admin/tags/assign', 'verb' => 'POST'],
+        ['name' => 'AdminTag#removeTag', 'url' => '/api/admin/tags/remove', 'verb' => 'POST'],
+        ['name' => 'AdminTag#reconcileTags', 'url' => '/api/admin/tags/reconcile', 'verb' => 'POST'],
+
 
     ],
 ];

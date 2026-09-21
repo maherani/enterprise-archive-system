@@ -1416,7 +1416,18 @@
                 '<div style="margin-bottom: 20px;">',
                 '  <div style="font-size: 0.85rem; font-weight: 700; color: var(--ea-text-muted); margin-bottom: 8px;">برچسب‌های متصل سازمانی:</div>',
                 '  <div style="display: flex; flex-wrap: wrap; gap: 6px;">' + (tagsBadges || '<span style="color: var(--ea-text-subtle);">فاقد برچسب</span>') + '</div>',
-                '</div>','' + (matchedSubadminGroup ? [
+                '</div>','' + (isGlobalAdmin ? [
+                '<div class="ea-drawer-tag-mgmt-card" style="margin-bottom: 20px; padding: 12px 14px; border-radius: var(--ea-radius); background: var(--ea-surface-elevated); border: 1px solid var(--ea-border);">',
+                '  <div style="font-size: 0.84rem; font-weight: 700; color: var(--ea-text-main); margin-bottom: 8px;">🏷️ الصاق تگ به ' + (isFolder ? 'پوشه' : 'سند') + ' (مدیر ارشد):</div>',
+                '  <div style="display: flex; gap: 8px;">',
+                '    <select id="ea-drawer-admin-tag-select" class="ea-form-select" style="flex: 1; font-size: 0.82rem; padding: 4px 8px;">',
+                '      <option value="">⏳ در حال دریافت تگ‌ها...</option>',
+                '    </select>',
+                '    <button type="button" id="ea-drawer-admin-add-tag-btn" class="ea-btn ea-btn-primary" style="padding: 4px 12px; font-size: 0.82rem; white-space: nowrap;">+ الصاق</button>',
+                '  </div>',
+                '  <div id="ea-drawer-admin-tag-msg" style="display:none; font-size: 0.8rem; margin-top: 6px;"></div>',
+                '</div>'
+                ].join('\n') : (matchedSubadminGroup ? [
                 '<div class="ea-drawer-tag-mgmt-card" style="margin-bottom: 20px; padding: 12px 14px; border-radius: var(--ea-radius); background: var(--ea-surface-elevated); border: 1px solid var(--ea-border);">',
                 '  <div style="font-size: 0.84rem; font-weight: 700; color: var(--ea-text-main); margin-bottom: 8px;">🏷️ الصاق تگ اختصاصی گروه [' + escapeHtml(matchedSubadminGroup) + ']:</div>',
                 '  <div style="display: flex; gap: 8px;">',
@@ -1427,7 +1438,7 @@
                 '  </div>',
                 '  <div id="ea-drawer-tag-msg" style="display:none; font-size: 0.8rem; margin-top: 6px;"></div>',
                 '</div>'
-                ].join('\n') : '') + '',
+                ].join('\n') : '')) + '',
                 '',
                 '<div class="ea-meta-item">',
                 '  <span class="ea-meta-label">مسیر فایل:</span>',
@@ -1527,7 +1538,9 @@
                 });
             }
 
-            if (matchedSubadminGroup) {
+            if (isGlobalAdmin) {
+                setupAdminDrawerTagActions(file);
+            } else if (matchedSubadminGroup) {
                 setupDrawerTagActions(file, matchedSubadminGroup);
             }
         }
@@ -1614,6 +1627,10 @@
                 '  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polyline points="9 11 12 14 22 4"/></svg>',
                 '  ' + counterBadge + '<span>مدیریت درخواست‌های پوشه</span>',
                 '</button>',
+                '<button id="ea-admin-manage-tags-btn" class="ea-btn" title="مدیریت مرکزی و حاکمیت تگ‌های سامانه">',
+                '  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
+                '  <span>🏷️ مدیریت مرکزی تگ‌ها</span>',
+                '</button>',
                 '<button id="ea-admin-ai-security-btn" class="ea-btn" title="مدیریت سرویس‌ها، توکن‌های امن، سیاست‌های احراز هویت نمایندگی و تست زنده AI API">',
                 '  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="14" r="1.5"/><circle cx="15" cy="14" r="1.5"/><path d="M9 18h6"/></svg>',
                 '  <span>🤖 مدیریت و تست AI API</span>',
@@ -1625,6 +1642,9 @@
 
             var adminBtn = document.getElementById('ea-admin-manage-reqs-btn');
             if (adminBtn) adminBtn.onclick = function () { openAdminManageRequestsModal(); };
+
+            var manageTagsBtn = document.getElementById('ea-admin-manage-tags-btn');
+            if (manageTagsBtn) manageTagsBtn.onclick = openAdminTagManagementModal;
 
             var aiSecBtn = document.getElementById('ea-admin-ai-security-btn');
             if (aiSecBtn) aiSecBtn.onclick = function () { openAiSecurityConsoleModal('services'); };
@@ -3119,6 +3139,500 @@
 
         loadGroupTags(selectedGroup);
     }
+
+    function setupAdminDrawerTagActions(file) {
+        var selectEl = document.getElementById('ea-drawer-admin-tag-select');
+        var addBtn = document.getElementById('ea-drawer-admin-add-tag-btn');
+        var msgEl = document.getElementById('ea-drawer-admin-tag-msg');
+        if (!selectEl || !addBtn) return;
+
+        fetch('/index.php/apps/archive_autotag/api/admin/tags', {
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data && data.status === 'success' && data.tags) {
+                var currentTagIds = (file.tags || []).map(function (t) { return t.id; });
+                var unassigned = data.tags.filter(function (t) { return currentTagIds.indexOf(t.id) === -1; });
+                if (unassigned.length === 0) {
+                    selectEl.innerHTML = '<option value="">(همه تگ‌های موجود روی منبع اعمال شده‌اند)</option>';
+                    addBtn.disabled = true;
+                } else {
+                    selectEl.innerHTML = '<option value="">-- انتخاب تگ جهت الصاق --</option>' + unassigned.map(function (t) {
+                        var scopeBadge = t.scope === 'system' ? '[سراسری] ' : ('[' + (t.group_id || 'گروهی') + '] ');
+                        return '<option value="' + t.id + '">' + escapeHtml(scopeBadge + (t.clean_name || t.name)) + '</option>';
+                    }).join('');
+                    addBtn.disabled = false;
+                }
+            } else {
+                selectEl.innerHTML = '<option value="">(عدم دریافت تگ‌ها)</option>';
+            }
+        })
+        .catch(function () {
+            selectEl.innerHTML = '<option value="">(خطای شبکه در دریافت تگ‌ها)</option>';
+        });
+
+        addBtn.onclick = function () {
+            var selectedTagId = selectEl.value;
+            if (!selectedTagId) {
+                if (msgEl) {
+                    msgEl.style.display = 'block';
+                    msgEl.style.color = '#ef4444';
+                    msgEl.innerText = 'لطفاً یک تگ را انتخاب فرمایید.';
+                }
+                return;
+            }
+            addBtn.disabled = true;
+            addBtn.innerText = '⏳...';
+
+            var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+            if (window.OC && window.OC.requestToken) headers['requesttoken'] = window.OC.requestToken;
+
+            fetch('/index.php/apps/archive_autotag/api/admin/tags/assign', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({ tag_id: parseInt(selectedTagId, 10), file_id: file.id })
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data && data.status === 'success') {
+                    showToast('تگ با موفقیت به منبع الصاق گردید.');
+                    var assignedTagId = parseInt(selectedTagId, 10);
+                    var tagName = (data.data && data.data.tag_name) || selectEl.options[selectEl.selectedIndex].text;
+                    if (!file.tags) file.tags = [];
+                    file.tags.push({ id: assignedTagId, name: tagName });
+                    renderDrawer();
+                    renderDocumentList();
+                    fetchTags();
+                } else {
+                    addBtn.disabled = false;
+                    addBtn.innerText = '+ الصاق';
+                    if (msgEl) {
+                        msgEl.style.display = 'block';
+                        msgEl.style.color = '#ef4444';
+                        msgEl.innerText = 'خطا: ' + ((data && data.message) ? data.message : 'نامشخص');
+                    }
+                }
+            })
+            .catch(function (err) {
+                addBtn.disabled = false;
+                addBtn.innerText = '+ الصاق';
+                if (msgEl) {
+                    msgEl.style.display = 'block';
+                    msgEl.style.color = '#ef4444';
+                    msgEl.innerText = 'خطای ارتباط: ' + err.message;
+                }
+            });
+        };
+    }
+
+    window._eaAdminRemoveTag = function (tagId, fileId, tagName) {
+        if (!confirm('آیا از جداسازی تگ «' + tagName + '» از این منبع اطمینان دارید؟')) {
+            return;
+        }
+        var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+        if (window.OC && window.OC.requestToken) headers['requesttoken'] = window.OC.requestToken;
+
+        fetch('/index.php/apps/archive_autotag/api/admin/tags/remove', {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({ tag_id: tagId, file_id: fileId })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data && data.status === 'success') {
+                showToast('تگ «' + tagName + '» با موفقیت از منبع جدا شد.');
+                if (state.activeDrawerFile && state.activeDrawerFile.id === fileId) {
+                    state.activeDrawerFile.tags = (state.activeDrawerFile.tags || []).filter(function (t) { return t.id !== tagId; });
+                    renderDrawer();
+                }
+                for (var i = 0; i < state.files.length; i++) {
+                    if (state.files[i].id === fileId) {
+                        state.files[i].tags = (state.files[i].tags || []).filter(function (t) { return t.id !== tagId; });
+                        break;
+                    }
+                }
+                renderDocumentList();
+                fetchTags();
+            } else {
+                alert('خطا در جداسازی تگ: ' + ((data && data.message) ? data.message : 'نامشخص'));
+            }
+        })
+        .catch(function (err) {
+            alert('خطای ارتباط: ' + err.message);
+        });
+    };
+
+    // Modal: Central Tag Management for System Administrator (Requirement 28)
+    function openAdminTagManagementModal() {
+        closeModal();
+
+        var overlay = document.createElement('div');
+        overlay.id = 'ea-active-modal';
+        overlay.className = 'ea-modal-overlay';
+        overlay.innerHTML = [
+            '<div class="ea-modal-card" style="max-width: 960px; width: 95%; max-height: 85vh; display: flex; flex-direction: column;">',
+            '  <div class="ea-modal-header">',
+            '    <div class="ea-modal-title">',
+            '      <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
+            '      <span>مدیریت مرکزی تگ‌ها (System Administrator)</span>',
+            '    </div>',
+            '    <button class="ea-modal-close" id="ea-admin-tag-modal-close-btn" title="بستن">&times;</button>',
+            '  </div>',
+            '  <div class="ea-modal-body" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 16px;">',
+            '    <!-- Creation & Reconciliation Box -->',
+            '    <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--ea-border); border-radius: 8px; padding: 14px;">',
+            '      <div style="font-size: 0.88rem; font-weight: 700; color: var(--ea-text-main); margin-bottom: 10px;">➕ ایجاد تگ جدید یا همگام‌سازی ساختار:</div>',
+            '      <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">',
+            '        <input type="text" id="ea-admin-new-tag-name" class="ea-input" placeholder="نام تگ جدید..." style="flex: 2; min-width: 180px; padding: 7px 12px; font-size: 0.84rem;">',
+            '        <select id="ea-admin-new-tag-scope" class="ea-form-select" style="flex: 1.5; min-width: 170px; padding: 7px 10px; font-size: 0.84rem;">',
+            '          <option value="system">🌐 سراسری (سیستمی)</option>',
+            '        </select>',
+            '        <button type="button" id="ea-admin-create-tag-btn" class="ea-btn ea-btn-primary" style="padding: 7px 16px; font-size: 0.84rem; white-space: nowrap;">+ ایجاد تگ</button>',
+            '        <button type="button" id="ea-admin-reconcile-tags-btn" class="ea-btn" style="padding: 7px 14px; font-size: 0.84rem; white-space: nowrap; border-color: rgba(99,102,241,0.4); color: #818cf8;" title="بررسی سازگاری، رفع تناقض و پاکسازی رکوردهای یتیم">🔄 همگام‌سازی (Reconcile)</button>',
+            '      </div>',
+            '      <div id="ea-admin-tag-create-msg" style="display:none; font-size: 0.8rem; margin-top: 8px;"></div>',
+            '    </div>',
+            '',
+            '    <!-- Search, Filter & Counter -->',
+            '    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">',
+            '      <div style="display: flex; gap: 8px; align-items: center; flex: 1; max-width: 420px;">',
+            '        <input type="text" id="ea-admin-tag-search-input" class="ea-input" placeholder="🔍 جستجو در نام تگ..." style="width: 100%; padding: 6px 12px; font-size: 0.82rem;">',
+            '      </div>',
+            '      <div style="display: flex; gap: 10px; align-items: center;">',
+            '        <select id="ea-admin-tag-scope-filter" class="ea-form-select" style="padding: 5px 10px; font-size: 0.82rem;">',
+            '          <option value="all">همه دامنه‌ها</option>',
+            '          <option value="system">فقط سراسری (سیستمی)</option>',
+            '          <option value="group">فقط گروهی</option>',
+            '        </select>',
+            '        <span id="ea-admin-tags-count-badge" class="ea-mini-tag" style="font-size: 0.8rem;">در حال شمارش...</span>',
+            '      </div>',
+            '    </div>',
+            '',
+            '    <!-- Tags Table Container -->',
+            '    <div id="ea-admin-tags-table-container" style="border: 1px solid var(--ea-border); border-radius: 8px; overflow: hidden; background: var(--ea-surface-elevated);">',
+            '      <div style="padding: 24px; text-align: center; color: var(--ea-text-muted);">⏳ در حال دریافت کاتالوگ تگ‌ها...</div>',
+            '    </div>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.appendChild(overlay);
+
+        var closeBtn = document.getElementById('ea-admin-tag-modal-close-btn');
+        if (closeBtn) closeBtn.onclick = closeModal;
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) closeModal();
+        });
+
+        // Populate groups into scope selector
+        var scopeSelect = document.getElementById('ea-admin-new-tag-scope');
+        fetch('/index.php/apps/archive_autotag/api/share/groups', {
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data && data.groups && scopeSelect) {
+                data.groups.forEach(function (g) {
+                    var opt = document.createElement('option');
+                    opt.value = 'group:' + g.id;
+                    opt.textContent = '👥 گروه ' + (g.display_name || g.id);
+                    scopeSelect.appendChild(opt);
+                });
+            }
+        })
+        .catch(function () {});
+
+        var allFetchedTags = [];
+
+        function renderAdminTagsTable() {
+            var container = document.getElementById('ea-admin-tags-table-container');
+            var counterBadge = document.getElementById('ea-admin-tags-count-badge');
+            if (!container) return;
+
+            var q = (document.getElementById('ea-admin-tag-search-input') ? document.getElementById('ea-admin-tag-search-input').value.trim().toLowerCase() : '');
+            var filterScope = (document.getElementById('ea-admin-tag-scope-filter') ? document.getElementById('ea-admin-tag-scope-filter').value : 'all');
+
+            var filtered = allFetchedTags.filter(function (t) {
+                if (filterScope === 'system' && t.scope !== 'system') return false;
+                if (filterScope === 'group' && t.scope !== 'group') return false;
+                if (q !== '') {
+                    var matchName = (t.clean_name || t.name).toLowerCase().indexOf(q) !== -1;
+                    var matchGrp = (t.group_id || '').toLowerCase().indexOf(q) !== -1;
+                    return matchName || matchGrp;
+                }
+                return true;
+            });
+
+            if (counterBadge) {
+                counterBadge.textContent = toPersianDigits(filtered.length) + ' تگ';
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = '<div style="padding: 32px; text-align: center; color: var(--ea-text-muted);">هیچ تگی با مشخصات انتخابی یافت نشد.</div>';
+                return;
+            }
+
+            var html = [
+                '<table style="width: 100%; border-collapse: collapse; text-align: right; font-size: 0.86rem;">',
+                '  <thead>',
+                '    <tr style="border-bottom: 1px solid var(--ea-border); background: rgba(255,255,255,0.03); color: var(--ea-text-muted);">',
+                '      <th style="padding: 10px 14px;">شناسه</th>',
+                '      <th style="padding: 10px 14px;">نام تگ</th>',
+                '      <th style="padding: 10px 14px;">دامنه / گروه</th>',
+                '      <th style="padding: 10px 14px;">وضعیت چرخه حیات</th>',
+                '      <th style="padding: 10px 14px;">منابع متصل</th>',
+                '      <th style="padding: 10px 14px;">مالک</th>',
+                '      <th style="padding: 10px 14px; text-align: center;">عملیات</th>',
+                '    </tr>',
+                '  </thead>',
+                '  <tbody>'
+            ];
+
+            filtered.forEach(function (t) {
+                var isSys = (t.scope === 'system');
+                var scopeBadge = isSys
+                    ? '<span class="ea-scope-system">🌐 سراسری</span>'
+                    : '<span class="ea-scope-group">👥 ' + escapeHtml(t.group_id || 'گروهی') + '</span>';
+
+                var statBadge = '<span class="ea-status-active">● فعال</span>';
+                if (t.status === 'DELETING') {
+                    statBadge = '<span class="ea-status-deleting">⏳ در حال حذف</span>';
+                }
+
+                var cnt = t.usage_count || t.file_count || 0;
+                var resCountHtml = cnt > 0
+                    ? '<span style="color: var(--ea-primary); font-weight: 700;">' + toPersianDigits(cnt) + ' منبع</span>'
+                    : '<span style="color: var(--ea-text-subtle);">بدون منبع</span>';
+
+                html.push(
+                    '<tr style="border-bottom: 1px solid var(--ea-border); transition: background 0.15s;" onmouseover="this.style.background=\'rgba(255,255,255,0.02)\'" onmouseout="this.style.background=\'transparent\'">',
+                    '  <td style="padding: 9px 14px; color: var(--ea-text-subtle); font-family: monospace;">#' + t.id + '</td>',
+                    '  <td style="padding: 9px 14px; font-weight: 700; color: var(--ea-text-main);"><span class="ea-mini-tag" style="font-size: 0.82rem;">🏷️ ' + escapeHtml(t.clean_name || t.name) + '</span></td>',
+                    '  <td style="padding: 9px 14px;">' + scopeBadge + '</td>',
+                    '  <td style="padding: 9px 14px;">' + statBadge + '</td>',
+                    '  <td style="padding: 9px 14px;">' + resCountHtml + '</td>',
+                    '  <td style="padding: 9px 14px; color: var(--ea-text-muted); font-size: 0.8rem;">' + escapeHtml(t.owner_uid || 'system') + '</td>',
+                    '  <td style="padding: 9px 14px; text-align: center;">',
+                    '    <button class="ea-btn ea-admin-tag-del-btn" data-tag-id="' + t.id + '" data-tag-name="' + escapeHtml(t.clean_name || t.name) + '" data-usage="' + cnt + '" style="padding: 4px 10px; font-size: 0.78rem; color: #ef4444; border-color: rgba(239,68,68,0.3);" title="حذف تگ">🗑️ حذف</button>',
+                    '  </td>',
+                    '</tr>'
+                );
+            });
+
+            html.push('  </tbody></table>');
+            container.innerHTML = html.join('\n');
+
+            // Wire delete buttons
+            container.querySelectorAll('.ea-admin-tag-del-btn').forEach(function (btn) {
+                btn.onclick = function () {
+                    var tagId = parseInt(btn.getAttribute('data-tag-id'), 10);
+                    var tagName = btn.getAttribute('data-tag-name');
+                    var usage = parseInt(btn.getAttribute('data-usage'), 10) || 0;
+                    handleAdminDeleteTag(tagId, tagName, usage);
+                };
+            });
+        }
+
+        function loadAdminTags() {
+            var container = document.getElementById('ea-admin-tags-table-container');
+            if (container) {
+                container.innerHTML = '<div style="padding: 32px; text-align: center; color: var(--ea-text-muted);">⏳ در حال دریافت کاتالوگ تگ‌ها...</div>';
+            }
+
+            fetch('/index.php/apps/archive_autotag/api/admin/tags', {
+                headers: { 'Accept': 'application/json' }
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data && data.status === 'success' && data.tags) {
+                    allFetchedTags = data.tags;
+                    renderAdminTagsTable();
+                } else {
+                    if (container) container.innerHTML = '<div style="padding: 32px; text-align: center; color: #ef4444;">خطا در دریافت لیست تگ‌ها.</div>';
+                }
+            })
+            .catch(function (err) {
+                if (container) container.innerHTML = '<div style="padding: 32px; text-align: center; color: #ef4444;">خطای شبکه: ' + err.message + '</div>';
+            });
+        }
+
+        // Search & filter events
+        var searchInput = document.getElementById('ea-admin-tag-search-input');
+        if (searchInput) searchInput.oninput = renderAdminTagsTable;
+
+        var filterScopeSelect = document.getElementById('ea-admin-tag-scope-filter');
+        if (filterScopeSelect) filterScopeSelect.onchange = renderAdminTagsTable;
+
+        // Creation handler
+        var createBtn = document.getElementById('ea-admin-create-tag-btn');
+        if (createBtn) {
+            createBtn.onclick = function () {
+                var nameInput = document.getElementById('ea-admin-new-tag-name');
+                var scopeEl = document.getElementById('ea-admin-new-tag-scope');
+                var msgEl = document.getElementById('ea-admin-tag-create-msg');
+                var rawName = nameInput ? nameInput.value.trim() : '';
+                var rawScopeVal = scopeEl ? scopeEl.value : 'system';
+
+                if (!rawName) {
+                    if (msgEl) {
+                        msgEl.style.display = 'block';
+                        msgEl.style.color = '#ef4444';
+                        msgEl.innerText = 'ورود نام تگ الزامی است.';
+                    }
+                    return;
+                }
+
+                var scope = 'system';
+                var groupId = null;
+                if (rawScopeVal.startsWith('group:')) {
+                    scope = 'group';
+                    groupId = rawScopeVal.substring(6);
+                }
+
+                createBtn.disabled = true;
+                createBtn.innerText = '⏳ در حال ثبت...';
+                if (msgEl) msgEl.style.display = 'none';
+
+                var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+                if (window.OC && window.OC.requestToken) headers['requesttoken'] = window.OC.requestToken;
+
+                fetch('/index.php/apps/archive_autotag/api/admin/tags/create', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({ tag_name: rawName, scope: scope, group_id: groupId })
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    createBtn.disabled = false;
+                    createBtn.innerText = '+ ایجاد تگ';
+                    if (data && data.status === 'success') {
+                        if (nameInput) nameInput.value = '';
+                        if (msgEl) {
+                            msgEl.style.display = 'block';
+                            msgEl.style.color = '#10b981';
+                            msgEl.innerText = 'تگ «' + rawName + '» با موفقیت تعریف گردید.';
+                        }
+                        showToast('تگ جدید با موفقیت در سامانه ایجاد شد.');
+                        loadAdminTags();
+                        fetchTags();
+                    } else {
+                        if (msgEl) {
+                            msgEl.style.display = 'block';
+                            msgEl.style.color = '#ef4444';
+                            msgEl.innerText = 'خطا: ' + ((data && data.message) ? data.message : 'نامشخص');
+                        }
+                    }
+                })
+                .catch(function (err) {
+                    createBtn.disabled = false;
+                    createBtn.innerText = '+ ایجاد تگ';
+                    if (msgEl) {
+                        msgEl.style.display = 'block';
+                        msgEl.style.color = '#ef4444';
+                        msgEl.innerText = 'خطای شبکه: ' + err.message;
+                    }
+                });
+            };
+        }
+
+        // Reconcile handler
+        var reconcileBtn = document.getElementById('ea-admin-reconcile-tags-btn');
+        if (reconcileBtn) {
+            reconcileBtn.onclick = function () {
+                reconcileBtn.disabled = true;
+                reconcileBtn.innerText = '⏳ همگام‌سازی...';
+
+                var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+                if (window.OC && window.OC.requestToken) headers['requesttoken'] = window.OC.requestToken;
+
+                fetch('/index.php/apps/archive_autotag/api/admin/tags/reconcile', {
+                    method: 'POST',
+                    headers: headers
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    reconcileBtn.disabled = false;
+                    reconcileBtn.innerText = '🔄 همگام‌سازی (Reconcile)';
+                    if (data && data.status === 'success') {
+                        showToast('همگام‌سازی و ترمیم کلیه تگ‌ها با موفقیت انجام گردید.');
+                        loadAdminTags();
+                        fetchTags();
+                        fetchFiles();
+                    } else {
+                        alert('خطا در همگام‌سازی: ' + ((data && data.message) ? data.message : 'نامشخص'));
+                    }
+                })
+                .catch(function (err) {
+                    reconcileBtn.disabled = false;
+                    reconcileBtn.innerText = '🔄 همگام‌سازی (Reconcile)';
+                    alert('خطای ارتباط: ' + err.message);
+                });
+            };
+        }
+
+        function handleAdminDeleteTag(tagId, tagName, usageCount) {
+            var force = false;
+            if (usageCount > 0) {
+                var confirmMsg = 'تگ «' + tagName + '» در حال حاضر به ' + toPersianDigits(usageCount) + ' منبع سازمانی اختصاص دارد.\n\n' +
+                                 'آیا از حذف اجباری (Force Delete) و پاکسازی آبشاری این تگ از کلیه منابع اطمینان دارید؟';
+                if (!confirm(confirmMsg)) return;
+                force = true;
+            } else {
+                if (!confirm('آیا از حذف قطعی تگ «' + tagName + '» اطمینان دارید؟')) return;
+            }
+
+            var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+            if (window.OC && window.OC.requestToken) headers['requesttoken'] = window.OC.requestToken;
+
+            fetch('/index.php/apps/archive_autotag/api/admin/tags/delete', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({ tag_id: tagId, force: force })
+            })
+            .then(function (r) {
+                return r.json().then(function (data) {
+                    return { ok: r.ok, status: r.status, data: data };
+                });
+            })
+            .then(function (res) {
+                var data = res.data;
+                if (res.ok && data && data.status === 'success') {
+                    showToast('تگ «' + tagName + '» با موفقیت حذف گردید.');
+                    loadAdminTags();
+                    fetchTags();
+                    fetchFiles();
+                } else if (res.status === 409 && data && data.code === 'TAG_IN_USE') {
+                    if (confirm('تگ به اسناد اختصاص دارد. آیا می‌خواهید به صورت اجباری (Force) حذف شود؟')) {
+                        fetch('/index.php/apps/archive_autotag/api/admin/tags/delete', {
+                            method: 'POST',
+                            headers: headers,
+                            body: JSON.stringify({ tag_id: tagId, force: true })
+                        })
+                        .then(function (r2) { return r2.json(); })
+                        .then(function (d2) {
+                            if (d2 && d2.status === 'success') {
+                                showToast('تگ با موفقیت به صورت اجباری حذف شد.');
+                                loadAdminTags();
+                                fetchTags();
+                                fetchFiles();
+                            } else {
+                                alert('خطا: ' + ((d2 && d2.message) ? d2.message : 'نامشخص'));
+                            }
+                        });
+                    }
+                } else {
+                    alert('خطا در حذف تگ: ' + ((data && data.message) ? data.message : 'نامشخص'));
+                }
+            })
+            .catch(function (err) {
+                alert('خطای ارتباط با سرور: ' + err.message);
+            });
+        }
+
+        loadAdminTags();
+    }
+
 
     // Fullscreen Global Drag & Drop Handler
     function setupGlobalDragAndDrop() {

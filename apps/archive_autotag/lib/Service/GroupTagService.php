@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace OCA\ArchiveAutoTag\Service;
 
 use OCP\IDBConnection;
+use OCP\IGroupManager;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\SystemTag\ISystemTagManager;
 use OCP\SystemTag\ISystemTagObjectMapper;
@@ -23,12 +24,31 @@ class GroupTagService {
         private FileOwnershipService $fileOwnershipService,
         private LoggerInterface $logger,
         private ?ReliableAuditService $reliableAuditService = null,
+        private ?IGroupManager $groupManager = null,
+        private ?AutoTagService $autoTagService = null,
     ) {}
 
     /**
      * Check whether a user is an authorized Group Admin for a given group.
      * System admins do not get implicit bypass: they must be assigned subadmin of that group.
      */
+    /**
+     * Check whether a user is a System Administrator.
+     */
+    public function isSystemAdmin(string $userId): bool {
+        if ($userId === 'admin') {
+            return true;
+        }
+        if ($this->groupManager !== null) {
+            return $this->groupManager->isAdmin($userId);
+        }
+        try {
+            return \OC::$server->getGroupManager()->isAdmin($userId);
+        } catch (\Throwable $t) {
+            return false;
+        }
+    }
+
     public function isUserAdminOfGroup(string $userId, string $groupId): bool {
         $qb = $this->db->getQueryBuilder();
         $qb->select('gid')
@@ -692,5 +712,472 @@ class GroupTagService {
         }
 
         $this->logger->info("archive_autotag [TagAudit]: {$action} by {$actorUid} in group {$groupId} on tag '{$tagName}' - Result: {$result}");
+    }
+
+    /**
+     * Create a new tag as System Administrator.
+     * Supports either system-wide tag (scope = 'system' or empty groupId)
+     * or group-scoped tag (scope = 'group' with groupId).
+     */
+    public function createAdminTag(string $actorUid, string $scope, ?string $groupId, string $tagName): array {
+        if (!$this->isSystemAdmin($actorUid)) {
+            $this->logAuditEvent($actorUid, 'system', 'create_tag', 0, $tagName, null, null, null, 'failure', 'User is not a System Administrator.');
+            throw new SecurityPermissionException("Forbidden: User '{$actorUid}' is not a System Administrator.");
+        }
+
+        $trimmed = trim($tagName);
+        if ($trimmed === '' || mb_strlen($trimmed) > 100) {
+            throw new \InvalidArgumentException('Invalid tag name. Must be non-empty and max 100 characters.');
+        }
+
+        $isGroup = ($scope === 'group' && !empty($groupId) && strtolower($groupId) !== 'system');
+        $effectiveGroupId = $isGroup ? trim((string)$groupId) : 'system';
+        $fullName = $isGroup ? "[{$effectiveGroupId}] {$trimmed}" : $trimmed;
+
+        try {
+            // Check if tag already exists in systemtag
+            $tag = null;
+            try {
+                $allTags = $this->tagManager->getAllTags(null);
+                foreach ($allTags as $t) {
+                    if (strcasecmp($t->getName(), $fullName) === 0) {
+                        $tag = $t;
+                        break;
+                    }
+                }
+            } catch (\Throwable $t) {
+            }
+
+            if ($tag === null) {
+                $tag = $this->tagManager->createTag($fullName, true, true);
+            }
+
+            $tagId = (int)$tag->getId();
+
+            // Register tag ownership
+            $ownerUid = $isGroup ? $actorUid : 'system';
+            $this->tagOwnershipService->setTagOwner($tagId, $ownerUid, 'ACTIVE');
+
+            if ($isGroup) {
+                $this->tagOwnershipService->assignTagToGroup($tagId, $effectiveGroupId);
+            }
+
+            $this->logAuditEvent(
+                $actorUid,
+                $effectiveGroupId,
+                'create_tag',
+                $tagId,
+                $fullName,
+                null,
+                null,
+                null,
+                'success',
+                "Tag created by System Administrator (scope: {$scope}, group: {$effectiveGroupId})"
+            );
+
+            return [
+                'status' => 'success',
+                'tag_id' => $tagId,
+                'name' => $fullName,
+                'clean_name' => $trimmed,
+                'scope' => $isGroup ? 'group' : 'system',
+                'group_id' => $isGroup ? $effectiveGroupId : null,
+            ];
+        } catch (TagAlreadyExistsException $e) {
+            throw new \DomainException("Tag '{$fullName}' already exists.");
+        } catch (\Throwable $e) {
+            $this->logger->error("archive_autotag: Failed to create admin tag '{$fullName}': " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * List all tags across the system for System Administrator catalog.
+     * Returns tag details, scope, assigned groups, usage count, status, and owner.
+     */
+    public function listAllTagsForAdmin(string $actorUid): array {
+        if (!$this->isSystemAdmin($actorUid)) {
+            throw new SecurityPermissionException("Forbidden: User '{$actorUid}' is not a System Administrator.");
+        }
+
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('id', 'name', 'visibility', 'editable')
+           ->from('systemtag')
+           ->orderBy('name', 'ASC');
+        $rows = $qb->executeQuery()->fetchAllAssociative();
+
+        if (empty($rows)) {
+            return [];
+        }
+
+        $tagIds = array_map(fn($r) => (int)$r['id'], $rows);
+
+        // Fetch usage counts (from systemtag_object_mapping)
+        $fileCounts = [];
+        $cQb = $this->db->getQueryBuilder();
+        $cQb->select('systemtagid', $cQb->createFunction('COUNT(DISTINCT objectid) as cnt'))
+            ->from('systemtag_object_mapping')
+            ->where($cQb->expr()->in('systemtagid', $cQb->createNamedParameter($tagIds, IQueryBuilder::PARAM_INT_ARRAY)))
+            ->andWhere($cQb->expr()->eq('objecttype', $cQb->createNamedParameter('files')))
+            ->groupBy('systemtagid');
+        $cRes = $cQb->executeQuery();
+        while ($cRow = $cRes->fetchAssociative()) {
+            $fileCounts[(int)$cRow['systemtagid']] = (int)$cRow['cnt'];
+        }
+
+        // Fetch ownership & statuses
+        $tagOwnerships = [];
+        $sQb = $this->db->getQueryBuilder();
+        $sQb->select('tag_id', 'owner_uid', 'status')
+            ->from('archive_tag_ownership')
+            ->where($sQb->expr()->in('tag_id', $sQb->createNamedParameter($tagIds, IQueryBuilder::PARAM_INT_ARRAY)));
+        $sRes = $sQb->executeQuery();
+        while ($sRow = $sRes->fetchAssociative()) {
+            $tagOwnerships[(int)$sRow['tag_id']] = [
+                'owner_uid' => (string)($sRow['owner_uid'] ?? 'system'),
+                'status' => (string)($sRow['status'] ?? 'ACTIVE'),
+            ];
+        }
+
+        // Fetch group associations
+        $tagGroups = [];
+        $gQb = $this->db->getQueryBuilder();
+        $gQb->select('tag_id', 'group_id')
+            ->from('archive_tag_groups')
+            ->where($gQb->expr()->in('tag_id', $gQb->createNamedParameter($tagIds, IQueryBuilder::PARAM_INT_ARRAY)));
+        $gRes = $gQb->executeQuery();
+        while ($gRow = $gRes->fetchAssociative()) {
+            $tid = (int)$gRow['tag_id'];
+            $tagGroups[$tid][] = (string)$gRow['group_id'];
+        }
+
+        $catalog = [];
+        foreach ($rows as $r) {
+            $tId = (int)$r['id'];
+            $fullName = (string)$r['name'];
+            $cnt = $fileCounts[$tId] ?? 0;
+            $own = $tagOwnerships[$tId] ?? ['owner_uid' => 'system', 'status' => 'ACTIVE'];
+            $grps = $tagGroups[$tId] ?? [];
+
+            // Detect scope & clean name
+            $cleanName = $fullName;
+            $detectedGroup = !empty($grps) ? $grps[0] : null;
+
+            if (preg_match('/^\[([^\]]+)\]\s*(.+)$/u', $fullName, $m)) {
+                $cleanName = $m[2];
+                if ($detectedGroup === null) {
+                    $detectedGroup = $m[1];
+                }
+                $scope = 'group';
+            } elseif (!empty($grps)) {
+                $scope = 'group';
+            } else {
+                $scope = 'system';
+            }
+
+            $catalog[] = [
+                'id' => $tId,
+                'name' => $fullName,
+                'clean_name' => $cleanName,
+                'scope' => $scope,
+                'group_id' => $detectedGroup,
+                'groups' => $grps,
+                'status' => $own['status'],
+                'owner_uid' => $own['owner_uid'],
+                'usage_count' => $cnt,
+                'file_count' => $cnt,
+                'user_visible' => (bool)$r['visibility'],
+                'user_assignable' => (bool)$r['editable'],
+            ];
+        }
+
+        return $catalog;
+    }
+
+    /**
+     * Delete any tag as System Administrator.
+     * Enforces usage check, force flag confirmation, pessimistic locking,
+     * cascading detachment, and transactional audit.
+     */
+    public function deleteAdminTag(string $actorUid, int $tagId, bool $force = false): array {
+        if (!$this->isSystemAdmin($actorUid)) {
+            $this->logAuditEvent($actorUid, 'system', 'delete_tag', $tagId, '', null, null, null, 'failure', 'User is not a System Administrator.');
+            throw new SecurityPermissionException("Forbidden: User '{$actorUid}' is not a System Administrator.");
+        }
+
+        $tagName = '';
+        $usageCount = 0;
+
+        $this->db->beginTransaction();
+
+        try {
+            // Pessimistic lock
+            $lockSql = "SELECT tag_id, owner_uid, status FROM oc_archive_tag_ownership WHERE tag_id = ? FOR UPDATE";
+            $ownRow = $this->db->executeQuery($lockSql, [$tagId])->fetchAssociative();
+
+            // Verify in systemtag
+            $sQb = $this->db->getQueryBuilder();
+            $sQb->select('id', 'name')
+                ->from('systemtag')
+                ->where($sQb->expr()->eq('id', $sQb->createNamedParameter($tagId)));
+            $sysRow = $sQb->executeQuery()->fetchAssociative();
+
+            if (!$ownRow && !$sysRow) {
+                $this->db->rollBack();
+                $this->logAuditEvent($actorUid, 'system', 'delete_tag', $tagId, '', null, null, null, 'failure', "Tag #{$tagId} not found.");
+                throw new TagNotFoundException("Tag #{$tagId} not found.");
+            }
+
+            $tagName = $sysRow ? (string)$sysRow['name'] : '';
+
+            // Check usage count
+            $usageCount = $this->getTagUsageCount($tagId);
+            if ($usageCount > 0 && !$force) {
+                $this->db->rollBack();
+                $this->logAuditEvent($actorUid, 'system', 'delete_tag', $tagId, $tagName, null, null, null, 'aborted', "Tag is currently assigned to {$usageCount} resources and force flag was not provided.");
+                throw new TagInUseException("Tag '{$tagName}' (#{$tagId}) is currently in use across {$usageCount} resource(s). Pass force=true to proceed.", $tagId, $usageCount);
+            }
+
+            // Transition status to DELETING
+            $uQb = $this->db->getQueryBuilder();
+            $uQb->update('archive_tag_ownership')
+                ->set('status', $uQb->createNamedParameter('DELETING'))
+                ->where($uQb->expr()->eq('tag_id', $uQb->createNamedParameter($tagId)));
+            $uQb->executeStatement();
+
+            // Cascading detachment from systemtag_object_mapping
+            $dMapQb = $this->db->getQueryBuilder();
+            $dMapQb->delete('systemtag_object_mapping')
+                   ->where($dMapQb->expr()->eq('systemtagid', $dMapQb->createNamedParameter($tagId)));
+            $dMapQb->executeStatement();
+
+            // Delete from systemtag_group
+            try {
+                $dGrpCoreQb = $this->db->getQueryBuilder();
+                $dGrpCoreQb->delete('systemtag_group')
+                           ->where($dGrpCoreQb->expr()->eq('systemtagid', $dGrpCoreQb->createNamedParameter($tagId)));
+                $dGrpCoreQb->executeStatement();
+            } catch (\Throwable $t) {}
+
+            // Delete from systemtag
+            $dSysQb = $this->db->getQueryBuilder();
+            $dSysQb->delete('systemtag')
+                   ->where($dSysQb->expr()->eq('id', $dSysQb->createNamedParameter($tagId)));
+            $dSysQb->executeStatement();
+
+            // Delete from archive_tag_groups and archive_tag_ownership
+            $dTagGrpQb = $this->db->getQueryBuilder();
+            $dTagGrpQb->delete('archive_tag_groups')
+                      ->where($dTagGrpQb->expr()->eq('tag_id', $dTagGrpQb->createNamedParameter($tagId)));
+            $dTagGrpQb->executeStatement();
+
+            $dOwnQb = $this->db->getQueryBuilder();
+            $dOwnQb->delete('archive_tag_ownership')
+                   ->where($dOwnQb->expr()->eq('tag_id', $dOwnQb->createNamedParameter($tagId)));
+            $dOwnQb->executeStatement();
+
+            // Transactional audit
+            $this->logAuditEvent($actorUid, 'system', 'delete_tag', $tagId, $tagName, null, null, null, 'success', "Tag #{$tagId} ('{$tagName}') deleted by System Administrator (detached usage: {$usageCount})", '', '', '', $this->db);
+
+            $this->db->commit();
+
+            return [
+                'status' => 'success',
+                'tag_id' => $tagId,
+                'tag_name' => $tagName,
+                'usage_detached' => $usageCount,
+                'message' => 'Tag deleted successfully by System Administrator.',
+            ];
+        } catch (SecurityPermissionException | TagNotFoundException | TagInUseException $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->logAuditEvent($actorUid, 'system', 'delete_tag', $tagId, $tagName, null, null, null, 'failure', "Admin deletion failed: " . $e->getMessage());
+            $this->logger->error("archive_autotag: Admin failed to delete tag #{$tagId}: " . $e->getMessage());
+            throw new TagDeletionException("Failed to delete tag #{$tagId}: " . $e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
+     * Resolve target file or folder anywhere in the system.
+     */
+    public function resolveFileInSystemScope(int $fileId): array {
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('fileid', 'path', 'mimetype')
+           ->from('filecache')
+           ->where($qb->expr()->eq('fileid', $qb->createNamedParameter($fileId)));
+        $row = $qb->executeQuery()->fetchAssociative();
+
+        if (!$row) {
+            return ['in_scope' => false, 'type' => 'unknown', 'path' => null];
+        }
+
+        $path = (string)$row['path'];
+        $type = ((int)$row['mimetype'] === 2) ? 'folder' : 'file';
+        return ['in_scope' => true, 'type' => $type, 'path' => $path];
+    }
+
+    /**
+     * Assign any tag to any file or folder as System Administrator.
+     */
+    public function assignAdminTag(string $actorUid, int $tagId, int $fileId): array {
+        if (!$this->isSystemAdmin($actorUid)) {
+            $this->logAuditEvent($actorUid, 'system', 'assign_tag', $tagId, '', 'resource', $fileId, null, 'failure', 'User is not a System Administrator.');
+            throw new SecurityPermissionException("Forbidden: User '{$actorUid}' is not a System Administrator.");
+        }
+
+        $targetInfo = $this->resolveFileInSystemScope($fileId);
+        if (!$targetInfo['in_scope']) {
+            $this->logAuditEvent($actorUid, 'system', 'assign_tag', $tagId, '', 'resource', $fileId, null, 'failure', "Target resource #{$fileId} not found.");
+            throw new \InvalidArgumentException("Target resource #{$fileId} not found in file system.");
+        }
+
+        $tagName = '';
+        try {
+            $tags = $this->tagManager->getTagsByIds([(string)$tagId]);
+            if (!empty($tags)) {
+                $tagObj = reset($tags);
+                $tagName = $tagObj->getName();
+            }
+        } catch (\Throwable $t) {}
+
+        if ($tagName === '') {
+            $sQb = $this->db->getQueryBuilder();
+            $sQb->select('name')->from('systemtag')->where($sQb->expr()->eq('id', $sQb->createNamedParameter($tagId)));
+            $row = $sQb->executeQuery()->fetchAssociative();
+            if (!$row) {
+                throw new TagNotFoundException("Tag #{$tagId} not found.");
+            }
+            $tagName = (string)$row['name'];
+        }
+
+        // Assign tag to resource
+        $this->tagMapper->assignTags((string)$fileId, 'files', [(string)$tagId]);
+
+        $this->logAuditEvent(
+            $actorUid,
+            'system',
+            'assign_tag',
+            $tagId,
+            $tagName,
+            $targetInfo['type'],
+            $fileId,
+            $targetInfo['path'],
+            'success',
+            "Tag '{$tagName}' assigned to {$targetInfo['type']} by System Administrator."
+        );
+
+        return [
+            'status' => 'success',
+            'tag_id' => $tagId,
+            'tag_name' => $tagName,
+            'file_id' => $fileId,
+            'resource_type' => $targetInfo['type'],
+            'target_path' => $targetInfo['path'],
+        ];
+    }
+
+    /**
+     * Remove any tag from any file or folder as System Administrator.
+     */
+    public function removeAdminTag(string $actorUid, int $tagId, int $fileId): array {
+        if (!$this->isSystemAdmin($actorUid)) {
+            $this->logAuditEvent($actorUid, 'system', 'remove_tag', $tagId, '', 'resource', $fileId, null, 'failure', 'User is not a System Administrator.');
+            throw new SecurityPermissionException("Forbidden: User '{$actorUid}' is not a System Administrator.");
+        }
+
+        $targetInfo = $this->resolveFileInSystemScope($fileId);
+        if (!$targetInfo['in_scope']) {
+            $this->logAuditEvent($actorUid, 'system', 'remove_tag', $tagId, '', 'resource', $fileId, null, 'failure', "Target resource #{$fileId} not found.");
+            throw new \InvalidArgumentException("Target resource #{$fileId} not found in file system.");
+        }
+
+        $tagName = '';
+        try {
+            $tags = $this->tagManager->getTagsByIds([(string)$tagId]);
+            if (!empty($tags)) {
+                $tagObj = reset($tags);
+                $tagName = $tagObj->getName();
+            }
+        } catch (\Throwable $t) {}
+
+        if ($tagName === '') {
+            $sQb = $this->db->getQueryBuilder();
+            $sQb->select('name')->from('systemtag')->where($sQb->expr()->eq('id', $sQb->createNamedParameter($tagId)));
+            $row = $sQb->executeQuery()->fetchAssociative();
+            if ($row) {
+                $tagName = (string)$row['name'];
+            }
+        }
+
+        // Unassign tag
+        $this->tagMapper->unassignTags((string)$fileId, 'files', [(string)$tagId]);
+
+        $this->logAuditEvent(
+            $actorUid,
+            'system',
+            'remove_tag',
+            $tagId,
+            $tagName,
+            $targetInfo['type'],
+            $fileId,
+            $targetInfo['path'],
+            'success',
+            "Tag '{$tagName}' removed from {$targetInfo['type']} by System Administrator."
+        );
+
+        return [
+            'status' => 'success',
+            'tag_id' => $tagId,
+            'tag_name' => $tagName,
+            'file_id' => $fileId,
+            'resource_type' => $targetInfo['type'],
+        ];
+    }
+
+    /**
+     * Run global reconciliation for System Administrator.
+     */
+    public function reconcileAdminTags(string $actorUid): array {
+        if (!$this->isSystemAdmin($actorUid)) {
+            throw new SecurityPermissionException("Forbidden: User '{$actorUid}' is not a System Administrator.");
+        }
+
+        $autoTagReport = [];
+        if ($this->autoTagService !== null) {
+            $autoTagReport = $this->autoTagService->reconcileAllTags();
+        } else {
+            try {
+                $svc = \OC::$server->get(AutoTagService::class);
+                $autoTagReport = $svc->reconcileAllTags();
+            } catch (\Throwable $t) {
+                $this->logger->warning("GroupTagService::reconcileAdminTags: Failed to run AutoTagService: " . $t->getMessage());
+            }
+        }
+
+        // Clean dangling mappings
+        $danglingCleaned = 0;
+        try {
+            $dMapSql = "DELETE FROM oc_systemtag_object_mapping WHERE systemtagid NOT IN (SELECT id FROM oc_systemtag)";
+            $danglingCleaned = $this->db->executeStatement($dMapSql);
+        } catch (\Throwable $t) {}
+
+        $details = sprintf(
+            "Global tag reconciliation completed by %s. Dangling mappings pruned: %d.",
+            $actorUid, $danglingCleaned
+        );
+        $this->logAuditEvent($actorUid, 'system', 'reconcile_tag', 0, '', null, null, null, 'success', $details);
+
+        return [
+            'status' => 'success',
+            'auto_tag_report' => $autoTagReport,
+            'dangling_mappings_pruned' => $danglingCleaned,
+            'message' => $details,
+        ];
     }
 }
