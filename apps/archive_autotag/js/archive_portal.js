@@ -917,25 +917,9 @@
                 '<div class="ea-empty-state">',
                 '  <div class="ea-empty-icon">📁</div>',
                 '  <div class="ea-empty-title">این پوشه خالی است یا سندی در این مسیر یافت نشد</div>',
-                '  <div class="ea-empty-desc">می‌توانید به سطوح بالاتر برگردید یا اسناد دیگر را جستجو نمایید.</div>',
-                '  <div style="display: flex; gap: 8px; justify-content: center; margin-top: 14px; flex-wrap: wrap;">',
-                (state.currentFolderDir && state.currentFolderDir !== '/' ? '    <button class="ea-btn ea-btn-primary" id="ea-empty-up-btn">⬆ رفتن به پوشه بالا</button>' : ''),
-                '    <button class="ea-btn ea-btn-secondary" id="ea-empty-exit-btn">بازگشت به همه اسناد</button>',
-                '  </div>',
+                '  <div class="ea-empty-desc">می‌توانید از نوار بالای پوشه به سطوح بالاتر بروید یا سند جدیدی بارگذاری نمایید.</div>',
                 '</div>'
             ].join('');
-            var upBtn = document.getElementById('ea-empty-up-btn');
-            if (upBtn) {
-                upBtn.addEventListener('click', function () {
-                    var parts = (state.currentFolderDir || '/').split('/').filter(Boolean);
-                    parts.pop();
-                    openFolderInPortal('/' + parts.join('/'), null);
-                });
-            }
-            var exitBtn = document.getElementById('ea-empty-exit-btn');
-            if (exitBtn) {
-                exitBtn.addEventListener('click', exitFolderMode);
-            }
             return;
         }
 
