@@ -42,7 +42,7 @@ return [
         ['name' => 'AiAdmin#flushDlq', 'url' => '/api/ai/audit/flush-dlq', 'verb' => 'POST'],
         ['name' => 'AiAdmin#simulateAuditFailure', 'url' => '/api/ai/audit/simulate-failure', 'verb' => 'POST'],
 
-        // Global Access-Aware Navigation & Current Path
+        // Global Access-Aware Navigation (Requirement 16)
         ['name' => 'Navigation#getResources', 'url' => '/api/nav/resources', 'verb' => 'GET'],
         // Group Admin Tag Governance
         ['name' => 'GroupTag#listTags', 'url' => '/api/group-tags', 'verb' => 'GET'],
@@ -91,7 +91,7 @@ return [
         ['name' => 'AiAdmin#flushDlq', 'url' => '/api/ai/audit/flush-dlq', 'verb' => 'POST'],
         ['name' => 'AiAdmin#simulateAuditFailure', 'url' => '/api/ai/audit/simulate-failure', 'verb' => 'POST'],
 
-        // Global Access-Aware Navigation & Current Path
+        // Global Access-Aware Navigation (Requirement 16)
         ['name' => 'Navigation#getResources', 'url' => '/api/nav/resources', 'verb' => 'GET'],
         // Group Admin Tag Governance
         ['name' => 'GroupTag#listTags', 'url' => '/api/group-tags', 'verb' => 'GET'],

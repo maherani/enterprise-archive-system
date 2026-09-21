@@ -149,7 +149,7 @@
             return { parent: portalRoot.parentNode, insertBefore: portalRoot };
         }
 
-        // 2. Files App: mount inside main content area above breadcrumb header / tag filter bar
+        // 2. Files App: mount inside main content area above files table header / tag filter bar
         const mainContent = document.querySelector('main.app-content') ||
                             document.querySelector('#app-content-vue') ||
                             document.querySelector('.app-content') ||

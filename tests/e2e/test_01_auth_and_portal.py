@@ -74,20 +74,20 @@ class TestAuthAndPortal(unittest.TestCase):
             self.assertEqual(len(js_errors), 0, f"Page must not throw JS errors: {js_errors}")
         page.context.close()
 
-    def test_03_global_navigation_breadcrumbs(self):
-        """3. Global Navigation: Breadcrumb and path indicators are rendered in header."""
+    def test_03_global_navigation_bar(self):
+        """3. Global Navigation: Access-aware navigation bar is rendered in header."""
         page = get_authenticated_page(self.browser, "soc_admin")
         with capture_failure(page, "test_03_navigation"):
             portal = PortalPage(page)
             portal.navigate()
             
-            # Check global nav root or portal breadcrumbs
-            nav_visible = page.locator("#ea-global-nav-root, #archive-global-nav, .ea-breadcrumb-container").is_visible(timeout=5000)
-            self.assertTrue(nav_visible, "Navigation breadcrumb bar must be present")
+            # Check global nav root
+            nav_visible = page.locator("#ea-global-nav-root, #archive-global-nav").is_visible(timeout=5000)
+            self.assertTrue(nav_visible, "Global access-aware navigation bar must be present")
         page.context.close()
 
     def test_04_navigation_click_spa(self):
-        """4. Navigation Click: Clicking breadcrumb updates directory state without full reload."""
+        """4. Navigation Click: Nav bar actions update directory state without full reload."""
         page = get_authenticated_page(self.browser, "admin")
         with capture_failure(page, "test_04_nav_click"):
             portal = PortalPage(page)

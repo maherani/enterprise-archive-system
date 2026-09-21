@@ -23,7 +23,7 @@ class PortalPage(BasePage):
     
     # Global Nav
     GLOBAL_NAV = "#archive-global-nav"
-    NAV_BREADCRUMBS = ".archive-nav-breadcrumb-item, .ea-breadcrumb-item"
+    NAV_ITEMS = ".ea-nav-item, #ea-global-nav-root .ea-nav-item"
 
     # Table elements
     FILE_ROW = ".ea-file-row, tr.ea-row, .ea-item-card"
@@ -87,6 +87,6 @@ class PortalPage(BasePage):
         self.click(self.DRAWER_LOCATE_BTN)
         self.wait_for_idle()
 
-    def get_breadcrumbs(self) -> List[str]:
-        items = self.page.locator(self.NAV_BREADCRUMBS).all()
+    def get_nav_items(self) -> List[str]:
+        items = self.page.locator(self.NAV_ITEMS).all()
         return [item.text_content().strip() for item in items if item.text_content()]

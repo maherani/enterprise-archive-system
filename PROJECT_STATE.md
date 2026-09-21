@@ -618,12 +618,13 @@ Status: **Completed**
 - **Result**: 5/5 Passed (100%).
 
 
-### Requirement 16: Access-Aware Global Navigation Bar (Completed)
-- **Status:** Fully Implemented, Refined, and Verified (v2.0.6)
+### Requirement 16: Access-Aware Global Navigation Bar (Completed & Harmonized)
+- **Status:** Fully Implemented, Refined, and Harmonized (v2.1.5, Prompt 09)
 - **Backend API:** `GET /index.php/apps/archive_autotag/api/nav/resources` with dynamic role/group/tag permission filtering.
 - **Frontend Components:** `global_archive_nav.js` and `global_archive_nav.css` registered in `Application::boot()`.
 - **Zero Resource Leakage:** Verified with isolated catalogs for Admin, SOC (`Bakbari`), and CERT (`maherani`).
-- **Streamlined UI:** Single sleek top navigation bar with accessible department chips and active highlighting.
+- **Streamlined UI:** Single sleek top navigation bar (`#ea-global-nav-root`) with accessible department chips and active highlighting. Breadcrumbs, text current path, and copy-path buttons are permanently excluded per strategic UX simplification (commits `db2d35e` & `7d6fd96`).
+- **Documentation & Test Alignment:** Requirement specification aligned and renamed to `16_access_aware_global_navigation.md`, README table of contents harmonized, code comments cleaned, and E2E test suite updated.
 - **Results Table UX Refinements (Requirement 7):**
   - Removed redundant "برچسب‌ها" column from the search results table.
   - Redesigned "مسیر در بایگانی" and "نام سند" with multi-line natural wrapping (`white-space: normal; word-break: break-word; overflow-wrap: anywhere; line-height: 1.5`), allowing long names and paths to span across 2 or 3 lines.
@@ -720,7 +721,7 @@ Status: **Completed**
 - **Playwright Headless Chromium Engine:** Established a dedicated browser automation layer running on headless Chromium inside Ubuntu 26.04 WSL, eliminating reliance on static HTTP/DOM inspection and preventing UI regressions.
 - **Page Object Model (POM) Architecture:** Structured frontend interactions across 7 reusable page models: `BasePage`, `LoginPage`, `PortalPage`, `UploadModal`, `FolderRequestModal`, `TagDrawer`, and `SwaggerPage`.
 - **Comprehensive 20 Scenarios Coverage:**
-  - `test_01_auth_and_portal.py` (5/5 PASS): Login session lifecycle, error containers, archive portal hydration, Obsidian dark theme, global navigation breadcrumbs, and in-memory directory navigation.
+  - `test_01_auth_and_portal.py` (5/5 PASS): Login session lifecycle, error containers, archive portal hydration, Obsidian dark theme, access-aware global navigation bar, and in-memory directory navigation.
   - `test_02_tags_and_filter.py` (3/3 PASS): Multi-tag intersection (AND filter), tag badges ribbon, group tag governance modal with client validation guards, tag reconciliation, and locate-in-folder drawer action.
   - `test_03_upload_lifecycle.py` (3/3 PASS): Modal open/close backdrop dismissals, Drag & Drop dropzone staging, WebDAV file ingestion, real-time progress bar, and automated tagging reflection in DOM.
   - `test_04_folder_workflow.py` (3/3 PASS): Group admin folder creation requests, super admin cartable approval with native confirmation dialogs, and admin rejection with mandatory reason prompts.
@@ -729,3 +730,16 @@ Status: **Completed**
 - **Critical Frontend Bug Discovered & Fixed:** Real browser testing caught `ReferenceError: formatBytes is not defined` in `archive_portal.js:1187` during file staging, which would have crashed file uploads in production. Added standard byte formatting function with Persian numerals.
 - **Diagnostic Artifacts:** Auto-generates full-page failure screenshots (`artifacts/e2e_reports/screenshots/`) and Playwright execution traces (`artifacts/e2e_reports/traces/`).
 - **Master Runner:** Executable via `python3 run_e2e_tests.py` (20/20 PASS in ~82s).
+
+
+### Prompt 09: Harmonization of Requirement 16 with Implementation (Completed)
+- **Objective:** Eliminate documentation drift, naming discrepancies, and obsolete code comments regarding Requirement 16 and its alignment with the single-row access-aware navigation bar.
+- **Root Cause & Historical Context:** In the conceptual draft, Requirement 16 proposed a dual-row navigation bar featuring breadcrumbs and a copy path button. During interactive review (commit `db2d35e`), breadcrumbs and copy path were intentionally omitted to avoid visual clutter and duplication with Nextcloud's native breadcrumbs. Commit `7d6fd96` further stabilized the single-row horizontal chip bar. However, documentation filenames (`16_access_aware_global_navigation_and_current_path.md`), table of contents, code comments, and E2E test method names retained stale references.
+- **Harmonization Actions Taken:**
+  1. Renamed `docs/requirements/16_access_aware_global_navigation_and_current_path.md` → `docs/requirements/16_access_aware_global_navigation.md` via `git mv`.
+  2. Updated `docs/requirements/16_access_aware_global_navigation.md` to document the canonical single-row chip architecture, architectural evolution, and rationale for omitting redundant breadcrumbs.
+  3. Updated `docs/requirements/README.md` Row 16 title, file link, and description.
+  4. Updated `docs/requirements/23_real_browser_e2e_testing.md` Scenarios 3 & 4.
+  5. Harmonized code comments in `Application.php`, `routes.php`, and `global_archive_nav.js`, and synced to Nextcloud container.
+  6. Updated E2E test suite in `tests/e2e/test_01_auth_and_portal.py` (`test_03_global_navigation_bar`) and `tests/e2e/pages/portal_page.py` (`NAV_ITEMS`, `get_nav_items`).
+- **Verification:** All 7 tests in `tests/test_access_aware_navigation.py` passed (100% OK).

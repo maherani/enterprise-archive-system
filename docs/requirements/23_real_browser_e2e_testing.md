@@ -51,8 +51,8 @@ tests/e2e/
 | :---: | :---: | :---: | :--- | :---: |
 | ۱ | `test_01_login_flow` | Suite 1 | ورود با نام کاربری و رمز معتبر؛ نمایش خطای قرمز هنگام ورود رمز نادرست بدون کرش صفحه. | Admin / Invalid |
 | ۲ | `test_02_archive_portal_hydration` | Suite 1 | هیدراتاسیون SPA، لود ساختار تیره Obsidian، سوئیچ بین حالت‌های گرید (Grid) و جدول (Table). | Admin |
-| ۳ | `test_03_global_navigation_breadcrumbs` | Suite 1 | نمایش هدر ناوبری سراسری (`#ea-global-nav-root`) و بازتاب موقعیت پوشه جاری در Breadcrumb. | Admin |
-| ۴ | `test_04_navigation_click_spa` | Suite 1 | کلیک روی عناصر مسیر Breadcrumb و تغییر دایرکتوری در حافظه کلاینت بدون لود مجدد صفحه (Zero Reload). | Admin |
+| ۳ | `test_03_global_navigation_bar` | Suite 1 | نمایش هدر ناوبری سراسری دسترسی‌محور (`#ea-global-nav-root`)، چیپ‌های دپارتمان‌های مجاز و هویت کاربر. | Admin |
+| ۴ | `test_04_navigation_click_spa` | Suite 1 | کلیک روی چیپ‌های نوار ناوبری و تغییر دایرکتوری در حافظه کلاینت بدون لود مجدد صفحه (Zero Reload). | Admin |
 | ۵ | `test_05_folder_browsing` | Suite 1 | کلیک روی ردیف/کارت پوشه سازمانی، به‌روزرسانی محتویات دایرکتوری و اصلاح شمارنده اسناد. | Admin |
 | ۶ | `test_06_multi_tag_and_filtering` | Suite 2 | انتخاب چند تگ در نوار تگ‌ها، اعمال منطق اشتراک ریاضی (AND Logic)، نمایش ریبون فیلترها و پاکسازی یکپارچه. | SOC Admin |
 | ۷ | `test_07_upload_modal_open_close` | Suite 3 | باز شدن مدال بارگذاری با لایه مات پشت (Backdrop Overlay)، بستن مدال با دکمه ✕ و دکمه انصراف. | SOC Admin |

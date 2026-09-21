@@ -81,7 +81,7 @@ class Application extends App implements IBootstrap {
         Util::addScript(self::APP_ID, 'app_menu_filter');
         Util::addStyle(self::APP_ID, 'app_menu_filter');
 
-        // Global Access-Aware Navigation & Current Path (Requirement 16)
+        // Global Access-Aware Navigation (Requirement 16)
         Util::addScript(self::APP_ID, 'global_archive_nav');
         Util::addStyle(self::APP_ID, 'global_archive_nav');
 
