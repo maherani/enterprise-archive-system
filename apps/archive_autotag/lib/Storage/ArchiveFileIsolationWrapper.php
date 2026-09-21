@@ -100,6 +100,22 @@ class ArchiveFileIsolationWrapper extends Wrapper {
     }
 
     #[\Override]
+    public function unlink(string $path): bool {
+        if (!$this->isPathPermitted($path, PermissionOperation::DELETE)) {
+            return false;
+        }
+        return parent::unlink($path);
+    }
+
+    #[\Override]
+    public function rmdir(string $path): bool {
+        if (!$this->isPathPermitted($path, PermissionOperation::DELETE)) {
+            return false;
+        }
+        return parent::rmdir($path);
+    }
+
+    #[\Override]
     public function file_exists(string $path): bool {
         if (!$this->isPathPermitted($path, PermissionOperation::READ_METADATA)) {
             return false;

@@ -982,6 +982,10 @@
                 '      <button type="button" class="ea-icon-btn ea-action-preview" data-file-id="' + file.id + '" title="مشاهده سریع جزئیات">',
                 '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
                 '      </button>',
+                (state.userRole && state.userRole.is_admin ? 
+                '      <button type="button" class="ea-icon-btn ea-card-delete ea-btn-danger-icon" data-file-id="' + file.id + '" data-file-name="' + escapeHtml(file.name) + '" data-is-dir="' + (isFolder ? 'true' : 'false') + '" data-folder-path="' + escapeHtml(file.path) + '" title="حذف دائمی">' +
+                '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>' +
+                '      </button>' : ''),
                 (!isFolder ? 
                 '      <a href="' + escapeHtml(file.download_url) + '" class="ea-icon-btn" title="دانلود مستقیم" download>' +
                 '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
@@ -1025,6 +1029,17 @@
                 var fid = parseInt(btn.getAttribute('data-file-id'), 10);
                 var f = state.files.find(function (item) { return item.id === fid; });
                 if (f) openDrawer(f);
+            });
+        });
+
+        container.querySelectorAll('.ea-card-delete').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var fid = parseInt(btn.getAttribute('data-file-id'), 10);
+                var fname = btn.getAttribute('data-file-name') || '';
+                var isDir = btn.getAttribute('data-is-dir') === 'true';
+                var fpath = btn.getAttribute('data-folder-path') || '';
+                openDeleteConfirmModal({ id: fid, name: fname, is_dir: isDir, path: fpath });
             });
         });
     }
@@ -1198,6 +1213,9 @@
                 (state.userRole && state.userRole.is_admin ? 
                 '      <button type="button" class="ea-icon-btn ea-table-share" data-file-id="' + file.id + '" data-file-name="' + escapeHtml(file.name) + '" title="اشتراک با گروه">' +
                 '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>' +
+                '      </button>' +
+                '      <button type="button" class="ea-icon-btn ea-table-delete ea-btn-danger-icon" data-file-id="' + file.id + '" data-file-name="' + escapeHtml(file.name) + '" data-is-dir="' + (isFolder ? 'true' : 'false') + '" data-folder-path="' + escapeHtml(file.path) + '" title="حذف دائمی">' +
+                '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>' +
                 '      </button>' : ''),
                 '      <button type="button" class="ea-icon-btn ea-table-preview" data-file-id="' + file.id + '" title="مشاهده جزئیات">' +
                 '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>' +
@@ -1291,6 +1309,17 @@
                 var fid = parseInt(btn.getAttribute('data-file-id'), 10);
                 var fname = btn.getAttribute('data-file-name') || ('سند ' + fid);
                 openGroupShareModal(fid, fname, 'file');
+            });
+        });
+
+        container.querySelectorAll('.ea-table-delete').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var fid = parseInt(btn.getAttribute('data-file-id'), 10);
+                var fname = btn.getAttribute('data-file-name') || '';
+                var isDir = btn.getAttribute('data-is-dir') === 'true';
+                var fpath = btn.getAttribute('data-folder-path') || '';
+                openDeleteConfirmModal({ id: fid, name: fname, is_dir: isDir, path: fpath });
             });
         });
     }
@@ -1449,6 +1478,10 @@
                     '<button type="button" class="ea-btn ea-btn-secondary" id="ea-drawer-share-btn" title="اشتراک‌گذاری با گروه‌ها">',
                     '  <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
                     '  <span>اشتراک با گروه</span>',
+                    '</button>',
+                    '<button type="button" class="ea-btn ea-btn-danger" id="ea-drawer-delete-btn" style="background:#7f1d1d;color:#fca5a5;border-color:#ef4444;" title="حذف دائمی منبع">',
+                    '  <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>',
+                    '  <span>حذف ' + (isFolder ? 'پوشه' : 'سند') + '</span>',
                     '</button>'
                 );
             }
@@ -1484,6 +1517,13 @@
             if (shareBtn) {
                 shareBtn.addEventListener('click', function () {
                     openGroupShareModal(file.id, file.name, isFolder ? 'folder' : 'file');
+                });
+            }
+
+            var drawerDelBtn = document.getElementById('ea-drawer-delete-btn');
+            if (drawerDelBtn) {
+                drawerDelBtn.addEventListener('click', function () {
+                    openDeleteConfirmModal(file);
                 });
             }
 
@@ -4324,6 +4364,116 @@
     // -------------------------------------------------------------------------
     // Admin Group Share Modal & Operations (Requirement 24)
     // -------------------------------------------------------------------------
+    // Secure Resource Deletion Modal (Requirement 26)
+    function openDeleteConfirmModal(resource) {
+        var existingModal = document.getElementById('ea-delete-confirm-modal');
+        if (existingModal) existingModal.remove();
+
+        var isFolder = Boolean(resource.is_dir || resource.type === 'folder' || resource.mimetype === 'httpd/unix-directory');
+        var resName = resource.name || ('منبع #' + resource.id);
+        var resPath = resource.path || '';
+
+        var modal = document.createElement('div');
+        modal.id = 'ea-delete-confirm-modal';
+        modal.className = 'ea-share-modal-backdrop';
+        modal.innerHTML = [
+            '<div class="ea-share-modal-card" style="max-width: 480px; border-color: rgba(239, 68, 68, 0.4); box-shadow: 0 20px 40px rgba(0,0,0,0.6), 0 0 25px rgba(239, 68, 68, 0.2);">',
+            '  <div class="ea-share-modal-header" style="border-bottom-color: rgba(239, 68, 68, 0.2);">',
+            '    <h3 style="color: #ef4444; display: flex; align-items: center; gap: 8px;">',
+            '      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>',
+            '      <span>تایید حذف دائمی ' + (isFolder ? 'پوشه' : 'سند') + '</span>',
+            '    </h3>',
+            '    <button type="button" class="ea-btn" id="ea-close-delete-modal" style="padding:4px 8px;min-width:32px;">✕</button>',
+            '  </div>',
+            '  <div class="ea-share-modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">',
+            '    <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px 14px; font-size: 0.85rem; color: #fca5a5; line-height: 1.6;">',
+            '      ⚠️ <strong>توجه:</strong> این عملیات غیرقابل بازگشت است. منبع انتخاب‌شده به صورت کامل و فیزیکی از سامانه ذخیره‌سازی حذف خواهد شد.',
+            (isFolder ? '<div style="margin-top: 6px; color: #f87171;">📁 <strong>هشدار پوشه:</strong> تمامی فایل‌ها، زیرپوشه‌ها، شناسنامه‌های متادیتا و دسترسی‌های زیرمجموعه نیز پاکسازی خواهند شد.</div>' : ''),
+            '    </div>',
+            '    <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(51, 65, 85, 0.6); border-radius: 8px; padding: 12px 14px;">',
+            '      <div style="font-size: 0.85rem; color: var(--ea-text-muted); margin-bottom: 4px;">نام منبع:</div>',
+            '      <div style="font-weight: 600; color: #f1f5f9; word-break: break-all;">' + (isFolder ? '📁 ' : '📄 ') + escapeHtml(resName) + '</div>',
+            (resPath ? '<div style="font-size: 0.75rem; color: var(--ea-text-subtle); margin-top: 4px; direction: ltr; text-align: left;">' + escapeHtml(resPath) + '</div>' : ''),
+            '    </div>',
+            '    <div id="ea-delete-error-box" style="display: none; background: rgba(220, 38, 38, 0.2); border: 1px solid #ef4444; border-radius: 6px; padding: 8px 12px; font-size: 0.8rem; color: #fecaca;"></div>',
+            '    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px;">',
+            '      <button type="button" class="ea-btn" id="ea-cancel-delete-btn" style="padding: 8px 16px;">انصراف</button>',
+            '      <button type="button" class="ea-btn ea-btn-danger" id="ea-confirm-delete-btn" style="padding: 8px 16px; background: #dc2626; color: #ffffff; border-color: #ef4444; font-weight: 600; display: flex; align-items: center; gap: 6px;">',
+            '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>',
+            '        <span>تایید و حذف دائمی</span>',
+            '      </button>',
+            '    </div>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.appendChild(modal);
+
+        var closeModal = function() {
+            modal.remove();
+        };
+
+        modal.querySelector('#ea-close-delete-modal').addEventListener('click', closeModal);
+        modal.querySelector('#ea-cancel-delete-btn').addEventListener('click', closeModal);
+        modal.addEventListener('click', function (e) {
+            if (e.target === modal) closeModal();
+        });
+
+        var confirmBtn = modal.querySelector('#ea-confirm-delete-btn');
+        var errBox = modal.querySelector('#ea-delete-error-box');
+
+        confirmBtn.addEventListener('click', function () {
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<span>در حال حذف...</span>';
+            errBox.style.display = 'none';
+
+            var headers = { 'Content-Type': 'application/json' };
+            if (typeof oc_requesttoken !== 'undefined') {
+                headers['requesttoken'] = oc_requesttoken;
+            }
+
+            fetch('/index.php/apps/archive_autotag/api/resource/delete', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({
+                    file_id: resource.id || 0,
+                    folder_path: resource.path || null,
+                    is_dir: isFolder
+                })
+            })
+            .then(function (res) {
+                return res.json().then(function (data) {
+                    return { ok: res.ok, status: res.status, data: data };
+                });
+            })
+            .then(function (res) {
+                if (res.ok && res.data && res.data.status === 'success') {
+                    closeModal();
+                    if (typeof closeDrawer === 'function') {
+                        closeDrawer();
+                    }
+                    showToast(res.data.message || 'منبع با موفقیت به صورت کامل و دائمی حذف شد.');
+                    if (state.currentFolder) {
+                        openFolderInPortal(state.currentFolder, null);
+                    } else {
+                        fetchFiles();
+                    }
+                } else {
+                    confirmBtn.disabled = false;
+                    confirmBtn.innerHTML = '<span>تایید و حذف دائمی</span>';
+                    errBox.textContent = (res.data && res.data.message) ? res.data.message : 'خطا در فرآیند حذف منبع.';
+                    errBox.style.display = 'block';
+                }
+            })
+            .catch(function (err) {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<span>تایید و حذف دائمی</span>';
+                errBox.textContent = 'خطای ارتباط با سرور: ' + (err.message || err);
+                errBox.style.display = 'block';
+            });
+        });
+    }
+
     function openGroupShareModal(resourceId, resourceName, resourceType) {
         var existingModal = document.getElementById('ea-group-share-modal');
         if (existingModal) existingModal.remove();

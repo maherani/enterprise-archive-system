@@ -2329,3 +2329,21 @@ body[theme="dark"] :root,
   border: 1px solid var(--ea-border);
   border-radius: var(--ea-radius);
 }
+
+/* Secure Resource Deletion Styles (Requirement 26) */
+.ea-btn-danger-icon {
+    color: #94a3b8;
+    transition: all 0.2s ease;
+}
+.ea-btn-danger-icon:hover {
+    color: #ef4444 !important;
+    border-color: rgba(239, 68, 68, 0.45) !important;
+    background: rgba(239, 68, 68, 0.15) !important;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.25);
+}
+#ea-drawer-delete-btn:hover {
+    background: #991b1b !important;
+    color: #ffffff !important;
+    border-color: #f87171 !important;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.35);
+}

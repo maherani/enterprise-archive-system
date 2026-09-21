@@ -329,4 +329,35 @@ class FileOwnershipService {
            ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId)));
         return $qb->executeQuery()->fetchAllAssociative();
     }
+    /**
+     * Delete file ownership record when a file is permanently removed
+     */
+    public function deleteFileOwner(int $fileId): void {
+        if ($fileId <= 0) return;
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->delete('archive_file_ownership')
+               ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId)));
+            $qb->executeStatement();
+            $this->logger->info("archive_autotag: Cleaned up ownership record for file ID {$fileId}");
+        } catch (\Throwable $t) {
+            $this->logger->error("archive_autotag: Failed to delete ownership record for file {$fileId}: " . $t->getMessage());
+        }
+    }
+
+    /**
+     * Purge all grants associated with a file ID when the resource is deleted
+     */
+    public function purgeAllGrants(int $fileId): void {
+        if ($fileId <= 0) return;
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->delete('archive_file_grants')
+               ->where($qb->expr()->eq('file_id', $qb->createNamedParameter($fileId)));
+            $qb->executeStatement();
+            $this->logger->info("archive_autotag: Purged all grants for deleted file ID {$fileId}");
+        } catch (\Throwable $t) {
+            $this->logger->error("archive_autotag: Failed to purge grants for file {$fileId}: " . $t->getMessage());
+        }
+    }
 }
