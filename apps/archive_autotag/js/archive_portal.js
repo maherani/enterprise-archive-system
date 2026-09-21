@@ -1032,8 +1032,7 @@
                 '  <td>' + formatDate(file.mtime) + '</td>',
                 '  <td style="width: 140px; text-align: left;">',
                 '    <div style="display: flex; gap: 6px; justify-content: flex-end;">',
-                (isFolder ? 
-                '      <button type="button" class="ea-btn ea-btn-sm ea-folder-enter-btn" data-folder-path="' + escapeHtml(file.path) + '" title="ورود به این پوشه"><span>ورود ↵</span></button>' : ''),
+
                 (state.userRole && state.userRole.is_admin ? 
                 '      <button type="button" class="ea-icon-btn ea-table-share" data-file-id="' + file.id + '" data-file-name="' + escapeHtml(file.name) + '" title="اشتراک با گروه">' +
                 '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>' +
@@ -1084,15 +1083,7 @@
             });
         });
 
-        container.querySelectorAll('.ea-folder-enter-btn').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var folderPath = btn.getAttribute('data-folder-path');
-                if (folderPath) {
-                    openFolderInPortal('/' + folderPath.replace(/^\/+/g, ''), null);
-                }
-            });
-        });
+
 
         container.querySelectorAll('.ea-table-preview').forEach(function (btn) {
             btn.addEventListener('click', function (e) {

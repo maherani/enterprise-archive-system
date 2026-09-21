@@ -585,7 +585,7 @@
 
             var actionButtonsHtml = '';
             if (file.is_dir) {
-                actionButtonsHtml = '<a class="archive-action-btn archive-locate-btn" href="' + escapeHtml(file.web_url) + '" data-file-id="' + file.id + '" data-is-dir="true" data-target-dir="' + escapeHtml(targetDir) + '" title="باز کردن پوشه">📂 باز کردن پوشه</a>';
+                actionButtonsHtml = '';
             } else {
                 actionButtonsHtml = 
                     '<a class="archive-action-btn archive-locate-btn" href="' + escapeHtml(file.web_url) + '" data-file-id="' + file.id + '" data-is-dir="false" data-target-dir="' + escapeHtml(targetDir) + '" title="مشاهده در پوشه">📂 مشاهده در پوشه</a>' +
@@ -593,10 +593,10 @@
             }
 
             if (state.userRole && state.userRole.is_admin) {
-                actionButtonsHtml += ' <button type="button" class="archive-action-btn archive-share-btn" data-file-id="' + file.id + '" data-file-name="' + escapeHtml(file.name) + '" title="اشتراک با گروه">👥 اشتراک با گروه</button>';
+                actionButtonsHtml += (actionButtonsHtml ? ' ' : '') + '<button type="button" class="archive-action-btn archive-share-btn" data-file-id="' + file.id + '" data-file-name="' + escapeHtml(file.name) + '" title="اشتراک با گروه">👥 اشتراک با گروه</button>';
             }
 
-            return '<tr>' +
+            return '<tr class="' + (file.is_dir ? 'archive-folder-row' : 'archive-file-row') + '" data-is-dir="' + (file.is_dir ? 'true' : 'false') + '" data-target-dir="' + escapeHtml(targetDir) + '" data-web-url="' + escapeHtml(file.web_url) + '"' + (file.is_dir ? ' style="cursor: pointer;"' : '') + '>' +
                    '<td title="' + escapeHtml(file.name) + '">' +
                        '<div class="archive-file-name-cell">' +
                            '<span class="archive-file-icon">' + icon + '</span>' +
@@ -651,6 +651,23 @@
                 var fileId = btn.getAttribute('data-file-id');
                 var fileName = btn.getAttribute('data-file-name');
                 openGroupShareModal(fileId, fileName);
+            });
+        });
+
+        // Make folder rows clickable to navigate directly into folder
+        var folderRows = container.querySelectorAll('tr[data-is-dir="true"]');
+        folderRows.forEach(function (row) {
+            row.addEventListener('click', function (e) {
+                if (e.target.closest('button') || e.target.closest('a')) return;
+                var targetDir = row.getAttribute('data-target-dir') || '/';
+                var webUrl = row.getAttribute('data-web-url');
+                if (state.selectedTagIds.size > 0) {
+                    state.selectedTagIds.clear();
+                    renderFilterBar();
+                    setupSidebarDrawer();
+                    bindHeaderFilesToggle();
+                }
+                navigateToDirectory(targetDir, webUrl);
             });
         });
 
