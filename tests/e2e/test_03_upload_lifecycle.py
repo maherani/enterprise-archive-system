@@ -100,9 +100,15 @@ class TestUploadLifecycle(unittest.TestCase):
             file_name = self.page.text_content(self.upload_modal.FILE_NAME_DISPLAY)
             self.assertEqual(file_name, "drag_drop_stage_test.txt")
 
-            # Verify submit button is now enabled
+            # Without mandatory subject, submit button must remain disabled (Requirement 25)
             submit_btn = self.page.locator(self.upload_modal.SUBMIT_BTN)
-            self.assertTrue(submit_btn.is_enabled())
+            self.assertFalse(submit_btn.is_enabled(), "Submit button should be disabled without mandatory subject")
+
+            # Fill mandatory subject
+            self.upload_modal.fill_metadata(subject="موضوع فایل تستی")
+
+            # Verify submit button is now enabled
+            self.assertTrue(submit_btn.is_enabled(), "Submit button should be enabled after filling subject")
 
             # Close modal
             self.upload_modal.close()

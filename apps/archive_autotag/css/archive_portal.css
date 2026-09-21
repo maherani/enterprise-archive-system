@@ -2173,3 +2173,44 @@ body[theme="dark"] :root,
         box-shadow: none;
     }
 }
+
+/* Document Metadata Layer (Requirement 25) */
+.ea-conf-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  line-height: 1.2;
+}
+.ea-conf-normal {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.25);
+}
+.ea-conf-confidential {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.25);
+}
+.ea-conf-secret {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.25);
+}
+.ea-drawer-metadata-card {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: var(--ea-radius);
+  background: var(--ea-surface-elevated);
+  border: 1px solid var(--ea-border);
+}
+.ea-metadata-form-section {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--ea-surface-elevated);
+  border: 1px solid var(--ea-border);
+  border-radius: var(--ea-radius);
+}

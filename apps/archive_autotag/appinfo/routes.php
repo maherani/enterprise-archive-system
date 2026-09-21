@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 return [
@@ -8,6 +9,8 @@ return [
         ['name' => 'TagFilter#filterByTags', 'url' => '/api/filter', 'verb' => 'GET'],
         ['name' => 'TagFilter#listAllArchiveFiles', 'url' => '/api/files', 'verb' => 'GET'],
         ['name' => 'TagFilter#listFolderFiles', 'url' => '/api/folder-files', 'verb' => 'GET'],
+
+        // Workflow / Folder Request System
         ['name' => 'FolderRequest#getUserRole', 'url' => '/api/user-role', 'verb' => 'GET'],
         ['name' => 'FolderRequest#getGroupFolders', 'url' => '/api/group-folders', 'verb' => 'GET'],
         ['name' => 'FolderRequest#getAllFolders', 'url' => '/api/folders', 'verb' => 'GET'],
@@ -57,6 +60,11 @@ return [
         ['name' => 'GroupShare#getResourceShares', 'url' => '/api/share/resource', 'verb' => 'GET'],
         ['name' => 'GroupShare#shareWithGroup', 'url' => '/api/share/group', 'verb' => 'POST'],
         ['name' => 'GroupShare#removeShare', 'url' => '/api/share/group/delete', 'verb' => 'POST'],
+
+        // Mandatory Document Metadata Capture & Management (Requirement 25)
+        ['name' => 'DocumentMetadata#uploadWithMetadata', 'url' => '/api/upload-with-metadata', 'verb' => 'POST'],
+        ['name' => 'DocumentMetadata#getMetadata', 'url' => '/api/metadata/{fileId}', 'verb' => 'GET'],
+        ['name' => 'DocumentMetadata#saveMetadata', 'url' => '/api/metadata/{fileId}', 'verb' => 'POST'],
     ],
     'ocs' => [
         ['name' => 'TagFilter#listVisibleTags', 'url' => '/api/tags', 'verb' => 'GET'],
@@ -112,5 +120,10 @@ return [
         ['name' => 'GroupShare#getResourceShares', 'url' => '/api/share/resource', 'verb' => 'GET'],
         ['name' => 'GroupShare#shareWithGroup', 'url' => '/api/share/group', 'verb' => 'POST'],
         ['name' => 'GroupShare#removeShare', 'url' => '/api/share/group/delete', 'verb' => 'POST'],
+
+        // Mandatory Document Metadata Capture & Management (Requirement 25)
+        ['name' => 'DocumentMetadata#uploadWithMetadata', 'url' => '/api/upload-with-metadata', 'verb' => 'POST'],
+        ['name' => 'DocumentMetadata#getMetadata', 'url' => '/api/metadata/{fileId}', 'verb' => 'GET'],
+        ['name' => 'DocumentMetadata#saveMetadata', 'url' => '/api/metadata/{fileId}', 'verb' => 'POST'],
     ],
 ];

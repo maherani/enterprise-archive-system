@@ -19,6 +19,7 @@ class ArchiveFileIsolationWrapper extends Wrapper {
     private IUserSession $userSession;
     private IGroupManager $groupManager;
     private ?IPermissionResolver $permissionResolver;
+    private string $mountPoint;
 
     public function __construct(
         array $parameters,
@@ -32,6 +33,24 @@ class ArchiveFileIsolationWrapper extends Wrapper {
         $this->userSession = $userSession;
         $this->groupManager = $groupManager;
         $this->permissionResolver = $permissionResolver;
+        $this->mountPoint = (string)($parameters['mountPoint'] ?? '');
+    }
+
+    private function resolveEffectivePath(string $path): string {
+        $cleanPath = trim(trim($path, '/'), '.');
+        $mountClean = trim($this->mountPoint, '/');
+        $parts = explode('/', $mountClean);
+        if (count($parts) >= 2 && $parts[1] === 'files') {
+            $parts = array_slice($parts, 2);
+            $mountClean = implode('/', $parts);
+        }
+        if ($mountClean !== '') {
+            if ($cleanPath === '' || $cleanPath === '.') {
+                return $mountClean;
+            }
+            return $mountClean . '/' . $cleanPath;
+        }
+        return $cleanPath;
     }
 
     #[\Override]
@@ -122,12 +141,13 @@ class ArchiveFileIsolationWrapper extends Wrapper {
             return true;
         }
 
+        $effectivePath = $this->resolveEffectivePath($path);
         $resolver = $this->getResolver();
 
         // 1. Directory Check
         if ($this->is_dir($path)) {
             if ($resolver !== null) {
-                return $resolver->evaluateFolder($userId, $cleanPath, $operation)->allowed;
+                return $resolver->evaluateFolder($userId, $effectivePath, $operation)->allowed;
             }
             return true;
         }
@@ -145,7 +165,7 @@ class ArchiveFileIsolationWrapper extends Wrapper {
             // The file does not exist in cache yet. Authorization is determined by whether the user
             // has CREATE permission in the parent directory.
             if (($operation & (PermissionOperation::WRITE | PermissionOperation::CREATE)) !== 0) {
-                $parentDir = dirname($cleanPath);
+                $parentDir = dirname($effectivePath);
                 if ($parentDir === '.' || $parentDir === '' || $parentDir === '/') {
                     // Regular users cannot write to archive root (Fail-Closed)
                     return false;
@@ -173,7 +193,7 @@ class ArchiveFileIsolationWrapper extends Wrapper {
 
         if ($entry->getMimetype() === 'httpd/unix-directory') {
             if ($resolver !== null) {
-                return $resolver->evaluateFolder($userId, $cleanPath, $operation)->allowed;
+                return $resolver->evaluateFolder($userId, $effectivePath, $operation)->allowed;
             }
             return true;
         }

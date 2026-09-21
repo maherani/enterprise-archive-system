@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace OCA\ArchiveAutoTag\Controller;
 
+use OCA\ArchiveAutoTag\Service\DocumentMetadataService;
 use OCA\ArchiveAutoTag\Service\FileOwnershipService;
 use OCA\ArchiveAutoTag\Service\TagOwnershipService;
 use OCP\AppFramework\Controller;
@@ -31,6 +32,7 @@ class TagFilterController extends Controller {
         private IRootFolder $rootFolder,
         private TagOwnershipService $tagOwnershipService,
         private FileOwnershipService $fileOwnershipService,
+        private DocumentMetadataService $documentMetadataService,
     ) {
         parent::__construct($appName, $request);
     }
@@ -183,6 +185,14 @@ class TagFilterController extends Controller {
                 ];
             }
 
+            // Bulk fetch metadata for folder items
+            $fileIds = array_map(fn($f) => (int)$f['id'], $filesResult);
+            $metaMap = $this->documentMetadataService->getMetadataByFileIds($fileIds);
+            foreach ($filesResult as &$item) {
+                $item['metadata'] = $metaMap[$item['id']] ?? null;
+            }
+            unset($item);
+
             // Sort: folders first, then files alphabetically
             usort($filesResult, function($a, $b) {
                 if ($a['is_dir'] !== $b['is_dir']) {
@@ -332,8 +342,9 @@ class TagFilterController extends Controller {
         $userFolder = $this->rootFolder->getUserFolder($uid);
         $userFolderPath = $userFolder->getPath();
 
-        // Get all tag IDs for candidate files in bulk
+        // Get all tag IDs and metadata for candidate files in bulk
         $tagMappings = $this->tagMapper->getTagIdsForObjects($candidateFileIds, 'files');
+        $metadataMap = $this->documentMetadataService->getMetadataByFileIds($candidateFileIds);
 
         $filesResult = [];
         foreach ($candidateFileIds as $fileId) {
@@ -356,10 +367,22 @@ class TagFilterController extends Controller {
                 $relPath = ltrim(substr($fullPath, strlen($userFolderPath)), '/');
             }
 
-            // Optional keyword search filter across filename and path
+            $fileMeta = $metadataMap[$fileId] ?? null;
+            $metaMatch = false;
+            if ($fileMeta !== null) {
+                $metaSubj = (string)($fileMeta['subject'] ?? '');
+                $metaNum = (string)($fileMeta['document_number'] ?? '');
+                $metaIss = (string)($fileMeta['issuer'] ?? '');
+                $metaDesc = (string)($fileMeta['description'] ?? '');
+                if (mb_stripos($metaSubj, $q) !== false || mb_stripos($metaNum, $q) !== false || mb_stripos($metaIss, $q) !== false || mb_stripos($metaDesc, $q) !== false) {
+                    $metaMatch = true;
+                }
+            }
+
+            // Optional keyword search filter across filename, path, and metadata
             if ($q !== '') {
                 $nodeName = $node->getName();
-                if (mb_stripos($nodeName, $q) === false && mb_stripos($relPath, $q) === false) {
+                if (!$metaMatch && mb_stripos($nodeName, $q) === false && mb_stripos($relPath, $q) === false) {
                     continue;
                 }
             }
@@ -404,6 +427,7 @@ class TagFilterController extends Controller {
                 'type' => $isDir ? 'folder' : 'file',
                 'is_dir' => $isDir,
                 'tags' => $fileTags,
+                'metadata' => $fileMeta,
                 'web_url' => $webUrl,
                 'folder_url' => $folderUrl,
                 'download_url' => '/remote.php/webdav/' . str_replace('%2F', '/', rawurlencode($relPath)),

@@ -1052,7 +1052,7 @@
             rows.push(
                 '<tr data-file-id="' + file.id + '" data-is-dir="' + (isFolder ? 'true' : 'false') + '" data-folder-path="' + escapeHtml(file.path) + '" class="' + (isFolder ? 'ea-folder-row' : 'ea-file-row') + (isHighlighted ? ' ea-row-highlight' : '') + '" style="cursor: pointer;">',
                 '  <td style="width: 48px;"><span class="ea-mime-badge ' + meta.cls + '">' + meta.label + '</span></td>',
-                '  <td><strong>' + (isFolder ? '📁 ' : '') + escapeHtml(file.name) + '</strong><br><small style="color: var(--ea-text-subtle);">' + escapeHtml(file.parent_dir || file.path || 'ریشه بایگانی') + '</small></td>',
+                '  <td><strong>' + (isFolder ? '📁 ' : '') + escapeHtml(file.name) + '</strong>' + (file.metadata && file.metadata.subject ? '<div style="font-size:0.75rem; color:var(--ea-primary); margin-top:2px;">📋 ' + escapeHtml(file.metadata.subject) + (file.metadata.document_number ? ' (' + escapeHtml(file.metadata.document_number) + ')' : '') + '</div>' : '') + '<br><small style="color: var(--ea-text-subtle);">' + escapeHtml(file.parent_dir || file.path || 'ریشه بایگانی') + '</small></td>',
                 '  <td>' + (tagsText || '<span style="color:var(--ea-text-subtle); font-size:0.75rem;">—</span>') + '</td>',
                 '  <td style="direction: ltr; text-align: left;">' + sizeDisplay + '</td>',
                 '  <td>' + formatDate(file.mtime) + '</td>',
@@ -1180,6 +1180,35 @@
         targetDir = targetDir.replace(/\/+/g, '/');
         if (!targetDir.startsWith('/')) targetDir = '/' + targetDir;
 
+        var docMeta = file.metadata || null;
+        var metaBoxHtml = '';
+        if (docMeta) {
+            var confClass = 'ea-conf-normal';
+            var confText = 'عادی';
+            if (docMeta.confidentiality === 'confidential') {
+                confClass = 'ea-conf-confidential';
+                confText = 'محرمانه';
+            } else if (docMeta.confidentiality === 'secret') {
+                confClass = 'ea-conf-secret';
+                confText = 'سری';
+            }
+            metaBoxHtml = [
+                '<div class="ea-drawer-metadata-card">',
+                '  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">',
+                '    <div style="font-size: 0.86rem; font-weight: 700; color: var(--ea-text-main);">📋 شناسنامه و مشخصات سند:</div>',
+                '    <span class="ea-conf-badge ' + confClass + '">' + confText + '</span>',
+                '  </div>',
+                '  <div style="display:flex; flex-direction:column; gap:6px; font-size:0.82rem;">',
+                '    <div><strong style="color:var(--ea-text-muted);">موضوع:</strong> <span style="color:var(--ea-text-main); font-weight:600;">' + escapeHtml(docMeta.subject || '—') + '</span></div>',
+                (docMeta.document_number ? '    <div><strong style="color:var(--ea-text-muted);">شماره سند:</strong> <span style="font-family:monospace; color:var(--ea-text-main);">' + escapeHtml(docMeta.document_number) + '</span></div>' : ''),
+                (docMeta.document_date ? '    <div><strong style="color:var(--ea-text-muted);">تاریخ سند:</strong> <span style="color:var(--ea-text-main);">' + escapeHtml(docMeta.document_date) + '</span></div>' : ''),
+                (docMeta.issuer ? '    <div><strong style="color:var(--ea-text-muted);">مرجع صدور:</strong> <span style="color:var(--ea-text-main);">' + escapeHtml(docMeta.issuer) + '</span></div>' : ''),
+                (docMeta.description ? '    <div style="margin-top:4px; padding-top:4px; border-top:1px dashed var(--ea-border);"><strong style="color:var(--ea-text-muted);">خلاصه:</strong> <div style="color:var(--ea-text-main); white-space:pre-wrap; margin-top:2px;">' + escapeHtml(docMeta.description) + '</div></div>' : ''),
+                '  </div>',
+                '</div>'
+            ].join('\n');
+        }
+
         if (bodyEl) {
             bodyEl.innerHTML = [
                 '<div class="ea-drawer-preview-box">',
@@ -1187,6 +1216,8 @@
                 '  <div style="font-weight: 700; font-size: 1rem; color: var(--ea-text-main);">' + escapeHtml(file.name) + '</div>',
                 '  <div style="font-size: 0.8rem; color: var(--ea-text-muted);">' + meta.label + ' Document • ' + (isFolder ? '—' : toPersianDigits(file.human_size)) + '</div>',
                 '</div>',
+                '',
+                (metaBoxHtml ? metaBoxHtml : ''),
                 '',
                 '<div style="margin-bottom: 20px;">',
                 '  <div style="font-size: 0.85rem; font-weight: 700; color: var(--ea-text-muted); margin-bottom: 8px;">برچسب‌های متصل سازمانی:</div>',
@@ -1404,7 +1435,7 @@
         }
     }
 
-    // Modal: Native File Upload to Group Folder
+    // Modal: Native File Upload with Mandatory Metadata (Requirement 25)
     function openUploadModal(initialFile) {
         closeModal();
 
@@ -1412,25 +1443,25 @@
         overlay.id = 'ea-active-modal';
         overlay.className = 'ea-modal-overlay';
         overlay.innerHTML = [
-            '<div class="ea-modal-card" style="max-width: 580px;">',
+            '<div class="ea-modal-card" style="max-width: 600px;">',
             '  <div class="ea-modal-header">',
             '    <div class="ea-modal-title">',
             '      <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
-            '      <span>بارگذاری سند جدید در بایگانی گروه</span>',
+            '      <span>بارگذاری سند و تکمیل متادیتای الزامی</span>',
             '    </div>',
             '    <button class="ea-modal-close" id="ea-upload-modal-close-btn" title="بستن">&times;</button>',
             '  </div>',
             '  <div class="ea-modal-body">',
             '    <div id="ea-upload-error" class="ea-form-error" style="display:none;"></div>',
             '    ',
-            '    <label class="ea-form-label">۱. پوشه مقصد در گروه سازمانی:</label>',
+            '    <label class="ea-form-label">۱. پوشه مقصد در بایگانی:</label>',
             '    <select id="ea-upload-target-select" class="ea-form-select"></select>',
-            '    <div id="ea-upload-projected-tags" class="ea-upload-projected-tags" style="margin-top: 6px; margin-bottom: 14px;"></div>',
+            '    <div id="ea-upload-projected-tags" class="ea-upload-projected-tags" style="margin-top: 6px; margin-bottom: 12px;"></div>',
             '    ',
             '    <label class="ea-form-label">۲. انتخاب یا رها کردن فایل (Drag & Drop):</label>',
             '    <div id="ea-dropzone-box" class="ea-dropzone-box">',
             '      <div class="ea-dropzone-icon">',
-            '        <svg width="38" height="38" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+            '        <svg width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
             '      </div>',
             '      <div class="ea-dropzone-prompt">فایل را به این کادر بکشید و رها کنید</div>',
             '      <div class="ea-dropzone-subprompt">یا برای انتخاب فایل از رایانه خود کلیک نمایید</div>',
@@ -1446,15 +1477,55 @@
             '      <button type="button" id="ea-upload-change-file" class="ea-btn" style="padding: 4px 10px; font-size: 0.8rem;">تغییر فایل</button>',
             '    </div>',
             '    ',
-            '    <div id="ea-upload-progress-wrap" class="ea-upload-progress-wrap" style="display:none;">',
+            '    <!-- Mandatory Metadata Fields (Requirement 25) -->',
+            '    <div class="ea-metadata-form-section">',
+            '      <div style="font-weight: 700; font-size: 0.86rem; color: var(--ea-text-main); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">',
+            '        <span>📋</span> <span>۳. مشخصات و متادیتای سند (الزامی قبل از بارگذاری):</span>',
+            '      </div>',
+            '      <div style="margin-bottom: 10px;">',
+            '        <label class="ea-form-label" style="font-size: 0.82rem;">موضوع سند (الزامی) <span style="color: #ef4444;">*</span>:</label>',
+            '        <input type="text" id="ea-meta-subject" class="ea-form-input" placeholder="مثال: گزارش تحلیلی رویدادهای امنیتی سه ماهه نخست" style="width: 100%; box-sizing: border-box;">',
+            '        <div id="ea-meta-subject-hint" style="font-size: 0.76rem; color: var(--ea-text-muted); margin-top: 3px;">ورود موضوع سند الزامی است (حداقل ۲ کاراکتر).</div>',
+            '      </div>',
+            '      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">',
+            '        <div>',
+            '          <label class="ea-form-label" style="font-size: 0.82rem;">شماره سند (اختیاری):</label>',
+            '          <input type="text" id="ea-meta-number" class="ea-form-input" placeholder="مثال: SEC-1405-09" style="width: 100%; box-sizing: border-box; font-family: monospace;">',
+            '        </div>',
+            '        <div>',
+            '          <label class="ea-form-label" style="font-size: 0.82rem;">تاریخ سند (اختیاری):</label>',
+            '          <input type="text" id="ea-meta-date" class="ea-form-input" placeholder="مثال: ۱۴۰۵/۰۶/۳۱" style="width: 100%; box-sizing: border-box;">',
+            '        </div>',
+            '      </div>',
+            '      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">',
+            '        <div>',
+            '          <label class="ea-form-label" style="font-size: 0.82rem;">سطح محرمانگی <span style="color: #ef4444;">*</span>:</label>',
+            '          <select id="ea-meta-confidentiality" class="ea-form-select" style="width: 100%; box-sizing: border-box;">',
+            '            <option value="normal" selected>عادی (Normal)</option>',
+            '            <option value="confidential">محرمانه (Confidential)</option>',
+            '            <option value="secret">سری (Secret)</option>',
+            '          </select>',
+            '        </div>',
+            '        <div>',
+            '          <label class="ea-form-label" style="font-size: 0.82rem;">مرجع صدور / سازمان (اختیاری):</label>',
+            '          <input type="text" id="ea-meta-issuer" class="ea-form-input" placeholder="مثال: مرکز عملیات امنیت (SOC)" style="width: 100%; box-sizing: border-box;">',
+            '        </div>',
+            '      </div>',
+            '      <div>',
+            '        <label class="ea-form-label" style="font-size: 0.82rem;">خلاصه و توضیحات تکمیلی (اختیاری):</label>',
+            '        <textarea id="ea-meta-description" class="ea-form-input" rows="2" placeholder="توضیحات تکمیلی پیرامون محتوای سند..." style="width: 100%; box-sizing: border-box; resize: vertical;"></textarea>',
+            '      </div>',
+            '    </div>',
+            '    ',
+            '    <div id="ea-upload-progress-wrap" class="ea-upload-progress-wrap" style="display:none; margin-top: 12px;">',
             '      <div class="ea-upload-progress-bar">',
             '        <div id="ea-upload-progress-fill" class="ea-upload-progress-fill" style="width: 0%;"></div>',
             '      </div>',
-            '      <div id="ea-upload-progress-text" class="ea-upload-progress-text">در حال بارگذاری: ۰٪</div>',
+            '      <div id="ea-upload-progress-text" class="ea-upload-progress-text">در حال ارسال سند: ۰٪</div>',
             '    </div>',
             '    ',
-            '    <div style="margin-top: 12px; padding: 10px 14px; background: rgba(249, 115, 22, 0.08); border: 1px solid rgba(249, 115, 22, 0.25); border-radius: 8px; font-size: 0.82rem; color: #cbd5e1; line-height: 1.6;">',
-            '      ✨ <strong>تگ‌گذاری خودکار سلسله‌مراتبی:</strong> به محض تکمیل بارگذاری، کلیه تگ‌های سلسله‌مراتبی پوشه والد به‌صورت خودکار توسط سیستم روی سند اعمال خواهند شد.',
+            '    <div style="margin-top: 10px; padding: 8px 12px; background: rgba(249, 115, 22, 0.08); border: 1px solid rgba(249, 115, 22, 0.22); border-radius: 6px; font-size: 0.79rem; color: #cbd5e1; line-height: 1.5;">',
+            '      ✨ <strong>تگ‌گذاری خودکار سلسله‌مراتبی:</strong> پس از ذخیره متادیتا و تکمیل بارگذاری، تگ‌های پوشه والد به سند منتسب می‌شوند.',
             '    </div>',
             '  </div>',
             '  <div class="ea-modal-footer">',
@@ -1485,11 +1556,29 @@
         var progressFill = document.getElementById('ea-upload-progress-fill');
         var progressText = document.getElementById('ea-upload-progress-text');
 
+        var subjectInput = document.getElementById('ea-meta-subject');
+        var numberInput = document.getElementById('ea-meta-number');
+        var dateInput = document.getElementById('ea-meta-date');
+        var confSelect = document.getElementById('ea-meta-confidentiality');
+        var issuerInput = document.getElementById('ea-meta-issuer');
+        var descInput = document.getElementById('ea-meta-description');
+
         closeBtn.onclick = closeModal;
         cancelBtn.onclick = closeModal;
 
         var selectedFile = null;
         var folderMap = {};
+
+        function checkCanSubmit() {
+            var subj = (subjectInput ? subjectInput.value : '').trim();
+            var hasFile = Boolean(selectedFile);
+            var validSubj = subj.length >= 2;
+            submitBtn.disabled = !(hasFile && validSubj);
+        }
+
+        if (subjectInput) {
+            subjectInput.addEventListener('input', checkCanSubmit);
+        }
 
         // 1. Group roots from user role
         if (state.userRole) {
@@ -1559,7 +1648,7 @@
         folderSelect.onchange = updateProjectedTags;
         populateFolderSelect();
 
-        // Also fetch from /api/group-folders if user has groups to pick up any subfolders
+        // Also fetch from /api/group-folders
         if (state.userRole) {
             var groupsToQuery = (state.userRole.subadmin_groups || []).concat(state.userRole.is_admin ? ['SOC', 'CERT', 'Compliance_Unit'] : []);
             groupsToQuery.forEach(function(grp) {
@@ -1592,7 +1681,7 @@
             fileCard.style.display = 'flex';
             fileNameEl.textContent = file.name;
             fileSizeEl.textContent = formatBytes(file.size);
-            submitBtn.disabled = false;
+            checkCanSubmit();
             errorDiv.style.display = 'none';
         }
 
@@ -1611,7 +1700,7 @@
             fileInput.value = '';
             fileCard.style.display = 'none';
             dropzoneBox.style.display = 'block';
-            submitBtn.disabled = true;
+            checkCanSubmit();
         };
 
         dropzoneBox.ondragover = function(e) {
@@ -1637,32 +1726,40 @@
         }
 
         submitBtn.onclick = function() {
+            var subjectVal = (subjectInput ? subjectInput.value : '').trim();
             if (!selectedFile) {
                 errorDiv.style.display = 'block';
                 errorDiv.textContent = 'لطفاً ابتدا یک فایل را انتخاب فرمایید.';
                 return;
             }
-            var targetDir = (folderSelect.value || '').replace(/^\/+|\/+$/g, '');
-            if (!targetDir) {
+            if (!subjectVal || subjectVal.length < 2) {
                 errorDiv.style.display = 'block';
-                errorDiv.textContent = 'پوشه مقصد نامعتبر است.';
+                errorDiv.textContent = 'ورود موضوع سند الزامی است (حداقل ۲ کاراکتر).';
+                if (subjectInput) subjectInput.focus();
                 return;
             }
 
-            var userId = '';
-            if (state.userRole && state.userRole.user_id) {
-                userId = state.userRole.user_id;
-            } else if (window.OC && (window.OC.currentUser || (window.OC.getCurrentUser && window.OC.getCurrentUser().uid))) {
-                userId = window.OC.currentUser || window.OC.getCurrentUser().uid;
-            } else {
-                var userMeta = document.querySelector('meta[name="user"]');
-                if (userMeta) userId = userMeta.getAttribute('content');
-            }
-            if (!userId) userId = 'admin';
+            var targetDir = (folderSelect.value || '').replace(/^\/+|\/+$/g, '');
 
-            // Construct WebDAV PUT URL
-            var segments = targetDir.split('/').filter(Boolean).map(encodeURIComponent);
-            var davUrl = '/remote.php/dav/files/' + encodeURIComponent(userId) + '/' + segments.join('/') + '/' + encodeURIComponent(selectedFile.name);
+            var formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('target_folder', targetDir);
+            formData.append('subject', subjectVal);
+            if (numberInput && numberInput.value.trim()) {
+                formData.append('document_number', numberInput.value.trim());
+            }
+            if (dateInput && dateInput.value.trim()) {
+                formData.append('document_date', dateInput.value.trim());
+            }
+            if (confSelect && confSelect.value) {
+                formData.append('confidentiality', confSelect.value);
+            }
+            if (issuerInput && issuerInput.value.trim()) {
+                formData.append('issuer', issuerInput.value.trim());
+            }
+            if (descInput && descInput.value.trim()) {
+                formData.append('description', descInput.value.trim());
+            }
 
             submitBtn.disabled = true;
             cancelBtn.disabled = true;
@@ -1670,10 +1767,10 @@
             errorDiv.style.display = 'none';
             progressWrap.style.display = 'block';
             progressFill.style.width = '0%';
-            progressText.textContent = 'در حال ارسال سند به سامانه...';
+            progressText.textContent = 'در حال ارسال فایل و ثبت متادیتای الزامی...';
 
             var xhr = new XMLHttpRequest();
-            xhr.open('PUT', davUrl, true);
+            xhr.open('POST', '/index.php/apps/archive_autotag/api/upload-with-metadata', true);
             if (window.OC && window.OC.requestToken) {
                 xhr.setRequestHeader('requesttoken', window.OC.requestToken);
             }
@@ -1688,15 +1785,19 @@
             };
 
             xhr.onload = function() {
-                if (xhr.status === 200 || xhr.status === 201 || xhr.status === 204) {
+                if (xhr.status >= 200 && xhr.status < 300) {
                     progressFill.style.width = '100%';
-                    progressText.innerHTML = '<span style="color:#22c55e; font-weight:700;">✅ سند با موفقیت بارگذاری شد و تگ‌های سلسله‌مراتبی پوشه اعمال گردید.</span>';
+                    progressText.innerHTML = '<span style="color:#22c55e; font-weight:700;">✅ سند به همراه مشخصات و متادیتا با موفقیت بارگذاری و ثبت گردید.</span>';
                     setTimeout(function() {
                         closeModal();
-                        showToast('سند «' + selectedFile.name + '» در پوشه /' + targetDir + ' بارگذاری و تگ‌گذاری شد.');
-                        fetchFiles();
-                        fetchTags();
-                    }, 1200);
+                        showToast('سند «' + selectedFile.name + '» با موضوع «' + subjectVal + '» ثبت و تگ‌گذاری شد.');
+                        if (state.isFolderView) {
+                            navigateToFolder(state.currentFolderDir || '/');
+                        } else {
+                            fetchFiles();
+                            fetchTags();
+                        }
+                    }, 1000);
                 } else {
                     submitBtn.disabled = false;
                     cancelBtn.disabled = false;
@@ -1704,12 +1805,14 @@
                     progressWrap.style.display = 'none';
                     errorDiv.style.display = 'block';
                     var msg = 'خطا در بارگذاری (وضعیت ' + xhr.status + ')';
-                    if (xhr.status === 413) {
-                        msg = 'خطای محدودیت حجم: اندازه فایل فراتر از سقف مجاز است.';
-                    } else if (xhr.status === 403) {
-                        msg = 'خطای عدم دسترسی (۴۰۳): شما دسترسی لازم برای نوشتن در این پوشه را ندارید.';
-                    } else if (xhr.status === 507) {
-                        msg = 'خطای سهمیه دیسک: حجم مجاز ذخیره‌سازی تکمیل گردیده است.';
+                    try {
+                        var parsed = JSON.parse(xhr.responseText);
+                        if (parsed && parsed.message) msg = parsed.message;
+                    } catch(e) {}
+                    if (xhr.status === 403) {
+                        msg = 'خطای عدم دسترسی (۴۰۳): شما مجوز بارگذاری در این پوشه را ندارید.';
+                    } else if (xhr.status === 422) {
+                        msg = msg || 'خطای اعتبارسنجی: تکمیل متادیتای موضوع سند الزامی است.';
                     }
                     errorDiv.textContent = msg;
                 }
@@ -1721,13 +1824,12 @@
                 closeBtn.disabled = false;
                 progressWrap.style.display = 'none';
                 errorDiv.style.display = 'block';
-                errorDiv.textContent = 'خطای ارتباط شبکه هنگام بارگذاری سند.';
+                errorDiv.textContent = 'خطای ارتباط با سرور در حین بارگذاری سند.';
             };
 
-            xhr.send(selectedFile);
+            xhr.send(formData);
         };
     }
-
 
     function openAdminCreateFolderModal() {
         closeModal();

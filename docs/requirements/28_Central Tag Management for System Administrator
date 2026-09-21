@@ -1,0 +1,129 @@
+# Requirement 28 — Central Tag Management for System Administrator
+
+## هدف
+
+در Enterprise Archive System، قابلیت مدیریت تگ در بخش‌هایی از سامانه وجود دارد؛
+اما System Administrator هنوز یک محل یکپارچه و اختصاصی برای مدیریت کامل تگ‌ها ندارد.
+
+هدف این Requirement ایجاد یک مرکز مدیریت Tag برای System Administrator است که
+امکانات زیر را فراهم کند:
+
+1. ایجاد Tag
+2. مشاهده Tagها
+3. حذف Tag
+4. تخصیص Tag به File
+5. تخصیص Tag به Folder
+6. حذف Tag از File
+7. حذف Tag از Folder
+8. مشاهده Scope و Group وابسته به Tag
+9. مشاهده تعداد Resourceهای متصل به Tag
+10. مدیریت امن چرخه حیات Tag
+11. مشاهده وضعیت Tag
+12. استفاده مجدد از قابلیت‌های موجود و جلوگیری از Duplicate Implementation
+
+این Requirement نباید سیستم جدید و موازی Tag Management ایجاد کند.
+
+---
+
+# 1 — اصل حیاتی: ابتدا Current Implementation را بررسی کن
+
+قبل از هرگونه تغییر کد:
+
+تمام implementationهای فعلی مربوط به Tag را پیدا و بررسی کن.
+
+حداقل:
+
+- GroupTagService
+- TagOwnershipService
+- AutoTagService
+- IsolatedSystemTagManager
+- IsolatedManagerFactory
+- GroupTagController
+- TagFilterController
+- CentralPermissionResolver
+- UI فعلی مدیریت Group Tag
+- Tag Audit
+- Tag Reconciliation
+- Tag deletion
+- SystemTag APIs
+
+همچنین Requirementهای مرتبط فعلی را بررسی کن:
+
+- Requirement 02 — Hierarchical Auto-Tagging
+- Requirement 07 — Multi-Tag Filtering
+- Requirement 08 — Access Control & Tag Isolation
+- Requirement 15 — Group Admin Tag Governance
+- Requirement 17 — Central Permission Resolver
+- Requirement 20 — Atomic Group Tag Governance & Consistency
+- Requirement 24 — Admin Group Sharing & File Management
+
+---
+
+# 2 — جلوگیری از Duplicate Implementation
+
+اگر هرکدام از قابلیت‌های زیر در Repository وجود دارد:
+
+- Create Tag
+- Delete Tag
+- Assign Tag
+- Remove Tag
+- Group Tag List
+- Reconcile Tag
+- Tag Isolation
+- Tag Audit
+
+دوباره آن را پیاده‌سازی نکن.
+
+به‌جای آن:
+
+Existing Service
+        ↓
+Reusable Domain Logic
+        ↓
+New System Admin UI
+
+استفاده شود.
+
+نباید برای System Admin یک نسخه دوم از:
+
+GroupTagService
+TagOwnershipService
+Tag deletion
+Tag assignment
+
+ساخته شود، مگر اینکه implementation فعلی از نظر معماری برای Global System Admin مناسب نباشد.
+
+در این حالت ابتدا دلیل را مشخص و سپس کمترین تغییر لازم را انجام بده.
+
+---
+
+# 3 — تعریف نقش‌ها
+
+سه سطح نقش را کاملاً از هم جدا کن.
+
+## System Administrator
+
+کاربری که طبق Nextcloud در سطح System Admin است.
+
+این نقش باید مدیریت مرکزی Tagها را انجام دهد.
+
+## Group Admin / Subadmin
+
+فقط در Scope گروه‌های خودش کار می‌کند.
+
+قابلیت‌های فعلی او باید حفظ شوند.
+
+## Regular User
+
+حق مدیریت Tag ندارد، مگر در صورتی که Policy فعلی صراحتاً اجازه دهد.
+
+این Requirement نباید Permission کاربران عادی را افزایش دهد.
+
+---
+
+# 4 — System Admin Tag Management
+
+System Admin باید بتواند از یک UI اختصاصی:
+
+```text
+مدیریت تگ‌ها
