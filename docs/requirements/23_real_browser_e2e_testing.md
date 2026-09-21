@@ -108,3 +108,38 @@ python3 run_e2e_tests.py
 در صورت بروز هرگونه شکست در هر مرحله از تست:
 1. **اسکرین‌شات با نمای تمام‌صفحه:** در دایرکتوری `artifacts/e2e_reports/screenshots/` ذخیره می‌شود (مثال: `FAIL_test_08_...png`).
 2. **فایل زیپ تریس Playwright:** شامل استک رویدادهای مرورگر، تایم‌لاین شبکه و DOM Snapshot در مسیر `artifacts/e2e_reports/traces/` ذخیره می‌گردد تا از طریق ابزار `playwright show-trace` قابل تحلیل تصویری باشد.
+
+
+---
+
+## ۸. تجمیع سوابق Prompt و معیارهای نهایی زیرساخت تست
+
+محتوای تاریخی Promptهای 08، 14، 15 و 16 در این Requirement ادغام شده است. از این پس Requirement 23 مرجع واحد معماری E2E و Test Infrastructure است.
+
+### ۸.۱ Test Runner قابل‌حمل
+- run_all_tests.py و runnerهای مرتبط نباید به مسیر absolute یا machine-specific وابسته باشند.
+- Root repository باید از محل واقعی پروژه/اسکریپت به‌صورت dynamic تعیین شود.
+- Python executable نباید hard-code شود.
+- runner باید در Linux، WSL، virtualenv با مسیر متفاوت و CI قابل اجرا باشد.
+- خروجی و grouping موجود تا حد امکان حفظ و رفتار تست‌ها بدون دلیل تغییر نکند.
+
+### ۸.۲ Credential Hygiene
+- هیچ username/password، Bearer Token، AI Service Token، Database Credential یا secret واقعی نباید در source code تست‌ها قرار گیرد.
+- credentialهای Test باید از یک configuration/fixture/environment امن و قابل تنظیم تأمین شوند.
+- نبود credential باید با خطای واضح و بدون چاپ secret اعلام شود.
+- مقدار deterministic یا default ناامن برای secret واقعی مجاز نیست.
+- گزارش‌های تست و failure artifacts نباید secret را افشا کنند.
+- credentialهای موجود در repository باید در مستندات فقط به‌صورت masked و بدون بازتولید مقدار واقعی توصیف شوند.
+
+### ۸.۳ Isolation و Cleanup تست‌های Mutating
+هر تستی که File/Folder/User/Tag/Share/Metadata یا Database state ایجاد یا تغییر می‌دهد باید resourceهای ساخته‌شده توسط خودش را track کند؛ از fixture/finalizer/context cleanup مناسب استفاده کند؛ cleanup را حتی در failure تا حد امکان اجرا کند؛ هرگز resource متعلق به کاربر یا گروه دیگر را حذف نکند؛ نام resourceهای تستی را collision-resistant انتخاب کند؛ در صورت باقی‌ماندن state diagnostics مشخص تولید کند؛ و سازگاری همزمان File System و Database را در cleanup در نظر بگیرد.
+
+### ۸.۴ معیار پذیرش تکمیلی
+[ ] Test runner هیچ path یا Python runtime hard-code شده‌ای ندارد.
+[ ] E2E credentials از source code خارج شده‌اند و مقدار واقعی در Git نیست.
+[ ] نبود credential باعث failure واضح و بدون افشای secret می‌شود.
+[ ] Testهای mutating دارای cleanup قابل اتکا هستند.
+[ ] failure pathها نیز cleanup را اجرا می‌کنند.
+[ ] Testها فقط state ساخته‌شده توسط خودشان را حذف می‌کنند.
+[ ] E2E suite در محیط توسعه و CI قابل پیکربندی است.
+[ ] این الزامات بخشی از Requirement 23 محسوب می‌شوند و Prompt مستقل برای آن‌ها لازم نیست.
