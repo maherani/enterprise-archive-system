@@ -388,8 +388,10 @@
 
         root.innerHTML = [
             '<div class="ea-container">',
-            '  <!-- Header -->',
-            '  <header class="ea-portal-header">',
+            '  <!-- Sticky Top Controls Section (Header, Search, Multi-Tag Filter & Breadcrumbs) -->',
+            '  <div class="ea-sticky-top-section" id="ea-sticky-top-section">',
+            '    <!-- Header -->',
+            '    <header class="ea-portal-header">',
             '    <div class="ea-header-brand">',
             '      <div class="ea-brand-icon">',
             '        <svg width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>',
@@ -435,6 +437,8 @@
             '',
             '  <!-- Active Filter Badges Ribbon -->',
             '  <div id="ea-active-ribbon-container"></div>',
+            '',
+            '  </div>',
             '',
             '  <!-- Controls Bar (Stats + View Toggle) -->',
             '  <div class="ea-controls-bar">',
