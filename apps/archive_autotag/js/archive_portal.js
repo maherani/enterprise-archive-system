@@ -1029,8 +1029,144 @@
         });
     }
 
+
+    // -------------------------------------------------------------------------
+    // Requirement 27: Responsive, Readable & User-Resizable Table Layout
+    // -------------------------------------------------------------------------
+    var DEFAULT_COL_WIDTHS = {
+        type: 50,
+        title: 380,
+        tags: 240,
+        size: 90,
+        date: 120,
+        actions: 140
+    };
+
+    var COL_CONSTRAINTS = {
+        type: { min: 40, max: 90 },
+        title: { min: 160, max: 850 },
+        tags: { min: 100, max: 500 },
+        size: { min: 70, max: 160 },
+        date: { min: 95, max: 200 },
+        actions: { min: 115, max: 220 }
+    };
+
+    function getTableWidthsStorageKey() {
+        var uid = (state.userRole && state.userRole.uid) || 'default';
+        return 'enterprise_archive_table_widths_v1_' + uid;
+    }
+
+    function loadTableWidths() {
+        try {
+            var raw = localStorage.getItem(getTableWidthsStorageKey());
+            if (raw) {
+                var parsed = JSON.parse(raw);
+                if (parsed && typeof parsed === 'object') {
+                    var widths = Object.assign({}, DEFAULT_COL_WIDTHS);
+                    Object.keys(DEFAULT_COL_WIDTHS).forEach(function (k) {
+                        var w = parseInt(parsed[k], 10);
+                        if (!isNaN(w) && w >= COL_CONSTRAINTS[k].min && w <= COL_CONSTRAINTS[k].max) {
+                            widths[k] = w;
+                        }
+                    });
+                    return widths;
+                }
+            }
+        } catch (e) {}
+        return Object.assign({}, DEFAULT_COL_WIDTHS);
+    }
+
+    function saveTableWidths(widths) {
+        try {
+            localStorage.setItem(getTableWidthsStorageKey(), JSON.stringify(widths));
+        } catch (e) {}
+    }
+
+    function resetTableWidths() {
+        try {
+            localStorage.removeItem(getTableWidthsStorageKey());
+        } catch (e) {}
+        state.tableWidths = Object.assign({}, DEFAULT_COL_WIDTHS);
+        renderDocumentList();
+    }
+
+    function initTableResizing(container) {
+        var table = container.querySelector('#ea-resizable-table');
+        if (!table) return;
+
+        var handles = container.querySelectorAll('.ea-resize-handle');
+        handles.forEach(function (handle) {
+            var colKey = handle.getAttribute('data-col');
+            if (!colKey || !COL_CONSTRAINTS[colKey]) return;
+
+            handle.addEventListener('mousedown', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                var startX = e.clientX;
+                var colEl = container.querySelector('#ea-col-' + colKey);
+                var startWidth = (state.tableWidths && state.tableWidths[colKey]) || DEFAULT_COL_WIDTHS[colKey];
+                var constraints = COL_CONSTRAINTS[colKey];
+
+                handle.classList.add('is-resizing');
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+
+                function onMouseMove(moveEvt) {
+                    var deltaX = startX - moveEvt.clientX; // RTL: drag left increases width
+                    var newWidth = Math.round(startWidth + deltaX);
+                    if (newWidth < constraints.min) newWidth = constraints.min;
+                    if (newWidth > constraints.max) newWidth = constraints.max;
+
+                    if (colEl) {
+                        colEl.style.width = newWidth + 'px';
+                    }
+                    if (!state.tableWidths) state.tableWidths = loadTableWidths();
+                    state.tableWidths[colKey] = newWidth;
+                }
+
+                function onMouseUp() {
+                    handle.classList.remove('is-resizing');
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                    saveTableWidths(state.tableWidths);
+                }
+
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+
+            // Double click to auto-fit / reset specific column
+            handle.addEventListener('dblclick', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var defW = DEFAULT_COL_WIDTHS[colKey];
+                if (!state.tableWidths) state.tableWidths = loadTableWidths();
+                state.tableWidths[colKey] = defW;
+                var colEl = container.querySelector('#ea-col-' + colKey);
+                if (colEl) colEl.style.width = defW + 'px';
+                saveTableWidths(state.tableWidths);
+            });
+        });
+
+        var resetBtn = container.querySelector('#ea-table-reset-widths');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                resetTableWidths();
+            });
+        }
+    }
+
     // Table View
     function renderTable(container) {
+        if (!state.tableWidths) {
+            state.tableWidths = loadTableWidths();
+        }
+        var tw = state.tableWidths;
+
         var rows = [];
 
         state.files.forEach(function (file) {
@@ -1045,12 +1181,18 @@
 
             rows.push(
                 '<tr data-file-id="' + file.id + '" data-is-dir="' + (isFolder ? 'true' : 'false') + '" data-folder-path="' + escapeHtml(file.path) + '" class="' + (isFolder ? 'ea-folder-row' : 'ea-file-row') + (isHighlighted ? ' ea-row-highlight' : '') + '" style="cursor: pointer;">',
-                '  <td style="width: 48px;"><span class="ea-mime-badge ' + meta.cls + '">' + meta.label + '</span></td>',
-                '  <td><strong>' + (isFolder ? '📁 ' : '') + escapeHtml(file.name) + '</strong>' + (file.metadata && file.metadata.subject ? '<div style="font-size:0.75rem; color:var(--ea-primary); margin-top:2px;">📋 ' + escapeHtml(file.metadata.subject) + (file.metadata.document_number ? ' (' + escapeHtml(file.metadata.document_number) + ')' : '') + '</div>' : '') + '<br><small style="color: var(--ea-text-subtle);">' + escapeHtml(file.parent_dir || file.path || 'ریشه بایگانی') + '</small></td>',
-                '  <td>' + (tagsText || '<span style="color:var(--ea-text-subtle); font-size:0.75rem;">—</span>') + '</td>',
-                '  <td style="direction: ltr; text-align: left;">' + sizeDisplay + '</td>',
-                '  <td>' + formatDate(file.mtime) + '</td>',
-                '  <td style="width: 140px; text-align: left;">',
+                '  <td class="ea-cell-nowrap" style="text-align: center;"><span class="ea-mime-badge ' + meta.cls + '">' + meta.label + '</span></td>',
+                '  <td title="' + escapeHtml(file.name + (file.metadata && file.metadata.subject ? ' - ' + file.metadata.subject : '')) + '">',
+                '    <div class="ea-cell-title-wrap">',
+                '      <strong>' + (isFolder ? '📁 ' : '') + escapeHtml(file.name) + '</strong>',
+                (file.metadata && file.metadata.subject ? '      <div class="ea-cell-meta-sub">📋 ' + escapeHtml(file.metadata.subject) + (file.metadata.document_number ? ' (' + escapeHtml(file.metadata.document_number) + ')' : '') + '</div>' : ''),
+                '    </div>',
+                '    <small class="ea-cell-path-sub" title="' + escapeHtml(file.parent_dir || file.path || 'ریشه بایگانی') + '">' + escapeHtml(file.parent_dir || file.path || 'ریشه بایگانی') + '</small>',
+                '  </td>',
+                '  <td><div class="ea-cell-tags-wrap">' + (tagsText || '<span style="color:var(--ea-text-subtle); font-size:0.75rem;">—</span>') + '</div></td>',
+                '  <td class="ea-cell-nowrap" style="direction: ltr; text-align: left;">' + sizeDisplay + '</td>',
+                '  <td class="ea-cell-nowrap">' + formatDate(file.mtime) + '</td>',
+                '  <td class="ea-cell-nowrap" style="text-align: left;">',
                 '    <div style="display: flex; gap: 6px; justify-content: flex-end;">',
 
                 (state.userRole && state.userRole.is_admin ? 
@@ -1070,23 +1212,52 @@
             );
         });
 
+        var colGroupHtml = [
+            '<colgroup>',
+            '  <col id="ea-col-type" style="width: ' + tw.type + 'px;">',
+            '  <col id="ea-col-title" style="width: ' + tw.title + 'px;">',
+            '  <col id="ea-col-tags" style="width: ' + tw.tags + 'px;">',
+            '  <col id="ea-col-size" style="width: ' + tw.size + 'px;">',
+            '  <col id="ea-col-date" style="width: ' + tw.date + 'px;">',
+            '  <col id="ea-col-actions" style="width: ' + tw.actions + 'px;">',
+            '</colgroup>'
+        ].join('');
+
+        var theadHtml = [
+            '<thead>',
+            '  <tr>',
+            '    <th data-col="type"><div class="ea-th-content"><span>نوع</span></div><div class="ea-resize-handle" data-col="type" title="تغییر عرض ستون نوع"></div></th>',
+            '    <th data-col="title"><div class="ea-th-content"><span>عنوان سند و مسیر</span></div><div class="ea-resize-handle" data-col="title" title="تغییر عرض ستون عنوان"></div></th>',
+            '    <th data-col="tags"><div class="ea-th-content"><span>برچسب‌ها</span></div><div class="ea-resize-handle" data-col="tags" title="تغییر عرض ستون برچسب‌ها"></div></th>',
+            '    <th data-col="size" style="direction: ltr; text-align: left;"><div class="ea-th-content"><span>حجم</span></div><div class="ea-resize-handle" data-col="size" title="تغییر عرض ستون حجم"></div></th>',
+            '    <th data-col="date"><div class="ea-th-content"><span>تاریخ</span></div><div class="ea-resize-handle" data-col="date" title="تغییر عرض ستون تاریخ"></div></th>',
+            '    <th data-col="actions" style="text-align: left;"><div class="ea-th-content"><span>عملیات</span></div></th>',
+            '  </tr>',
+            '</thead>'
+        ].join('');
+
+        var toolbarHtml = [
+            '<div class="ea-table-toolbar">',
+            '  <span>نمای جدولی اسناد بایگانی (ستون‌های قابل تغییر اندازه با کشیدن ماوس)</span>',
+            '  <button type="button" class="ea-table-reset-btn" id="ea-table-reset-widths" title="بازنشانی اندازه تمام ستون‌ها به حالت پیش‌فرض">',
+            '    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>',
+            '    <span>بازنشانی اندازه ستون‌ها</span>',
+            '  </button>',
+            '</div>'
+        ].join('');
+
         container.innerHTML = [
             '<div class="ea-table-container">',
-            '  <table class="ea-table">',
-            '    <thead>',
-            '      <tr>',
-            '        <th>نوع</th>',
-            '        <th>عنوان سند و مسیر</th>',
-            '        <th>برچسب‌ها</th>',
-            '        <th style="direction: ltr; text-align: left;">حجم</th>',
-            '        <th>تاریخ</th>',
-            '        <th style="text-align: left;">عملیات</th>',
-            '      </tr>',
-            '    </thead>',
+            toolbarHtml,
+            '  <table class="ea-table" id="ea-resizable-table">',
+            colGroupHtml,
+            theadHtml,
             '    <tbody>' + rows.join('') + '</tbody>',
             '  </table>',
             '</div>'
         ].join('');
+
+        initTableResizing(container);
 
         container.querySelectorAll('tbody tr').forEach(function (tr) {
             tr.addEventListener('click', function (e) {
