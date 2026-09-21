@@ -1250,8 +1250,14 @@ body[theme="dark"] :root,
 
 .ea-modal-card-lg {
   width: 96vw;
-  max-width: 1220px;
-  max-height: 88vh;
+  max-width: 1280px;
+  max-height: 90vh;
+}
+
+.ea-modal-card-cartable {
+  width: 96vw;
+  max-width: 1320px;
+  max-height: 90vh;
 }
 
 .ea-modal-header {
@@ -1423,8 +1429,9 @@ body[theme="dark"] :root,
 /* Requests Table & Responsive Layout */
 .ea-req-table-wrap {
   width: 100%;
-  overflow-x: hidden !important;
+  overflow-x: auto !important;
   box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
 }
 
 .ea-req-table {
@@ -1434,6 +1441,7 @@ body[theme="dark"] :root,
   text-align: right;
   font-size: 0.84rem;
   table-layout: auto;
+  min-width: 860px;
 }
 
 .ea-req-table th {
@@ -1630,7 +1638,7 @@ body[theme="dark"] :root,
 
 
 /* Group Admin Tag Governance Enhancements */
-.ea-modal-card-lg {
+.ea-modal-card-tag-mgmt {
   max-width: 680px;
   width: 92%;
 }

@@ -2364,7 +2364,7 @@
         overlay.id = 'ea-active-modal';
         overlay.className = 'ea-modal-overlay';
         overlay.innerHTML = [
-            '<div class="ea-modal-card ea-modal-card-lg">',
+            '<div class="ea-modal-card ea-modal-card-lg ea-modal-card-cartable" style="max-width: 1100px; width: 95vw; max-height: 90vh;">',
             '  <div class="ea-modal-header">',
             '    <div class="ea-modal-title">',
             '      <svg width="22" height="22" fill="none" stroke="#f97316" stroke-width="2.2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
@@ -2463,7 +2463,7 @@
         overlay.id = 'ea-active-modal';
         overlay.className = 'ea-modal-overlay';
         overlay.innerHTML = [
-            '<div class="ea-modal-card ea-modal-card-lg">',
+            '<div class="ea-modal-card ea-modal-card-lg ea-modal-card-cartable" style="max-width: 1280px; width: 96vw; max-height: 90vh;">',
             '  <div class="ea-modal-header">',
             '    <div class="ea-modal-title">',
             '      <svg width="22" height="22" fill="none" stroke="#f97316" stroke-width="2.2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polyline points="9 11 12 14 22 4"/></svg>',
@@ -2539,9 +2539,9 @@
 
                 if (req.status === 'pending') {
                     actionsHtml = [
-                        '<div class="ea-table-actions">',
-                        '  <button type="button" class="ea-btn ea-btn-sm ea-btn-approve" data-id="' + req.id + '" data-folder-name="' + escapeHtml(req.folder_name) + '" data-group-id="' + escapeHtml(req.group_id) + '">✔ تأیید و ساخت</button>',
-                        '  <button type="button" class="ea-btn ea-btn-sm ea-btn-reject" data-id="' + req.id + '" data-folder-name="' + escapeHtml(req.folder_name) + '">✖ رد درخواست</button>',
+                        '<div class="ea-table-actions" style="display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:nowrap;">',
+                        '  <button type="button" class="ea-btn ea-btn-sm ea-btn-approve" data-id="' + req.id + '" data-folder-name="' + escapeHtml(req.folder_name) + '" data-group-id="' + escapeHtml(req.group_id) + '" style="white-space:nowrap;padding:6px 12px;font-size:0.82rem;">✔ تأیید و ساخت</button>',
+                        '  <button type="button" class="ea-btn ea-btn-sm ea-btn-reject" data-id="' + req.id + '" data-folder-name="' + escapeHtml(req.folder_name) + '" style="white-space:nowrap;padding:6px 12px;font-size:0.82rem;">✖ رد درخواست</button>',
                         '</div>'
                     ].join('\n');
                 } else if (req.status === 'rejected' && req.rejection_reason) {
@@ -2558,12 +2558,12 @@
                 return [
                     '<tr>',
                     '  <td style="text-align:center;font-weight:700;color:var(--ea-text-muted);font-size:0.8rem;white-space:nowrap;">#' + toPersianDigits(req.id) + '</td>',
-                    '  <td style="word-break:break-word;min-width:180px;"><strong style="color:#ffffff;font-size:0.9rem;">' + escapeHtml(req.folder_name) + '</strong>' + pathInfo + descInfo + '</td>',
+                    '  <td style="word-break:break-word;min-width:240px;"><strong style="color:#ffffff;font-size:0.92rem;">' + escapeHtml(req.folder_name) + '</strong>' + pathInfo + descInfo + '</td>',
                     '  <td style="text-align:center;white-space:nowrap;"><span class="ea-meta-tag-chip" style="margin:0;font-size:0.76rem;padding:2px 8px;">' + escapeHtml(req.group_id) + '</span></td>',
                     '  <td style="text-align:center;font-size:0.8rem;word-break:break-all;">' + escapeHtml(req.requester_uid) + '</td>',
                     '  <td style="text-align:center;font-size:0.78rem;color:var(--ea-text-muted);white-space:nowrap;">' + formatDate(req.created_at) + '</td>',
                     '  <td style="text-align:center;white-space:nowrap;">' + statusHtml + '</td>',
-                    '  <td style="text-align:center;min-width:130px;">' + actionsHtml + '</td>',
+                    '  <td style="text-align:center;min-width:200px;">' + actionsHtml + '</td>',
                     '</tr>'
                 ].join('\n');
             }).join('\n');
@@ -2573,13 +2573,13 @@
                 '  <table class="ea-req-table">',
                 '    <thead>',
                 '      <tr>',
-                '        <th style="width:50px;text-align:center;">شناسه</th>',
-                '        <th style="min-width:180px;text-align:right;">نام پوشه و توضیحات</th>',
-                '        <th style="width:70px;text-align:center;">گروه</th>',
-                '        <th style="width:90px;text-align:center;">ادمین متقاضی</th>',
-                '        <th style="width:105px;text-align:center;">تاریخ ثبت</th>',
-                '        <th style="width:115px;text-align:center;">وضعیت</th>',
-                '        <th style="width:140px;text-align:center;">عملیات</th>',
+                '        <th style="width:60px;text-align:center;">شناسه</th>',
+                '        <th style="min-width:240px;text-align:right;">نام پوشه و توضیحات</th>',
+                '        <th style="width:85px;text-align:center;">گروه</th>',
+                '        <th style="width:110px;text-align:center;">ادمین متقاضی</th>',
+                '        <th style="width:120px;text-align:center;">تاریخ ثبت</th>',
+                '        <th style="width:125px;text-align:center;">وضعیت</th>',
+                '        <th style="width:200px;min-width:200px;text-align:center;">عملیات</th>',
                 '      </tr>',
                 '    </thead>',
                 '    <tbody>' + rows + '</tbody>',
