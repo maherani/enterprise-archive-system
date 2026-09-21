@@ -138,6 +138,23 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
     - Tag-in-use protection returning HTTP 409 Conflict (`TAG_IN_USE`) for active files, requiring explicit cascade confirmation (`force: true`).
     - Self-healing reconciliation engine (`reconcileGroupTags`) and API `/api/group-tags/reconcile` resolving orphaned tags and ghost records.
     - Live UI badges for tag file counts, force-delete confirmation modals, and one-click reconciliation in Archive Portal.
+21. **Mandatory Document Metadata Capture Before Archive Upload (v2.4.0)**:
+    - Fail-closed metadata registration before file ingestion with HTTP 422 enforcement.
+    - PostgreSQL table oc_archive_document_metadata capturing title, tracking/letter number, date, classification, and organization.
+    - Staging upload modal with Persian calendar picker, metadata validation, and quick-view drawer integration.
+22. **Secure System Administrator File & Folder Deletion (v2.6.0)**:
+    - Exclusive deletion permissions reserved for System Administrators (OPERATION_DELETE = 8).
+    - Cascading atomic cleanup of permissions, ownership, tags, and document metadata.
+    - Double-confirmation security modal with destructive warning banners and audit logging via ReliableAuditService.
+23. **Responsive, Readable and User-Resizable Archive Table (v2.5.0)**:
+    - Interactive draggable column resizing with <colgroup> and RTL math support.
+    - 3-line clamping with ellipsis (-webkit-line-clamp: 3) and full hover tooltips.
+    - Per-user localStorage persistence and one-click reset to default dimensions.
+24. **Central Tag Management for System Administrator (v2.7.0)**:
+    - Unified super-admin modal (CentralTagModal) for global and group tag creation, catalog inspection, and resource assignment.
+    - Pessimistic row locking (FOR UPDATE) with HTTP 409 Conflict protection against active tag deletion.
+    - Full drawer integration for file and folder tag manipulation, reconciliation engine, and tamper-proof audit trail.
+
 
 ---
 

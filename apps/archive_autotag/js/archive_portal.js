@@ -3014,7 +3014,7 @@
                             '  <td style="padding: 10px 14px; font-weight: 700; color: var(--ea-text-main);"><span class="ea-mini-tag" style="font-size: 0.82rem;">🏷️ ' + escapeHtml(t.clean_name || t.name) + '</span>' + statBadge + '</td>',
                             '  <td style="padding: 10px 14px; color: var(--ea-text-muted);">' + toPersianDigits(fc) + ' سند</td>',
                             '  <td style="padding: 10px 14px; text-align: center;">',
-                            '    <button class="ea-btn" style="padding: 4px 10px; font-size: 0.8rem; color: #ef4444; border-color: rgba(239,68,68,0.3);" onclick="window._eaDeleteGroupTag(\'' + escapeHtml(grp) + '\', ' + t.id + ', \'' + escapeHtml(t.clean_name || t.name) + '\', ' + fc + ')">🗑️ حذف</button>',
+                            (t.can_delete !== false ? '    <button class="ea-btn" style="padding: 4px 10px; font-size: 0.8rem; color: #ef4444; border-color: rgba(239,68,68,0.3);" onclick="window._eaDeleteGroupTag(\'' + escapeHtml(grp) + '\', ' + t.id + ', \'' + escapeHtml(t.clean_name || t.name) + '\', ' + fc + ')">🗑️ حذف</button>' : '    <span style="color: var(--ea-text-dim); font-size: 0.75rem;">🔒 تگ سیستمی</span>'),
                             '  </td>',
                             '</tr>'
                         );

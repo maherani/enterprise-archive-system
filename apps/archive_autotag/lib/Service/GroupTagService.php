@@ -201,6 +201,17 @@ class GroupTagService {
                 throw new SecurityPermissionException("Forbidden: Tag #{$tagId} does not belong to group '{$groupId}'.");
             }
 
+            // 5b. Strictly disallow deletion of system-generated or admin-created tags by Group Admin
+            $ownerUid = $ownRow ? (string)($ownRow['owner_uid'] ?? '') : '';
+            $expectedPrefix = "[{$groupId}] ";
+            $hasGroupPrefix = str_starts_with(strtolower($tagName), strtolower($expectedPrefix));
+
+            if ($ownerUid === 'system' || $ownerUid === 'admin' || !$hasGroupPrefix) {
+                $this->db->rollBack();
+                $this->logAuditEvent($actorUid, $groupId, 'delete_tag', $tagId, $tagName, null, null, null, 'failure', "Tag #{$tagId} is a system or admin-created tag and cannot be deleted by group admin '{$actorUid}'.");
+                throw new SecurityPermissionException("عملیات غیرمجاز: تگ‌های سیستمی و خودکار، و تگ‌های ایجادشده توسط مدیر ارشد سامانه، توسط ادمین گروه قابل حذف نمی‌باشند.");
+            }
+
             // 6. Check if tag is in use (assigned to files)
             $usageCount = $this->getTagUsageCount($tagId);
             if ($usageCount > 0 && !$force) {
@@ -408,10 +419,18 @@ class GroupTagService {
         }
 
         $qb = $this->db->getQueryBuilder();
-        $qb->select('t.id', 't.name')
+        $qb->select('t.id', 't.name', 'o.owner_uid')
            ->from('systemtag', 't')
            ->innerJoin('t', 'archive_tag_groups', 'g', $qb->expr()->eq('t.id', 'g.tag_id'))
+           ->leftJoin('t', 'archive_tag_ownership', 'o', $qb->expr()->eq('t.id', 'o.tag_id'))
            ->where($qb->expr()->ilike('g.group_id', $qb->createNamedParameter($groupId)))
+           ->andWhere($qb->expr()->like('t.name', $qb->createNamedParameter("[{$groupId}] %")))
+           ->andWhere(
+               $qb->expr()->orX(
+                   $qb->expr()->isNull('o.owner_uid'),
+                   $qb->expr()->notIn('o.owner_uid', $qb->createNamedParameter(['system', 'admin'], IQueryBuilder::PARAM_STR_ARRAY))
+               )
+           )
            ->orderBy('t.name', 'ASC');
         $rows = $qb->executeQuery()->fetchAllAssociative();
 

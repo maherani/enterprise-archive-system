@@ -758,3 +758,61 @@ Status: **Completed**
   - Automated Security Suite: `tests/test_admin_group_sharing.py` (16/16 PASS, 100%).
   - Playwright E2E Suite: `tests/e2e/test_07_group_sharing_and_management.py` (2/2 PASS, 100%).
   - Full Regression Suites: Zero regressions across `test_access_aware_navigation.py` (7/7 PASS), `test_vertical_scroll_and_layout.py` (4/4 PASS), and `test_group_tag_isolation.py` (6/6 PASS).
+
+### Requirement 25: Mandatory Document Metadata Capture Before Archive Upload (Completed)
+- **Status:** Fully Implemented, Verified & Documented (v2.4.0)
+- **Mandatory Metadata Enforcement:** Intercepts document upload flows requiring mandatory metadata registration before archival. Unregistered uploads are strictly rejected with HTTP 422 Unprocessable Entity (METADATA_REQUIRED).
+- **Data Model:** Backed by PostgreSQL table oc_archive_document_metadata capturing document title, tracking/letter number, document date, classification, organization, and custom attributes.
+- **Workflow & UI Integration:** Staging upload modal with Persian date picker, real-time validation, and automated binding upon file ingestion.
+- **Drawer Integration:** Viewing and editing document metadata directly in the right quick-view drawer.
+- **Test Verification:**
+  - Automated Backend Suite: 	ests/test_document_metadata.py (7/7 PASS, 100%).
+  - Playwright E2E Suite: 	ests/e2e/test_10_mandatory_metadata_upload.py (1/1 PASS, 100%).
+- **Documentation:** Formal 23-section standard in docs/requirements/25_mandatory_document_metadata.md.
+
+### Requirement 26: Secure System Administrator File & Folder Deletion (Completed)
+- **Status:** Fully Implemented, Hardened & Operative (v2.6.0)
+- **Role Boundary & Authorization:** Exclusive deletion authority granted solely to System Administrators (dmin). Regular users and group admins cannot delete archive resources (HTTP 403 Forbidden).
+- **CentralPermissionResolver Integration:** Evaluates CentralPermissionResolver::OPERATION_DELETE (bitmask 8).
+- **Cascading Atomic Deletion:** Deletes files/folders along with cascading removal of grants (oc_archive_file_grants), ownership (oc_archive_file_ownership), tag mappings, and document metadata (oc_archive_document_metadata).
+- **Audit Logging:** Every deletion transaction is recorded in ReliableAuditService (oc_archive_permission_audit) with actor UID, resource ID, target path, and outcome.
+- **UI Safety Confirmation:** High-visibility deletion modal with double-confirmation, warning banners, and distinct folder vs. file impact descriptions.
+- **Verification:**
+  - Automated Backend Suite: 	ests/test_secure_admin_deletion.py (8/8 PASS, 100%).
+  - Playwright E2E Suite: 	ests/e2e/test_11_secure_admin_deletion.py (2/2 PASS, 100%).
+- **Documentation:** docs/requirements/26_secure_admin_deletion.md.
+
+### Requirement 27: Responsive, Readable and User-Resizable Archive Table (Completed)
+- **Status:** Fully Implemented & Verified (v2.5.0)
+- **Resizable Table Architecture:** Implemented interactive column resizing using HTML5 <colgroup> and <col> elements with custom draggable handles on column headers.
+- **3-Line Clamping with Ellipsis:** Long file and path names clamp cleanly at maximum 3 lines with ellipsis (-webkit-line-clamp: 3), displaying full titles on hover via tooltips.
+- **RTL-Aware Resizing:** Resizing math perfectly inverted and calculated for Right-to-Left (RTL) Persian typography.
+- **Client-Side Persistence:** Resized column widths persist per user in browser localStorage, with instant reset option to default dimensions via «🔄 بازنشانی عرض ستون‌ها».
+- **Performance:** Optimized 
+equestAnimationFrame dragging with zero full-table re-renders.
+- **Verification:**
+  - Playwright E2E Suite: 	ests/e2e/test_12_resizable_table.py (2/2 PASS, 100%).
+- **Documentation:** docs/requirements/27_responsive_resizable_archive_table.md.
+
+### Requirement 28: Central Tag Management for System Administrator (Completed)
+- **Status:** Fully Implemented, Hardened & Operative (v2.7.0)
+- **Unified Super-Admin Console:** Dedicated administrative modal (CentralTagModal) accessible via «🏷️ مدیریت متمرکز تگ‌ها» in the portal header.
+- **Lifecycle & Governance Operations:** Complete tag creation (Global System Tags and Group Scoped Tags), tag catalog with real-time search, resource count inspection, and atomic deletion.
+- **Concurrency & Conflict Protection:** Pessimistic row locking (FOR UPDATE) with HTTP 409 Conflict (TAG_IN_USE) requiring explicit force confirmation when deleting active tags.
+- **Resource Drawer Assignment:** Dynamic assignment and removal of tags directly from file/folder quick-view drawers.
+- **Audit & Self-Healing:** Integrated with ReliableAuditService and reconciliation engine (
+econcileCentralTags).
+- **Verification:**
+  - Automated Backend Suite: 	ests/test_central_tag_management.py (7/7 PASS, 100%).
+  - Playwright E2E Suite: 	ests/e2e/test_13_central_tag_management.py (3/3 PASS, 100%).
+  - Master Runner: All 34 browser E2E scenarios passing (
+un_e2e_tests.py, 100%).
+- **Documentation:** docs/requirements/28_central_tag_management.md.
+
+### UI & Security Refinements: Cartable Modal & System Tag Deletion Lockdown
+- **Cartable Modal Sizing Fix:** Expanded width (max-width: 1320px, width: 96vw, overflow-x: auto) for the Super Admin Folder Requests Cartable modal, ensuring all 7 columns (including وضعیت and عملیات / Approve & Reject) are visible and responsive across viewports without clipping.
+- **System Tag Deletion Guard for Group Admins:**
+  - GroupTagService::listGroupTags filtered to exclusively show custom tags created by the group admin for their group ([groupId] ...). System-generated folder tags (e.g. CERT, SOC) and admin-created tags are excluded from the group admin modal.
+  - GroupTagService::deleteGroupTag strictly blocks deletion of tags owned by system or dmin or missing the group prefix, throwing SecurityPermissionException (HTTP 403 Forbidden).
+  - Frontend UI defense-in-depth displays 🔒 تگ سیستمی for protected tags if ever received.
+  - Documented in docs/requirements/15_group_admin_tag_governance.md Section 5.4.
