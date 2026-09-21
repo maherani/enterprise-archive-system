@@ -175,12 +175,7 @@ class CentralPermissionResolver implements IPermissionResolver {
 
         // Rule 4: Native Nextcloud Shares (oc_share) - DAC Layer
         $sQb = $this->db->getQueryBuilder();
-        $shareSourceIds = [(string)$fileId];
-        if ($owner === 'admin' || $owner === 'system' || $owner === null) {
-            foreach ($ancestorIds as $aid) {
-                $shareSourceIds[] = (string)$aid;
-            }
-        }
+        $shareSourceIds = array_map('strval', array_unique(array_merge([$fileId], $ancestorIds)));
         $sOrConds = [
             $sQb->expr()->andX(
                 $sQb->expr()->in('share_type', $sQb->createNamedParameter([0, 2], IQueryBuilder::PARAM_INT_ARRAY)),
@@ -275,6 +270,15 @@ class CentralPermissionResolver implements IPermissionResolver {
                 if ($grantDecision->allowed) {
                     return $grantDecision;
                 }
+            }
+        }
+
+        // Check if folder (or any ancestor) has an explicit grant or group share
+        $folderFileId = $this->getFileIdByPath($cleanPath);
+        if ($folderFileId > 0) {
+            $grantDecision = $this->evaluateFile($userId, $folderFileId, $operation);
+            if ($grantDecision->allowed) {
+                return $grantDecision;
             }
         }
 
@@ -517,10 +521,21 @@ class CentralPermissionResolver implements IPermissionResolver {
 
     private function getFileIdByPath(string $path): int {
         $clean = trim(trim($path, '/'), '.');
+        if ($clean === '') {
+            return 0;
+        }
         $qb = $this->db->getQueryBuilder();
         $qb->select('fileid')
            ->from('filecache')
-           ->where($qb->expr()->like('path', $qb->createNamedParameter('%' . $clean)))
+           ->where(
+               $qb->expr()->orX(
+                   $qb->expr()->eq('path', $qb->createNamedParameter($clean)),
+                   $qb->expr()->eq('path', $qb->createNamedParameter('files/' . $clean)),
+                   $qb->expr()->like('path', $qb->createNamedParameter('%/' . $clean)),
+                   $qb->expr()->like('path', $qb->createNamedParameter('%' . $clean))
+               )
+           )
+           ->orderBy('fileid', 'ASC')
            ->setMaxResults(1);
         $fid = $qb->executeQuery()->fetchOne();
         return $fid ? (int)$fid : 0;

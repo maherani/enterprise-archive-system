@@ -73,6 +73,43 @@ class AutoTagService {
      * Example: For /Enterprise_Archive/Finance/2026/Invoices/doc.pdf
      * Returns: ['Enterprise_Archive', 'Finance', '2026', 'Invoices']
      */
+    /**
+     * Retrieve any group names associated via Nextcloud group shares (share_type = 1)
+     * on this node or its parent/ancestor folders.
+     */
+    public function getAssociatedGroupNames(Node $node): array {
+        $checkIds = [(int)$node->getId()];
+        $curr = $node->getParent();
+        while ($curr !== null) {
+            $name = $curr->getName();
+            if ($name === '' || $name === 'files' || $curr->getParent() === null) {
+                break;
+            }
+            $checkIds[] = (int)$curr->getId();
+            $curr = $curr->getParent();
+        }
+
+        $groupNames = [];
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('share_with')
+               ->from('share')
+               ->where($qb->expr()->in('item_source', $qb->createNamedParameter(array_map('strval', $checkIds), \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)))
+               ->andWhere($qb->expr()->eq('share_type', $qb->createNamedParameter(1))); // IShare::TYPE_GROUP
+            $rows = $qb->executeQuery()->fetchAllAssociative();
+            foreach ($rows as $row) {
+                $grp = trim((string)$row['share_with']);
+                if ($grp !== '') {
+                    $groupNames[] = $grp;
+                }
+            }
+        } catch (\Throwable $t) {
+            $this->logger->warning("AutoTagService: Failed to query group shares for node: " . $t->getMessage());
+        }
+
+        return array_values(array_unique($groupNames));
+    }
+
     public function getAncestorFolderNames(Node $node): array {
         $ancestors = [];
         $current = $node->getParent();
@@ -111,12 +148,14 @@ class AutoTagService {
             }
 
             $ancestorNames = $this->getAncestorFolderNames($node);
-            if (empty($ancestorNames)) {
+            $groupNames = $this->getAssociatedGroupNames($node);
+            $allTagNames = array_values(array_unique(array_merge($ancestorNames, $groupNames)));
+            if (empty($allTagNames)) {
                 return;
             }
 
             $tagIdsToAssign = [];
-            foreach ($ancestorNames as $tagName) {
+            foreach ($allTagNames as $tagName) {
                 $tag = $this->getOrCreateRestrictedTag($tagName);
                 $tagIdsToAssign[] = (string)$tag->getId();
             }

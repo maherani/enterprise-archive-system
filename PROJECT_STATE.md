@@ -743,3 +743,18 @@ Status: **Completed**
   5. Harmonized code comments in `Application.php`, `routes.php`, and `global_archive_nav.js`, and synced to Nextcloud container.
   6. Updated E2E test suite in `tests/e2e/test_01_auth_and_portal.py` (`test_03_global_navigation_bar`) and `tests/e2e/pages/portal_page.py` (`NAV_ITEMS`, `get_nav_items`).
 - **Verification:** All 7 tests in `tests/test_access_aware_navigation.py` passed (100% OK).
+
+### Requirement 24: Admin Group Sharing, Group File Management & Isolated Group Tag Governance (Completed)
+- **Status:** Fully Implemented, Verified & Operative (v2.3.0)
+- **Dynamic Group Sharing Engine:** Implemented `GroupShareService` (`apps/archive_autotag/lib/Service/GroupShareService.php`) facilitating fine-grained resource sharing with user groups (`Compliance_Unit`, `SOC`, `CERT`, etc.) with permissions `Read=1`, `Update=2`, `Create=4`, `Delete=8`, `Share=16`, `All=31`.
+- **Dual-Layer Synchronization:** Synchronizes native Nextcloud shares (`oc_share` where `share_type = 1`) with Archive Mandatory Access Control (`oc_archive_file_grants`).
+- **CentralPermissionResolver Rule 4 Integration:** Evaluates file and ancestor IDs to allow inherited group permissions on nested files and folders within shared directories.
+- **Fail-Closed Permissions & Upload Restrictions:** `ArchiveFileIsolationWrapper` evaluates parent folder permissions for new file uploads (`CREATE`). Read-only shares reject uploads with HTTP 403 Forbidden; authorized groups with `Create` permission upload successfully (HTTP 201/204).
+- **Automated Group Tagging (`AutoTagService`):** Files uploaded into shared folders automatically receive the corresponding group tag (e.g. `Compliance_Unit`), deterministically reusing existing tags in `oc_systemtag` without duplicates.
+- **Cross-Group Tag Isolation & Zero-Bypass:** Enforces scoped group tag governance via `GroupTagService`. Cross-group tag creation or assignment is rejected with HTTP 403 Forbidden. System administrators cannot manage group tags without explicit subadmin role assignment.
+- **Reliable Audit Integration:** Records every group share lifecycle event (`GROUP_SHARE_CREATED`, `GROUP_SHARE_UPDATED`, `GROUP_SHARE_REMOVED`) in `ReliableAuditService` (`oc_archive_permission_audit`).
+- **Interactive UI & Modal:** Added sharing action button (`👥 اشتراک با گروه`) in archive portal table view and quick view drawer. Integrated `GroupShareModal` (`#ea-group-share-modal`) with active shares listing, group select dropdown, permission checkboxes, quick presets, and inline revocation. Non-admin users are strictly isolated from sharing controls.
+- **Test Verification:**
+  - Automated Security Suite: `tests/test_admin_group_sharing.py` (16/16 PASS, 100%).
+  - Playwright E2E Suite: `tests/e2e/test_07_group_sharing_and_management.py` (2/2 PASS, 100%).
+  - Full Regression Suites: Zero regressions across `test_access_aware_navigation.py` (7/7 PASS), `test_vertical_scroll_and_layout.py` (4/4 PASS), and `test_group_tag_isolation.py` (6/6 PASS).

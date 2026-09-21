@@ -704,8 +704,12 @@
                 '  <td>' + tagsText + '</td>',
                 '  <td style="direction: ltr; text-align: left;">' + toPersianDigits(file.human_size) + '</td>',
                 '  <td>' + formatDate(file.mtime) + '</td>',
-                '  <td style="width: 90px; text-align: left;">',
+                '  <td style="width: 120px; text-align: left;">',
                 '    <div style="display: flex; gap: 6px; justify-content: flex-end;">',
+                (state.userRole && state.userRole.is_admin ? 
+                '      <button class="ea-icon-btn ea-table-share" data-file-id="' + file.id + '" data-file-name="' + escapeHtml(file.name) + '" title="اشتراک با گروه">' +
+                '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>' +
+                '      </button>' : ''),
                 '      <button class="ea-icon-btn ea-table-preview" data-file-id="' + file.id + '" title="مشاهده جزئیات">',
                 '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
                 '      </button>',
@@ -751,6 +755,15 @@
                 var fid = parseInt(btn.getAttribute('data-file-id'), 10);
                 var f = state.files.find(function (item) { return item.id === fid; });
                 if (f) openDrawer(f);
+            });
+        });
+
+        container.querySelectorAll('.ea-table-share').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var fid = parseInt(btn.getAttribute('data-file-id'), 10);
+                var fname = btn.getAttribute('data-file-name') || ('سند ' + fid);
+                openGroupShareModal(fid, fname, 'file');
             });
         });
     }
@@ -850,7 +863,7 @@
         }
 
         if (actionsEl) {
-            actionsEl.innerHTML = [
+            var actionButtons = [
                 '<a href="' + escapeHtml(file.download_url) + '" class="ea-btn ea-btn-primary" download>',
                 '  <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
                 '  <span>دانلود سند</span>',
@@ -863,7 +876,16 @@
                 '  <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
                 '  <span>مکان در پوشه</span>',
                 '</a>'
-            ].join('\n');
+            ];
+            if (state.userRole && state.userRole.is_admin) {
+                actionButtons.push(
+                    '<button class="ea-btn ea-btn-secondary" id="ea-drawer-share-btn" title="اشتراک‌گذاری با گروه‌ها">',
+                    '  <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
+                    '  <span>اشتراک با گروه</span>',
+                    '</button>'
+                );
+            }
+            actionsEl.innerHTML = actionButtons.join('\n');
 
             var copyBtn = document.getElementById('ea-drawer-copy-btn');
             if (copyBtn) {
@@ -888,6 +910,13 @@
             var locateBtn = document.getElementById('ea-drawer-locate-btn');
             if (locateBtn) {
                 locateBtn.addEventListener('click', onLocateClick);
+            }
+
+            var shareBtn = document.getElementById('ea-drawer-share-btn');
+            if (shareBtn) {
+                shareBtn.addEventListener('click', function () {
+                    openGroupShareModal(file.id, file.name, 'file');
+                });
             }
 
             if (matchedSubadminGroup) {
@@ -918,6 +947,7 @@
                 } else {
                     renderWorkflowActions();
                 }
+                renderDocumentList();
             }
         })
         .catch(function () {});
@@ -3433,8 +3463,6 @@
         });
     }
 
-})();
-
     // Tab 6: Audit Reliability & Dead Letter Queue (DLQ) Monitor
     function renderAuditReliabilityTab(body) {
         body.innerHTML = [
@@ -3625,3 +3653,261 @@
             ].join('\n');
         });
     }
+
+
+    // -------------------------------------------------------------------------
+    // Admin Group Share Modal & Operations (Requirement 24)
+    // -------------------------------------------------------------------------
+    function openGroupShareModal(resourceId, resourceName, resourceType) {
+        var existingModal = document.getElementById('ea-group-share-modal');
+        if (existingModal) existingModal.remove();
+
+        var modal = document.createElement('div');
+        modal.id = 'ea-group-share-modal';
+        modal.className = 'ea-share-modal-backdrop';
+        modal.innerHTML = [
+            '<div class="ea-share-modal-card">',
+            '  <div class="ea-share-modal-header">',
+            '    <h3>👥 اشتراک‌گذاری با گروه‌ها: <span style="color:var(--ea-primary,#38bdf8);">' + escapeHtml(resourceName) + '</span></h3>',
+            '    <button class="ea-btn" id="ea-close-share-modal" style="padding:4px 8px;min-width:32px;">✕</button>',
+            '  </div>',
+            '  <div class="ea-share-modal-body">',
+            '    <div>',
+            '      <h4 style="margin:0 0 10px 0;font-size:0.95rem;color:var(--ea-text-main);">گروه‌های دارای دسترسی</h4>',
+            '      <div id="ea-shares-list-container" class="ea-share-table-wrap">',
+            '        <div style="padding:16px;text-align:center;color:var(--ea-text-muted);">در حال بارگذاری اشتراک‌ها...</div>',
+            '      </div>',
+            '    </div>',
+            '    <div class="ea-share-form">',
+            '      <h4 style="margin:0;font-size:0.95rem;color:var(--ea-text-main);">افزودن یا ویرایش اشتراک گروه</h4>',
+            '      <div>',
+            '        <label style="display:block;margin-bottom:6px;font-size:0.85rem;color:var(--ea-text-muted);">انتخاب گروه کاربری:</label>',
+            '        <select id="ea-share-group-select" class="ea-input" style="width:100%;padding:8px 12px;background:#1e293b;border:1px solid #334155;color:#f1f5f9;border-radius:6px;">',
+            '          <option value="">در حال بارگذاری گروه‌ها...</option>',
+            '        </select>',
+            '      </div>',
+            '      <div>',
+            '        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">',
+            '          <label style="font-size:0.85rem;color:var(--ea-text-muted);">سطوح دسترسی مجاز:</label>',
+            '          <div style="display:flex;gap:6px;">',
+            '            <button type="button" class="ea-btn" id="ea-preset-ro-btn" style="font-size:0.75rem;padding:2px 8px;">فقط خواندنی</button>',
+            '            <button type="button" class="ea-btn" id="ea-preset-rw-btn" style="font-size:0.75rem;padding:2px 8px;">مشارکت کامل</button>',
+            '          </div>',
+            '        </div>',
+            '        <div class="ea-share-perms-grid">',
+            '          <label class="ea-share-perm-label"><input type="checkbox" id="ea-perm-read" value="1" checked disabled> <span>خواندن (Read)</span></label>',
+            '          <label class="ea-share-perm-label"><input type="checkbox" id="ea-perm-create" value="4"> <span>ایجاد فایل (Create)</span></label>',
+            '          <label class="ea-share-perm-label"><input type="checkbox" id="ea-perm-update" value="2"> <span>ویرایش (Update)</span></label>',
+            '          <label class="ea-share-perm-label"><input type="checkbox" id="ea-perm-delete" value="8"> <span>حذف (Delete)</span></label>',
+            '          <label class="ea-share-perm-label"><input type="checkbox" id="ea-perm-share" value="16"> <span>اشتراک (Share)</span></label>',
+            '        </div>',
+            '      </div>',
+            '      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">',
+            '        <span id="ea-share-status-msg" style="font-size:0.85rem;"></span>',
+            '        <button class="ea-btn ea-btn-primary" id="ea-submit-share-btn" style="padding:8px 18px;">ثبت و ذخیره اشتراک</button>',
+            '      </div>',
+            '    </div>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.appendChild(modal);
+
+        modal.querySelector('#ea-close-share-modal').addEventListener('click', function () {
+            modal.remove();
+        });
+        modal.addEventListener('click', function (e) {
+            if (e.target === modal) modal.remove();
+        });
+
+        var groupSelect = modal.querySelector('#ea-share-group-select');
+        var sharesContainer = modal.querySelector('#ea-shares-list-container');
+        var statusMsg = modal.querySelector('#ea-share-status-msg');
+        var submitBtn = modal.querySelector('#ea-submit-share-btn');
+
+        var permRead = modal.querySelector('#ea-perm-read');
+        var permCreate = modal.querySelector('#ea-perm-create');
+        var permUpdate = modal.querySelector('#ea-perm-update');
+        var permDelete = modal.querySelector('#ea-perm-delete');
+        var permShare = modal.querySelector('#ea-perm-share');
+
+        modal.querySelector('#ea-preset-ro-btn').addEventListener('click', function () {
+            permCreate.checked = false;
+            permUpdate.checked = false;
+            permDelete.checked = false;
+            permShare.checked = false;
+        });
+
+        modal.querySelector('#ea-preset-rw-btn').addEventListener('click', function () {
+            permCreate.checked = true;
+            permUpdate.checked = true;
+            permDelete.checked = true;
+            permShare.checked = true;
+        });
+
+        function loadGroups() {
+            fetch('/index.php/apps/archive_autotag/api/share/groups', {
+                headers: { 'Accept': 'application/json' }
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (data && data.status === 'success' && Array.isArray(data.groups)) {
+                    groupSelect.innerHTML = '<option value="">-- انتخاب گروه --</option>' + data.groups.map(function (g) {
+                        return '<option value="' + escapeHtml(g.id) + '">' + escapeHtml(g.name) + '</option>';
+                    }).join('');
+                } else {
+                    groupSelect.innerHTML = '<option value="">خطا در دریافت لیست گروه‌ها</option>';
+                }
+            })
+            .catch(function () {
+                groupSelect.innerHTML = '<option value="">عدم برقراری ارتباط با سرور</option>';
+            });
+        }
+
+        function renderSharesList(shares) {
+            if (!shares || shares.length === 0) {
+                sharesContainer.innerHTML = '<div style="padding:16px;text-align:center;color:var(--ea-text-muted);">این منبع با هیچ گروهی به اشتراک گذاشته نشده است.</div>';
+                return;
+            }
+
+            var rows = shares.map(function (s) {
+                var p = s.permissions;
+                var badges = [];
+                if (p & 1) badges.push('<span class="ea-share-pill">خواندن</span>');
+                if (p & 4) badges.push('<span class="ea-share-pill" style="color:#a78bfa;background:rgba(167,139,250,0.15);border-color:rgba(167,139,250,0.3);">ایجاد</span>');
+                if (p & 2) badges.push('<span class="ea-share-pill" style="color:#fbbf24;background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.3);">ویرایش</span>');
+                if (p & 8) badges.push('<span class="ea-share-pill" style="color:#f87171;background:rgba(248,113,113,0.15);border-color:rgba(248,113,113,0.3);">حذف</span>');
+                if (p & 16) badges.push('<span class="ea-share-pill" style="color:#34d399;background:rgba(52,211,153,0.15);border-color:rgba(52,211,153,0.3);">اشتراک</span>');
+
+                return [
+                    '<tr>',
+                    '  <td style="font-weight:600;color:#f1f5f9;">👥 ' + escapeHtml(s.group_id) + '</td>',
+                    '  <td>' + badges.join(' ') + '</td>',
+                    '  <td style="text-align:left;width:80px;">',
+                    '    <button class="ea-btn ea-btn-danger ea-delete-share-btn" data-group-id="' + escapeHtml(s.group_id) + '" style="padding:4px 8px;font-size:0.75rem;background:#7f1d1d;color:#fca5a5;border-color:#ef4444;" title="حذف دسترسی گروه">حذف</button>',
+                    '  </td>',
+                    '</tr>'
+                ].join('\n');
+            }).join('\n');
+
+            sharesContainer.innerHTML = [
+                '<table class="ea-share-table">',
+                '  <thead>',
+                '    <tr>',
+                '      <th>نام گروه</th>',
+                '      <th>مجوزهای اعطا شده</th>',
+                '      <th style="text-align:left;">عملیات</th>',
+                '    </tr>',
+                '  </thead>',
+                '  <tbody>' + rows + '</tbody>',
+                '</table>'
+            ].join('\n');
+
+            sharesContainer.querySelectorAll('.ea-delete-share-btn').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var gid = btn.getAttribute('data-group-id');
+                    if (!confirm('آیا از لغو اشتراک منبع با گروه ' + gid + ' اطمینان دارید؟')) return;
+                    btn.disabled = true;
+                    btn.textContent = '...';
+                    fetch('/index.php/apps/archive_autotag/api/share/group/delete', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'requesttoken': (window.OC && window.OC.requestToken) || ''
+                        },
+                        body: JSON.stringify({ resource_id: resourceId, group_id: gid })
+                    })
+                    .then(function (res) { return res.json(); })
+                    .then(function (data) {
+                        if (data && data.status === 'success') {
+                            loadShares();
+                        } else {
+                            alert(data.message || 'خطا در حذف اشتراک');
+                            btn.disabled = false;
+                            btn.textContent = 'حذف';
+                        }
+                    })
+                    .catch(function (err) {
+                        alert('خطا در برقراری ارتباط: ' + err.message);
+                        btn.disabled = false;
+                        btn.textContent = 'حذف';
+                    });
+                });
+            });
+        }
+
+        function loadShares() {
+            fetch('/index.php/apps/archive_autotag/api/share/resource?resource_id=' + encodeURIComponent(resourceId), {
+                headers: { 'Accept': 'application/json' }
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (data && data.status === 'success') {
+                    renderSharesList(data.shares || []);
+                } else {
+                    sharesContainer.innerHTML = '<div style="padding:16px;color:#ef4444;text-align:center;">خطا در دریافت لیست اشتراک‌ها</div>';
+                }
+            })
+            .catch(function () {
+                sharesContainer.innerHTML = '<div style="padding:16px;color:#ef4444;text-align:center;">خطا در برقراری ارتباط</div>';
+            });
+        }
+
+        submitBtn.addEventListener('click', function () {
+            var selectedGroup = groupSelect.value;
+            if (!selectedGroup) {
+                statusMsg.style.color = '#f87171';
+                statusMsg.textContent = 'لطفاً یک گروه را انتخاب کنید.';
+                return;
+            }
+
+            var perms = 1; // Read always included
+            if (permCreate.checked) perms |= 4;
+            if (permUpdate.checked) perms |= 2;
+            if (permDelete.checked) perms |= 8;
+            if (permShare.checked) perms |= 16;
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'در حال ثبت...';
+            statusMsg.textContent = '';
+
+            fetch('/index.php/apps/archive_autotag/api/share/group', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'requesttoken': (window.OC && window.OC.requestToken) || ''
+                },
+                body: JSON.stringify({
+                    resource_id: resourceId,
+                    group_id: selectedGroup,
+                    permissions: perms
+                })
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'ثبت و ذخیره اشتراک';
+                if (data && data.status === 'success') {
+                    statusMsg.style.color = '#4ade80';
+                    statusMsg.textContent = 'اشتراک گروهی با موفقیت اعمال شد.';
+                    loadShares();
+                } else {
+                    statusMsg.style.color = '#f87171';
+                    statusMsg.textContent = data.message || 'خطا در ثبت اشتراک';
+                }
+            })
+            .catch(function (err) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'ثبت و ذخیره اشتراک';
+                statusMsg.style.color = '#f87171';
+                statusMsg.textContent = 'خطای ارتباط با سرور: ' + err.message;
+            });
+        });
+
+        loadGroups();
+        loadShares();
+    }
+
+})();

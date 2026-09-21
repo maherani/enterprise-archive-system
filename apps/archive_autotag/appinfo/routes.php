@@ -51,6 +51,12 @@ return [
         ['name' => 'GroupTag#assignTag', 'url' => '/api/group-tags/assign', 'verb' => 'POST'],
         ['name' => 'GroupTag#removeTag', 'url' => '/api/group-tags/remove', 'verb' => 'POST'],
         ['name' => 'GroupTag#reconcileTags', 'url' => '/api/group-tags/reconcile', 'verb' => 'POST'],
+
+        // Group Sharing (Requirement 24)
+        ['name' => 'GroupShare#getGroups', 'url' => '/api/share/groups', 'verb' => 'GET'],
+        ['name' => 'GroupShare#getResourceShares', 'url' => '/api/share/resource', 'verb' => 'GET'],
+        ['name' => 'GroupShare#shareWithGroup', 'url' => '/api/share/group', 'verb' => 'POST'],
+        ['name' => 'GroupShare#removeShare', 'url' => '/api/share/group/delete', 'verb' => 'POST'],
     ],
     'ocs' => [
         ['name' => 'TagFilter#listVisibleTags', 'url' => '/api/tags', 'verb' => 'GET'],
@@ -100,5 +106,11 @@ return [
         ['name' => 'GroupTag#assignTag', 'url' => '/api/group-tags/assign', 'verb' => 'POST'],
         ['name' => 'GroupTag#removeTag', 'url' => '/api/group-tags/remove', 'verb' => 'POST'],
         ['name' => 'GroupTag#reconcileTags', 'url' => '/api/group-tags/reconcile', 'verb' => 'POST'],
+
+        // Group Sharing (Requirement 24)
+        ['name' => 'GroupShare#getGroups', 'url' => '/api/share/groups', 'verb' => 'GET'],
+        ['name' => 'GroupShare#getResourceShares', 'url' => '/api/share/resource', 'verb' => 'GET'],
+        ['name' => 'GroupShare#shareWithGroup', 'url' => '/api/share/group', 'verb' => 'POST'],
+        ['name' => 'GroupShare#removeShare', 'url' => '/api/share/group/delete', 'verb' => 'POST'],
     ],
 ];

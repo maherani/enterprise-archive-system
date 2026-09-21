@@ -79,7 +79,7 @@ class GroupTagController extends Controller {
 
         $body = $this->getJsonOrParams();
         $groupId = trim((string)($group_id ?? $body['group_id'] ?? ''));
-        $tagName = trim((string)($tag_name ?? $body['tag_name'] ?? ''));
+        $tagName = trim((string)($tag_name ?? $body['tag_name'] ?? $body['name'] ?? ''));
 
         if ($groupId === '' || $tagName === '') {
             return new DataResponse(['status' => 'error', 'message' => 'Missing required parameters: group_id, tag_name'], Http::STATUS_BAD_REQUEST);
