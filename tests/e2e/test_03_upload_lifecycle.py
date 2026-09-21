@@ -51,8 +51,12 @@ class TestUploadLifecycle(unittest.TestCase):
             self.portal.navigate()
             self.portal.wait_until_loaded()
 
+            # Navigate into folder /SOC where upload button resides
+            self.page.evaluate("window._eaNavigateToFolder && window._eaNavigateToFolder('/SOC')")
+            self.page.wait_for_timeout(600)
+
             # Click Upload button
-            upload_btn = self.page.locator(self.portal.UPLOAD_BTN)
+            upload_btn = self.page.locator(self.portal.UPLOAD_BTN).first
             self.assertTrue(upload_btn.is_visible(), "Upload button must be visible")
             upload_btn.click()
 
@@ -82,8 +86,12 @@ class TestUploadLifecycle(unittest.TestCase):
             self.portal.navigate()
             self.portal.wait_until_loaded()
 
+            # Navigate into a folder where upload button resides
+            self.page.evaluate("window._eaNavigateToFolder && window._eaNavigateToFolder('/SOC')")
+            self.page.wait_for_timeout(600)
+
             # Open upload modal
-            self.page.click(self.portal.UPLOAD_BTN)
+            self.page.locator(self.portal.UPLOAD_BTN).first.click()
             self.page.wait_for_selector(self.upload_modal.DROPZONE, state="visible")
 
             # Verify dropzone prompt text
@@ -127,8 +135,12 @@ class TestUploadLifecycle(unittest.TestCase):
                 f"Confidential Incident Report. Incident ID: INC-{timestamp}. Automated Tagging Verification."
             )
 
+            # Navigate into a folder where upload button resides
+            self.page.evaluate("window._eaNavigateToFolder && window._eaNavigateToFolder('/SOC')")
+            self.page.wait_for_timeout(600)
+
             # Open upload modal
-            self.page.click(self.portal.UPLOAD_BTN)
+            self.page.locator(self.portal.UPLOAD_BTN).first.click()
             self.page.wait_for_selector(self.upload_modal.DROPZONE, state="visible")
 
             # Stage file

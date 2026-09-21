@@ -55,8 +55,12 @@ class TestMandatoryMetadataUploadE2E(unittest.TestCase):
             page.wait_for_selector("#ea-document-container", timeout=15000)
             page.wait_for_timeout(1000)
 
-            # 1. Click Upload button
-            upload_btn = page.locator("#ea-upload-btn")
+            # Navigate into folder /SOC where upload button resides
+            page.evaluate("window._eaNavigateToFolder && window._eaNavigateToFolder('/SOC')")
+            page.wait_for_timeout(600)
+
+            # 1. Click Upload button inside folder
+            upload_btn = page.locator("#ea-empty-upload-btn, #ea-folder-upload-btn-bar").first
             expect(upload_btn).to_be_visible()
             upload_btn.click()
 

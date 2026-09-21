@@ -14,7 +14,7 @@ class PortalPage(BasePage):
     SEARCH_CLEAR = "#ea-search-clear"
     SEARCH_COUNT = "#ea-search-count"
     REFRESH_BTN = "#ea-refresh-btn"
-    UPLOAD_BTN = "#ea-upload-btn"
+    UPLOAD_BTN = "#ea-empty-upload-btn, #ea-folder-upload-btn-bar, #ea-upload-btn"
     FOLDER_REQ_BTN = "#ea-create-folder-req-btn"
     ADMIN_MANAGE_REQS_BTN = "#ea-admin-manage-reqs-btn"
     MANAGE_GROUP_TAGS_BTN = "#ea-manage-group-tags-btn"

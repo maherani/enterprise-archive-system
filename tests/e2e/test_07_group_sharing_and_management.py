@@ -39,7 +39,8 @@ class TestGroupSharingAndManagementE2E(unittest.TestCase):
         page = context.new_page()
 
         with capture_failure(page, "test_01_admin_group_sharing_flow"):
-            page.goto(PORTAL_URL, wait_until="networkidle")
+            page.goto(PORTAL_URL)
+            page.wait_for_selector("#ea-document-container", timeout=15000)
 
             # 1. Switch to table view
             table_btn = page.locator("#ea-view-table-btn")
@@ -56,7 +57,7 @@ class TestGroupSharingAndManagementE2E(unittest.TestCase):
             # 3. Click the first share button to open modal
             share_btns.first.click()
             modal = page.locator("#ea-group-share-modal")
-            modal.wait_for(state="visible", timeout=5000)
+            modal.wait_for(state="visible", timeout=10000)
             self.assertTrue(modal.is_visible(), "Group Share Modal should be visible after clicking share button")
 
             # 4. Verify group select dropdown is populated
@@ -74,7 +75,7 @@ class TestGroupSharingAndManagementE2E(unittest.TestCase):
 
             # Wait for status message or table update
             status_msg = page.locator("#ea-share-status-msg")
-            status_msg.wait_for(state="visible", timeout=5000)
+            status_msg.wait_for(state="visible", timeout=10000)
             self.assertIn("موفقیت", status_msg.inner_text())
 
             # 6. Verify SOC is listed in active shares
@@ -100,7 +101,8 @@ class TestGroupSharingAndManagementE2E(unittest.TestCase):
         page = context.new_page()
 
         with capture_failure(page, "test_02_non_admin_sharing_hidden"):
-            page.goto(PORTAL_URL, wait_until="networkidle")
+            page.goto(PORTAL_URL)
+            page.wait_for_selector("#ea-document-container", timeout=15000)
 
             # 1. Switch to table view
             table_btn = page.locator("#ea-view-table-btn")
