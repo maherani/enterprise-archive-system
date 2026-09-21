@@ -90,6 +90,13 @@
     function navigateToDir(folderPath) {
         const fullDir = '/' + normalizeDirectory(folderPath);
 
+        // 0. If in Archive Portal, navigate in-page without leaving portal!
+        if (window.location.pathname.includes('/apps/archive_autotag') && typeof window._eaNavigateToFolder === 'function') {
+            window._eaNavigateToFolder(fullDir, null);
+            updateActiveChip(normalizeDirectory(fullDir));
+            return;
+        }
+
         // 1. If already in Files App and Vue Router is available, navigate seamlessly without page reload!
         if (window.location.pathname.includes('/apps/files') && 
             window.OCP && window.OCP.Files && window.OCP.Files.Router) {

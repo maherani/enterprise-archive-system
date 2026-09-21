@@ -19,6 +19,9 @@
         debounceTimer: null,
         userRole: null,
         pendingRequestsCount: 0,
+        isFolderView: false,
+        currentFolderDir: '/',
+        highlightedFileId: null
     };
 
     // Helper: Escape HTML to prevent XSS
@@ -66,6 +69,14 @@
     function getFileMeta(fileName, mimetype) {
         var ext = (fileName || '').split('.').pop().toLowerCase();
         var mime = (mimetype || '').toLowerCase();
+
+        if (mime === 'httpd/unix-directory' || mime.includes('directory') || ext === 'folder') {
+            return {
+                cls: 'mime-folder',
+                label: 'پوشه',
+                iconSvg: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'
+            };
+        }
 
         if (ext === 'pdf' || mime.includes('pdf')) {
             return { cls: 'mime-pdf', label: 'PDF', iconSvg: '<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>' };
@@ -271,6 +282,99 @@
         }
     }
 
+
+    // -------------------------------------------------------------------------
+    // In-Portal Folder Navigation & Breadcrumb Management
+    // -------------------------------------------------------------------------
+    function openFolderInPortal(targetDir, highlightFileId) {
+        state.isFolderView = true;
+        state.viewMode = 'table';
+        state.selectedTagIds.clear();
+        state.searchTerm = '';
+        state.highlightedFileId = highlightFileId || null;
+
+        try {
+            var newUrl = window.location.pathname + (targetDir && targetDir !== '/' ? ('?dir=' + encodeURIComponent(targetDir)) : '');
+            window.history.pushState({ dir: targetDir }, '', newUrl);
+        } catch (e) {}
+
+        var gridBtn = document.getElementById('ea-view-grid-btn');
+        var tableBtn = document.getElementById('ea-view-table-btn');
+        if (gridBtn && tableBtn) {
+            tableBtn.classList.add('active');
+            gridBtn.classList.remove('active');
+        }
+
+        var searchInput = document.getElementById('ea-search-input');
+        if (searchInput) searchInput.value = '';
+        var clearBtn = document.getElementById('ea-search-clear');
+        if (clearBtn) clearBtn.style.display = 'none';
+
+        renderTagBar();
+        navigateToFolder(targetDir, highlightFileId);
+    }
+
+    function navigateToFolder(targetDir, highlightFileId) {
+        state.isFolderView = true;
+        var cleanDir = (targetDir || '/').trim();
+        if (!cleanDir.startsWith('/')) cleanDir = '/' + cleanDir;
+        cleanDir = cleanDir.replace(/\/+/g, '/');
+        state.currentFolderDir = cleanDir;
+        if (highlightFileId) state.highlightedFileId = highlightFileId;
+
+        state.isLoadingFiles = true;
+        renderDocumentList();
+        renderStatsAndRibbon();
+
+        var url = '/index.php/apps/archive_autotag/api/folder-files?dir=' + encodeURIComponent(cleanDir);
+        fetch(url, {
+            headers: { 'requesttoken': getCsrfToken(), 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+            state.isLoadingFiles = false;
+            if (data && data.status === 'success') {
+                state.files = data.files || [];
+                state.currentFolderDir = data.dir || cleanDir;
+            } else {
+                state.files = [];
+            }
+            renderDocumentList();
+            renderStatsAndRibbon();
+
+            if (state.highlightedFileId) {
+                setTimeout(function () {
+                    var targetRow = document.querySelector('tr[data-file-id="' + state.highlightedFileId + '"], .ea-card[data-file-id="' + state.highlightedFileId + '"]');
+                    if (targetRow) {
+                        targetRow.classList.add('ea-row-highlight');
+                        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 150);
+            }
+        })
+        .catch(function (err) {
+            state.isLoadingFiles = false;
+            console.error('Failed to fetch folder files', err);
+            state.files = [];
+            renderDocumentList();
+            renderStatsAndRibbon();
+        });
+    }
+
+    function exitFolderMode() {
+        state.isFolderView = false;
+        state.currentFolderDir = null;
+        state.highlightedFileId = null;
+        try {
+            window.history.pushState({}, '', window.location.pathname);
+        } catch (e) {}
+        renderTagBar();
+        fetchFiles();
+    }
+
+    window._eaNavigateToFolder = openFolderInPortal;
+
     // Render: Header & Search Ribbon
     function renderApp() {
         var root = document.getElementById('archive-portal-root');
@@ -301,10 +405,10 @@
             '        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
             '        <span>به‌روزرسانی</span>',
             '      </button>',
-            '      <a href="/apps/files/" class="ea-btn" title="مشاهده ساختار سنتی پوشه‌ها">',
+            '      <button type="button" id="ea-folder-view-btn" class="ea-btn" title="مشاهده و مرور ساختار درختی پوشه‌ها در همین صفحه">',
             '        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
             '        <span>نمای پوشه‌ها</span>',
-            '      </a>',
+            '      </button>',
             '    </div>',
             '  </header>',
             '',
@@ -381,7 +485,19 @@
         var refreshBtn = document.getElementById('ea-refresh-btn');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', function () {
-                fetchTags();
+                if (state.isFolderView) {
+                    navigateToFolder(state.currentFolderDir || '/');
+                } else {
+                    fetchTags();
+                }
+            });
+        }
+
+        var folderViewBtn = document.getElementById('ea-folder-view-btn');
+        if (folderViewBtn) {
+            folderViewBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                openFolderInPortal('/', null);
             });
         }
 
@@ -390,6 +506,9 @@
         if (searchInput) {
             searchInput.addEventListener('input', function (e) {
                 state.searchTerm = e.target.value;
+                if (state.searchTerm) {
+                    state.isFolderView = false;
+                }
                 if (clearBtn) {
                     clearBtn.style.display = state.searchTerm ? 'flex' : 'none';
                 }
@@ -469,6 +588,7 @@
         var chips = container.querySelectorAll('.ea-tag-chip');
         chips.forEach(function (chip) {
             chip.addEventListener('click', function () {
+                state.isFolderView = false;
                 if (chip.getAttribute('data-tag-all') === 'true') {
                     state.selectedTagIds.clear();
                     renderTagBar();
@@ -488,19 +608,105 @@
         var summary = document.getElementById('ea-results-summary');
         var countPill = document.getElementById('ea-search-count');
 
-        if (countPill) {
-            countPill.textContent = toPersianDigits(state.files.length) + ' سند';
-        }
-
-        if (summary) {
-            if (state.isLoadingFiles) {
-                summary.innerHTML = 'در حال جستجو و فیلتر اسناد...';
-            } else {
-                summary.innerHTML = 'نمایش <strong>' + toPersianDigits(state.files.length) + '</strong> سند در دسترس';
+        if (state.isFolderView) {
+            if (countPill) {
+                countPill.textContent = toPersianDigits(state.files.length) + ' مورد';
+            }
+            if (summary) {
+                if (state.isLoadingFiles) {
+                    summary.innerHTML = 'در حال دریافت محتوای پوشه...';
+                } else {
+                    var folderDisplay = state.currentFolderDir || '/';
+                    summary.innerHTML = '📁 مسیر پوشه: <strong>' + escapeHtml(folderDisplay) + '</strong> (' + toPersianDigits(state.files.length) + ' سند و پوشه)';
+                }
+            }
+        } else {
+            if (countPill) {
+                countPill.textContent = toPersianDigits(state.files.length) + ' سند';
+            }
+            if (summary) {
+                if (state.isLoadingFiles) {
+                    summary.innerHTML = 'در حال جستجو و فیلتر اسناد...';
+                } else {
+                    summary.innerHTML = 'نمایش <strong>' + toPersianDigits(state.files.length) + '</strong> سند در دسترس';
+                }
             }
         }
 
         if (!ribbon) return;
+
+        if (state.isFolderView) {
+            var currentPath = state.currentFolderDir || '/';
+            var parts = currentPath.split('/').filter(Boolean);
+            var breadcrumbsHtml = [
+                '<div class="ea-folder-breadcrumb-bar">',
+                '  <div class="ea-breadcrumb-path">',
+                '    <button type="button" class="ea-breadcrumb-btn' + (parts.length === 0 ? ' is-active' : '') + '" data-folder-dir="/">',
+                '      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
+                '      <span>ریشه اسناد</span>',
+                '    </button>'
+            ];
+
+            var accumulated = '';
+            parts.forEach(function (part, idx) {
+                accumulated += '/' + part;
+                var isLast = idx === parts.length - 1;
+                breadcrumbsHtml.push(
+                    '<span class="ea-breadcrumb-separator">/</span>',
+                    '<button type="button" class="ea-breadcrumb-btn' + (isLast ? ' is-active' : '') + '" data-folder-dir="' + escapeHtml(accumulated) + '">',
+                    '  <span>' + escapeHtml(part) + '</span>',
+                    '</button>'
+                );
+            });
+
+            breadcrumbsHtml.push('  </div>');
+            breadcrumbsHtml.push('  <div class="ea-folder-nav-actions">');
+
+            if (parts.length > 0) {
+                var parentDir = '/' + parts.slice(0, -1).join('/');
+                breadcrumbsHtml.push(
+                    '    <button type="button" id="ea-folder-up-btn" class="ea-btn ea-btn-sm" data-parent-dir="' + escapeHtml(parentDir) + '" title="رفتن به پوشه بالایی">',
+                    '      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>',
+                    '      <span>پوشه بالا</span>',
+                    '    </button>'
+                );
+            }
+
+            breadcrumbsHtml.push(
+                '    <button type="button" id="ea-exit-folder-btn" class="ea-btn ea-btn-sm ea-btn-outline" title="خروج از مرور پوشه و بازگشت به فیلتر برچسب‌ها">',
+                '      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+                '      <span>همه اسناد</span>',
+                '    </button>',
+                '  </div>',
+                '</div>'
+            );
+
+            ribbon.innerHTML = breadcrumbsHtml.join('');
+
+            ribbon.querySelectorAll('[data-folder-dir]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var target = btn.getAttribute('data-folder-dir');
+                    openFolderInPortal(target, null);
+                });
+            });
+
+            var upBtn = ribbon.querySelector('#ea-folder-up-btn');
+            if (upBtn) {
+                upBtn.addEventListener('click', function () {
+                    var parent = upBtn.getAttribute('data-parent-dir') || '/';
+                    openFolderInPortal(parent, null);
+                });
+            }
+
+            var exitBtn = ribbon.querySelector('#ea-exit-folder-btn');
+            if (exitBtn) {
+                exitBtn.addEventListener('click', function () {
+                    exitFolderMode();
+                });
+            }
+
+            return;
+        }
 
         if (state.selectedTagIds.size === 0 && !state.searchTerm) {
             ribbon.innerHTML = '';
@@ -541,7 +747,6 @@
 
         ribbon.innerHTML = html.join('');
 
-        // Event listener for ribbon clear buttons
         var clearSearch = ribbon.querySelector('[data-clear="search"]');
         if (clearSearch) {
             clearSearch.addEventListener('click', function () {
@@ -605,6 +810,33 @@
 
     // Empty State
     function renderEmptyState(container) {
+        if (state.isFolderView) {
+            container.innerHTML = [
+                '<div class="ea-empty-state">',
+                '  <div class="ea-empty-icon">📁</div>',
+                '  <div class="ea-empty-title">این پوشه خالی است یا سندی در این مسیر یافت نشد</div>',
+                '  <div class="ea-empty-desc">می‌توانید به سطوح بالاتر برگردید یا اسناد دیگر را جستجو نمایید.</div>',
+                '  <div style="display: flex; gap: 8px; justify-content: center; margin-top: 14px;">',
+                (state.currentFolderDir && state.currentFolderDir !== '/' ? '    <button class="ea-btn ea-btn-primary" id="ea-empty-up-btn">⬆ رفتن به پوشه بالا</button>' : ''),
+                '    <button class="ea-btn ea-btn-secondary" id="ea-empty-exit-btn">بازگشت به همه اسناد</button>',
+                '  </div>',
+                '</div>'
+            ].join('');
+            var upBtn = document.getElementById('ea-empty-up-btn');
+            if (upBtn) {
+                upBtn.addEventListener('click', function () {
+                    var parts = (state.currentFolderDir || '/').split('/').filter(Boolean);
+                    parts.pop();
+                    openFolderInPortal('/' + parts.join('/'), null);
+                });
+            }
+            var exitBtn = document.getElementById('ea-empty-exit-btn');
+            if (exitBtn) {
+                exitBtn.addEventListener('click', exitFolderMode);
+            }
+            return;
+        }
+
         container.innerHTML = [
             '<div class="ea-empty-state">',
             '  <div class="ea-empty-icon">📁</div>',
@@ -625,7 +857,8 @@
         var cards = [];
 
         state.files.forEach(function (file) {
-            var meta = getFileMeta(file.name, file.mimetype);
+            var isFolder = Boolean(file.is_dir || file.type === 'folder' || file.mimetype === 'httpd/unix-directory');
+            var meta = getFileMeta(file.name, isFolder ? 'httpd/unix-directory' : file.mimetype);
 
             var tagsHtml = '';
             if (file.tags && file.tags.length > 0) {
@@ -637,28 +870,36 @@
                 }
             }
 
+            var sizeDisplay = isFolder ? '—' : toPersianDigits(file.human_size);
+            var isHighlighted = state.highlightedFileId && String(file.id) === String(state.highlightedFileId);
+
             cards.push(
-                '<div class="ea-card" data-file-id="' + file.id + '">',
+                '<div class="ea-card' + (isHighlighted ? ' ea-row-highlight' : '') + '" data-file-id="' + file.id + '" data-is-dir="' + (isFolder ? 'true' : 'false') + '" data-folder-path="' + escapeHtml(file.path) + '">',
                 '  <div class="ea-card-top">',
                 '    <span class="ea-mime-badge ' + meta.cls + '">' + meta.label + '</span>',
-                '    <span class="ea-card-size">' + toPersianDigits(file.human_size) + '</span>',
+                '    <span class="ea-card-size">' + sizeDisplay + '</span>',
                 '  </div>',
                 '  <div class="ea-card-body">',
                 '    <div class="ea-card-icon-title">',
                 '      <div class="ea-file-type-icon ' + meta.cls + '">' + meta.iconSvg + '</div>',
-                '      <div class="ea-card-title" title="' + escapeHtml(file.name) + '">' + escapeHtml(file.name) + '</div>',
+                '      <div class="ea-card-title" title="' + escapeHtml(file.name) + '">' + (isFolder ? '📁 ' : '') + escapeHtml(file.name) + '</div>',
                 '    </div>',
                 '    <div class="ea-card-tags">' + tagsHtml + '</div>',
                 '  </div>',
                 '  <div class="ea-card-footer">',
                 '    <span class="ea-card-date">' + formatDate(file.mtime) + '</span>',
                 '    <div class="ea-card-actions">',
-                '      <button class="ea-icon-btn ea-action-preview" data-file-id="' + file.id + '" title="مشاهده سریع جزئیات">',
-                '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+                (isFolder ? 
+                '      <button type="button" class="ea-icon-btn ea-folder-open-action" data-folder-path="' + escapeHtml(file.path) + '" title="ورود به پوشه">' +
+                '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' +
+                '      </button>' : ''),
+                '      <button type="button" class="ea-icon-btn ea-action-preview" data-file-id="' + file.id + '" title="مشاهده سریع جزئیات">',
+                '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
                 '      </button>',
-                '      <a href="' + escapeHtml(file.download_url) + '" class="ea-icon-btn" title="دانلود مستقیم" download>',
-                '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
-                '      </a>',
+                (!isFolder ? 
+                '      <a href="' + escapeHtml(file.download_url) + '" class="ea-icon-btn" title="دانلود مستقیم" download>' +
+                '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
+                '      </a>' : ''),
                 '    </div>',
                 '  </div>',
                 '</div>'
@@ -667,13 +908,28 @@
 
         container.innerHTML = '<div class="ea-document-grid">' + cards.join('') + '</div>';
 
-        // Card Click opens Drawer
         container.querySelectorAll('.ea-card').forEach(function (card) {
             card.addEventListener('click', function (e) {
                 if (e.target.closest('a') || e.target.closest('button')) return;
+                var isDir = card.getAttribute('data-is-dir') === 'true';
+                var folderPath = card.getAttribute('data-folder-path');
+                if (isDir && folderPath) {
+                    openFolderInPortal('/' + folderPath.replace(/^\/+/g, ''), null);
+                    return;
+                }
                 var fid = parseInt(card.getAttribute('data-file-id'), 10);
                 var f = state.files.find(function (item) { return item.id === fid; });
                 if (f) openDrawer(f);
+            });
+        });
+
+        container.querySelectorAll('.ea-folder-open-action').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var folderPath = btn.getAttribute('data-folder-path');
+                if (folderPath) {
+                    openFolderInPortal('/' + folderPath.replace(/^\/+/g, ''), null);
+                }
             });
         });
 
@@ -692,30 +948,37 @@
         var rows = [];
 
         state.files.forEach(function (file) {
-            var meta = getFileMeta(file.name, file.mimetype);
+            var isFolder = Boolean(file.is_dir || file.type === 'folder' || file.mimetype === 'httpd/unix-directory');
+            var meta = getFileMeta(file.name, isFolder ? 'httpd/unix-directory' : file.mimetype);
             var tagsText = (file.tags || []).map(function (t) {
                 return '<span class="ea-mini-tag">' + escapeHtml(t.name) + '</span>';
             }).join(' ');
 
+            var sizeDisplay = isFolder ? '—' : toPersianDigits(file.human_size);
+            var isHighlighted = state.highlightedFileId && String(file.id) === String(state.highlightedFileId);
+
             rows.push(
-                '<tr data-file-id="' + file.id + '" style="cursor: pointer;">',
+                '<tr data-file-id="' + file.id + '" data-is-dir="' + (isFolder ? 'true' : 'false') + '" data-folder-path="' + escapeHtml(file.path) + '" class="' + (isFolder ? 'ea-folder-row' : 'ea-file-row') + (isHighlighted ? ' ea-row-highlight' : '') + '" style="cursor: pointer;">',
                 '  <td style="width: 48px;"><span class="ea-mime-badge ' + meta.cls + '">' + meta.label + '</span></td>',
-                '  <td><strong>' + escapeHtml(file.name) + '</strong><br><small style="color: var(--ea-text-subtle);">' + escapeHtml(file.parent_dir || 'ریشه بایگانی') + '</small></td>',
-                '  <td>' + tagsText + '</td>',
-                '  <td style="direction: ltr; text-align: left;">' + toPersianDigits(file.human_size) + '</td>',
+                '  <td><strong>' + (isFolder ? '📁 ' : '') + escapeHtml(file.name) + '</strong><br><small style="color: var(--ea-text-subtle);">' + escapeHtml(file.parent_dir || file.path || 'ریشه بایگانی') + '</small></td>',
+                '  <td>' + (tagsText || '<span style="color:var(--ea-text-subtle); font-size:0.75rem;">—</span>') + '</td>',
+                '  <td style="direction: ltr; text-align: left;">' + sizeDisplay + '</td>',
                 '  <td>' + formatDate(file.mtime) + '</td>',
-                '  <td style="width: 120px; text-align: left;">',
+                '  <td style="width: 140px; text-align: left;">',
                 '    <div style="display: flex; gap: 6px; justify-content: flex-end;">',
+                (isFolder ? 
+                '      <button type="button" class="ea-btn ea-btn-sm ea-folder-enter-btn" data-folder-path="' + escapeHtml(file.path) + '" title="ورود به این پوشه"><span>ورود ↵</span></button>' : ''),
                 (state.userRole && state.userRole.is_admin ? 
-                '      <button class="ea-icon-btn ea-table-share" data-file-id="' + file.id + '" data-file-name="' + escapeHtml(file.name) + '" title="اشتراک با گروه">' +
+                '      <button type="button" class="ea-icon-btn ea-table-share" data-file-id="' + file.id + '" data-file-name="' + escapeHtml(file.name) + '" title="اشتراک با گروه">' +
                 '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>' +
                 '      </button>' : ''),
-                '      <button class="ea-icon-btn ea-table-preview" data-file-id="' + file.id + '" title="مشاهده جزئیات">',
-                '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+                '      <button type="button" class="ea-icon-btn ea-table-preview" data-file-id="' + file.id + '" title="مشاهده جزئیات">' +
+                '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>' +
                 '      </button>',
-                '      <a href="' + escapeHtml(file.download_url) + '" class="ea-icon-btn" title="دانلود" download>',
-                '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
-                '      </a>',
+                (!isFolder ? 
+                '      <a href="' + escapeHtml(file.download_url) + '" class="ea-icon-btn" title="دانلود" download>' +
+                '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
+                '      </a>' : ''),
                 '    </div>',
                 '  </td>',
                 '</tr>'
@@ -743,9 +1006,25 @@
         container.querySelectorAll('tbody tr').forEach(function (tr) {
             tr.addEventListener('click', function (e) {
                 if (e.target.closest('a') || e.target.closest('button')) return;
+                var isDir = tr.getAttribute('data-is-dir') === 'true';
+                var folderPath = tr.getAttribute('data-folder-path');
+                if (isDir && folderPath) {
+                    openFolderInPortal('/' + folderPath.replace(/^\/+/g, ''), null);
+                    return;
+                }
                 var fid = parseInt(tr.getAttribute('data-file-id'), 10);
                 var f = state.files.find(function (item) { return item.id === fid; });
                 if (f) openDrawer(f);
+            });
+        });
+
+        container.querySelectorAll('.ea-folder-enter-btn').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var folderPath = btn.getAttribute('data-folder-path');
+                if (folderPath) {
+                    openFolderInPortal('/' + folderPath.replace(/^\/+/g, ''), null);
+                }
             });
         });
 
@@ -777,30 +1056,31 @@
         var bodyEl = document.getElementById('ea-drawer-body');
         var actionsEl = document.getElementById('ea-drawer-actions');
 
-        if (titleEl) titleEl.textContent = file.name;
+        if (titleEl) {
+            titleEl.textContent = file.name;
+        }
 
-        var meta = getFileMeta(file.name, file.mimetype);
+        var isFolder = Boolean(file.is_dir || file.type === 'folder' || file.mimetype === 'httpd/unix-directory');
+        var meta = getFileMeta(file.name, isFolder ? 'httpd/unix-directory' : file.mimetype);
+
+        var userGroups = (state.userRole && state.userRole.groups) || [];
+        var isGlobalAdmin = state.userRole && state.userRole.is_admin;
+        var isSubadmin = state.userRole && state.userRole.is_subadmin;
+        var subadminGroups = (state.userRole && state.userRole.subadmin_groups) || [];
 
         var matchedSubadminGroup = null;
-        if (state.userRole && state.userRole.is_group_admin && state.userRole.subadmin_groups) {
-            var fPath = (file.path || '').toLowerCase();
-            for (var gi = 0; gi < state.userRole.subadmin_groups.length; gi++) {
-                var cand = state.userRole.subadmin_groups[gi];
-                var candLower = cand.toLowerCase();
-                if (fPath.indexOf(candLower + '/') === 0 || fPath.indexOf('/' + candLower + '/') !== -1 || fPath.indexOf('enterprise_archive/' + candLower) !== -1) {
-                    matchedSubadminGroup = cand;
-                    break;
-                }
-            }
+        if (isSubadmin && subadminGroups.length > 0) {
+            matchedSubadminGroup = subadminGroups[0];
         }
 
         var tagsBadges = (file.tags || []).map(function (t) {
-            var rawName = t.name || '';
-            var canRemove = false;
+            var rawName = t.name;
             var cleanDisplay = rawName;
+            var canRemove = isGlobalAdmin;
+
             if (matchedSubadminGroup) {
-                var pfx = '[' + matchedSubadminGroup + '] ';
-                if (rawName.indexOf(pfx) === 0) {
+                var pfx = matchedSubadminGroup + '_';
+                if (rawName.startsWith(pfx)) {
                     canRemove = true;
                     cleanDisplay = rawName.substring(pfx.length);
                 }
@@ -811,16 +1091,18 @@
             return '<span class="ea-mini-tag" style="background: var(--ea-primary-glow); color: var(--ea-primary); font-size: 0.8rem; padding: 4px 10px; display:inline-flex; align-items:center;">🏷️ ' + escapeHtml(cleanDisplay) + removeBtn + '</span>';
         }).join(' ');
 
-        var targetDir = file.target_dir || (file.is_dir ? ('/' + file.path.replace(/^\/+/g, '')) : ('/' + (file.parent_dir || '').replace(/^\/+/g, '')));
+        var targetDir = isFolder 
+            ? ('/' + (file.path || file.name).replace(/^\/+/g, '')) 
+            : (file.target_dir || ('/' + (file.parent_dir || '').replace(/^\/+/g, '')));
         targetDir = targetDir.replace(/\/+/g, '/');
-        var folderUrl = file.folder_url || file.web_url || ('/index.php/apps/files/files?dir=' + encodeURIComponent(targetDir));
+        if (!targetDir.startsWith('/')) targetDir = '/' + targetDir;
 
         if (bodyEl) {
             bodyEl.innerHTML = [
                 '<div class="ea-drawer-preview-box">',
                 '  <div class="ea-file-type-icon ' + meta.cls + '" style="width: 54px; height: 54px;">' + meta.iconSvg + '</div>',
                 '  <div style="font-weight: 700; font-size: 1rem; color: var(--ea-text-main);">' + escapeHtml(file.name) + '</div>',
-                '  <div style="font-size: 0.8rem; color: var(--ea-text-muted);">' + meta.label + ' Document • ' + toPersianDigits(file.human_size) + '</div>',
+                '  <div style="font-size: 0.8rem; color: var(--ea-text-muted);">' + meta.label + ' Document • ' + (isFolder ? '—' : toPersianDigits(file.human_size)) + '</div>',
                 '</div>',
                 '',
                 '<div style="margin-bottom: 20px;">',
@@ -833,7 +1115,7 @@
                 '    <select id="ea-drawer-tag-select" class="ea-form-select" style="flex: 1; font-size: 0.82rem; padding: 4px 8px;">',
                 '      <option value="">⏳ در حال دریافت تگ‌های گروه...</option>',
                 '    </select>',
-                '    <button id="ea-drawer-add-tag-btn" class="ea-btn ea-btn-primary" style="padding: 4px 12px; font-size: 0.82rem; white-space: nowrap;">+ الصاق به سند</button>',
+                '    <button type="button" id="ea-drawer-add-tag-btn" class="ea-btn ea-btn-primary" style="padding: 4px 12px; font-size: 0.82rem; white-space: nowrap;">+ الصاق به سند</button>',
                 '  </div>',
                 '  <div id="ea-drawer-tag-msg" style="display:none; font-size: 0.8rem; margin-top: 6px;"></div>',
                 '</div>'
@@ -841,11 +1123,11 @@
                 '',
                 '<div class="ea-meta-item">',
                 '  <span class="ea-meta-label">مسیر فایل:</span>',
-                '  <span class="ea-meta-val"><a href="' + escapeHtml(folderUrl) + '" class="ea-drawer-path-link" target="_blank" rel="noopener noreferrer" style="color:var(--ea-primary);text-decoration:none;" title="مشاهده در نمای فایل‌ها">' + escapeHtml(file.path) + ' ↗</a></span>',
+                '  <span class="ea-meta-val"><button type="button" class="ea-drawer-path-link-btn" id="ea-drawer-path-btn" title="مشاهده این مسیر در همین صفحه">' + escapeHtml(file.path) + ' ↗</button></span>',
                 '</div>',
                 '<div class="ea-meta-item">',
                 '  <span class="ea-meta-label">حجم فایل:</span>',
-                '  <span class="ea-meta-val">' + toPersianDigits(file.human_size) + '</span>',
+                '  <span class="ea-meta-val">' + (isFolder ? '—' : toPersianDigits(file.human_size)) + '</span>',
                 '</div>',
                 '<div class="ea-meta-item">',
                 '  <span class="ea-meta-label">نوع محتوا (MIME):</span>',
@@ -863,23 +1145,29 @@
         }
 
         if (actionsEl) {
-            var actionButtons = [
-                '<a href="' + escapeHtml(file.download_url) + '" class="ea-btn ea-btn-primary" download>',
-                '  <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
-                '  <span>دانلود سند</span>',
-                '</a>',
-                '<button class="ea-btn" id="ea-drawer-copy-btn">',
+            var actionButtons = [];
+            if (!isFolder) {
+                actionButtons.push(
+                    '<a href="' + escapeHtml(file.download_url) + '" class="ea-btn ea-btn-primary" download>',
+                    '  <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+                    '  <span>دانلود سند</span>',
+                    '</a>'
+                );
+            }
+            actionButtons.push(
+                '<button type="button" class="ea-btn" id="ea-drawer-copy-btn">',
                 '  <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
                 '  <span>کپی لینک</span>',
                 '</button>',
-                '<a href="' + escapeHtml(folderUrl) + '" class="ea-btn" id="ea-drawer-locate-btn" target="_blank" rel="noopener noreferrer" title="مشاهده مکان فایل در پوشه">',
+                '<button type="button" class="ea-btn" id="ea-drawer-locate-btn" title="مشاهده مکان در پوشه در همین صفحه">',
                 '  <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
                 '  <span>مکان در پوشه</span>',
-                '</a>'
-            ];
+                '</button>'
+            );
+
             if (state.userRole && state.userRole.is_admin) {
                 actionButtons.push(
-                    '<button class="ea-btn ea-btn-secondary" id="ea-drawer-share-btn" title="اشتراک‌گذاری با گروه‌ها">',
+                    '<button type="button" class="ea-btn ea-btn-secondary" id="ea-drawer-share-btn" title="اشتراک‌گذاری با گروه‌ها">',
                     '  <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
                     '  <span>اشتراک با گروه</span>',
                     '</button>'
@@ -895,16 +1183,12 @@
             }
 
             function onLocateClick(e) {
-                try {
-                    sessionStorage.setItem('ea_target_dir', targetDir);
-                } catch (err) {}
-                if (window.OCP && window.OCP.Files && window.OCP.Files.Router) {
-                    try {
-                        e.preventDefault();
-                        window.OCP.Files.Router.goToRoute('filelist', { view: 'files' }, { dir: targetDir });
-                        return;
-                    } catch (err) {}
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
                 }
+                closeDrawer();
+                openFolderInPortal(targetDir, isFolder ? null : file.id);
             }
 
             var locateBtn = document.getElementById('ea-drawer-locate-btn');
@@ -912,23 +1196,23 @@
                 locateBtn.addEventListener('click', onLocateClick);
             }
 
+            var pathBtn = document.getElementById('ea-drawer-path-btn');
+            if (pathBtn) {
+                pathBtn.addEventListener('click', onLocateClick);
+            }
+
             var shareBtn = document.getElementById('ea-drawer-share-btn');
             if (shareBtn) {
                 shareBtn.addEventListener('click', function () {
-                    openGroupShareModal(file.id, file.name, 'file');
+                    openGroupShareModal(file.id, file.name, isFolder ? 'folder' : 'file');
                 });
             }
 
             if (matchedSubadminGroup) {
                 setupDrawerTagActions(file, matchedSubadminGroup);
             }
-            var pathLink = document.querySelector('.ea-drawer-path-link');
-            if (pathLink) {
-                pathLink.addEventListener('click', onLocateClick);
-            }
         }
     }
-
 
     // -------------------------------------------------------------------------
     // Delegated Folder Creation Workflow & Modals (Group Admin & System Admin)
@@ -2502,10 +2786,26 @@
     function init() {
         setupKeyboardListeners();
         setupGlobalDragAndDrop();
+        window.addEventListener('popstate', function (e) {
+            var urlParams = new URLSearchParams(window.location.search);
+            var dirParam = urlParams.get('dir');
+            if (dirParam) {
+                openFolderInPortal(dirParam, null);
+            } else if (state.isFolderView) {
+                exitFolderMode();
+            }
+        });
+
         var root = document.getElementById('archive-portal-root');
         if (root) {
             fetchUserRole();
-            fetchTags();
+            var urlParams = new URLSearchParams(window.location.search);
+            var dirParam = urlParams.get('dir');
+            if (dirParam) {
+                openFolderInPortal(dirParam, null);
+            } else {
+                fetchTags();
+            }
         }
     }
 

@@ -1859,3 +1859,145 @@ body[theme="dark"] :root,
   color: #38bdf8;
   border: 1px solid rgba(56, 189, 248, 0.3);
 }
+
+/* =========================================================================
+   In-Portal Folder Breadcrumb Bar & Highlight Styles
+   ========================================================================= */
+.ea-folder-breadcrumb-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--ea-surface);
+    border: 1px solid var(--ea-border);
+    border-radius: var(--ea-radius);
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.ea-breadcrumb-path {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ea-breadcrumb-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    background: var(--ea-surface-elevated);
+    border: 1px solid var(--ea-border);
+    border-radius: 6px;
+    color: var(--ea-text-muted);
+    font-size: 0.84rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.ea-breadcrumb-btn:hover {
+    background: rgba(249, 115, 22, 0.15);
+    border-color: rgba(249, 115, 22, 0.4);
+    color: var(--ea-primary);
+}
+
+.ea-breadcrumb-btn.is-active {
+    background: rgba(249, 115, 22, 0.18);
+    border-color: #f97316;
+    color: #f97316;
+    font-weight: 700;
+}
+
+.ea-breadcrumb-separator {
+    color: var(--ea-text-subtle);
+    font-size: 0.85rem;
+    user-select: none;
+}
+
+.ea-folder-nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ea-btn-sm {
+    padding: 4px 10px !important;
+    font-size: 0.8rem !important;
+    height: 32px !important;
+}
+
+.ea-btn-outline {
+    background: transparent !important;
+    border: 1px solid var(--ea-border) !important;
+    color: var(--ea-text-muted) !important;
+}
+
+.ea-btn-outline:hover {
+    background: rgba(239, 68, 68, 0.1) !important;
+    border-color: rgba(239, 68, 68, 0.4) !important;
+    color: #ef4444 !important;
+}
+
+.mime-folder {
+    background: rgba(249, 115, 22, 0.18) !important;
+    color: #f97316 !important;
+    border: 1px solid rgba(249, 115, 22, 0.4) !important;
+    font-weight: 700 !important;
+}
+
+.ea-folder-row:hover {
+    background-color: rgba(249, 115, 22, 0.08) !important;
+}
+
+.ea-folder-enter-btn {
+    background: rgba(249, 115, 22, 0.15) !important;
+    color: #f97316 !important;
+    border: 1px solid rgba(249, 115, 22, 0.3) !important;
+    font-weight: 600 !important;
+}
+
+.ea-folder-enter-btn:hover {
+    background: #f97316 !important;
+    color: #ffffff !important;
+}
+
+.ea-drawer-path-link-btn {
+    background: none !important;
+    border: none !important;
+    color: #f97316 !important;
+    cursor: pointer !important;
+    text-decoration: underline !important;
+    font-size: 0.9rem !important;
+    font-family: inherit !important;
+    padding: 0 !important;
+    font-weight: 600 !important;
+    transition: opacity 0.15s ease !important;
+}
+
+.ea-drawer-path-link-btn:hover {
+    opacity: 0.8 !important;
+}
+
+.ea-row-highlight {
+    animation: eaHighlightPulse 2.5s ease-in-out forwards !important;
+}
+
+@keyframes eaHighlightPulse {
+    0% {
+        background-color: rgba(249, 115, 22, 0.35);
+        box-shadow: 0 0 16px rgba(249, 115, 22, 0.6);
+    }
+    50% {
+        background-color: rgba(249, 115, 22, 0.2);
+        box-shadow: 0 0 8px rgba(249, 115, 22, 0.35);
+    }
+    100% {
+        background-color: rgba(249, 115, 22, 0.12);
+        box-shadow: none;
+    }
+}
