@@ -11,6 +11,7 @@
         allTags: [],
         selectedTagIds: new Set(),
         searchTerm: '',
+        tagSearchTerm: '',
         files: [],
         isLoadingTags: false,
         isLoadingFiles: false,
@@ -207,8 +208,11 @@
     function clearAllFilters() {
         state.selectedTagIds.clear();
         state.searchTerm = '';
+        state.tagSearchTerm = '';
         var input = document.getElementById('ea-search-input');
         if (input) input.value = '';
+        var tagSearchInput = document.getElementById('ea-tag-filter-search-input');
+        if (tagSearchInput) tagSearchInput.value = '';
         renderTagBar();
         renderStatsAndRibbon();
         fetchFiles();
@@ -550,44 +554,106 @@
         }
     }
 
-    // Render: Faceted Tag Cloud Chips
+    // Render: Faceted Multi-Tag Filter Card with Vertical Scroll & Real-Time Search (Obsidian Theme)
     function renderTagBar() {
         var container = document.getElementById('ea-tag-bar-container');
         if (!container) return;
 
         if (state.isLoadingTags && state.allTags.length === 0) {
-            container.innerHTML = '<div class="ea-tag-bar"><span class="ea-skeleton" style="width: 90px; height: 32px; display: inline-block;"></span><span class="ea-skeleton" style="width: 110px; height: 32px; display: inline-block;"></span><span class="ea-skeleton" style="width: 80px; height: 32px; display: inline-block;"></span></div>';
+            container.innerHTML = [
+                '<div class="ea-tag-filter-card">',
+                '  <div class="ea-tag-chips-wrapper ea-tag-bar">',
+                '    <span class="ea-skeleton" style="width: 90px; height: 32px; display: inline-block;"></span>',
+                '    <span class="ea-skeleton" style="width: 110px; height: 32px; display: inline-block;"></span>',
+                '    <span class="ea-skeleton" style="width: 80px; height: 32px; display: inline-block;"></span>',
+                '  </div>',
+                '</div>'
+            ].join('\n');
             return;
         }
 
-        var html = ['<div class="ea-tag-bar">'];
+        var existingCard = container.querySelector('.ea-tag-filter-card');
+        var chipsWrapper = container.querySelector('#ea-tag-chips-wrapper');
+        var searchInput = container.querySelector('#ea-tag-filter-search-input');
 
-        // "All Documents" Tag Chip
-        var isAllActive = state.selectedTagIds.size === 0;
-        html.push(
-            '<div class="ea-tag-chip ' + (isAllActive ? 'active' : '') + '" data-tag-all="true">',
-            '  <span>همه اسناد</span>',
-            '</div>'
-        );
-
-        // Individual Tags
-        state.allTags.forEach(function (tag) {
-            var isActive = state.selectedTagIds.has(tag.id);
-            html.push(
-                '<div class="ea-tag-chip ' + (isActive ? 'active' : '') + '" data-tag-id="' + tag.id + '">',
-                '  <span>' + escapeHtml(tag.name) + '</span>',
-                '  <span class="ea-chip-count">' + toPersianDigits(tag.count) + '</span>',
+        if (!existingCard || !chipsWrapper || !searchInput) {
+            var cardHtml = [
+                '<div class="ea-tag-filter-card">',
+                '  <div class="ea-tag-filter-header">',
+                '    <div class="ea-tag-filter-title">',
+                '      <span class="ea-tag-icon">🏷️</span>',
+                '      <span>فیلتر پیشرفته برچسب‌های اسناد (Multi-Tag Intersection)</span>',
+                '    </div>',
+                '    <div class="ea-tag-filter-controls">',
+                '      <input type="text" class="ea-tag-search-input" id="ea-tag-filter-search-input" placeholder="جستجوی برچسب..." value="' + escapeHtml(state.tagSearchTerm) + '">',
+                '    </div>',
+                '  </div>',
+                '  <div class="ea-tag-chips-wrapper ea-tag-bar" id="ea-tag-chips-wrapper"></div>',
                 '</div>'
-            );
+            ].join('\n');
+            container.innerHTML = cardHtml;
+
+            chipsWrapper = container.querySelector('#ea-tag-chips-wrapper');
+            searchInput = container.querySelector('#ea-tag-filter-search-input');
+
+            if (searchInput) {
+                searchInput.addEventListener('input', function () {
+                    state.tagSearchTerm = this.value;
+                    renderTagChips(chipsWrapper);
+                });
+            }
+        } else {
+            if (document.activeElement !== searchInput) {
+                searchInput.value = state.tagSearchTerm || '';
+            }
+        }
+
+        renderTagChips(chipsWrapper);
+    }
+
+    function renderTagChips(chipsWrapper) {
+        if (!chipsWrapper) return;
+
+        var term = (state.tagSearchTerm || '').trim().toLowerCase();
+        var visibleTags = state.allTags.filter(function (t) {
+            if (!term) return true;
+            return t.name.toLowerCase().indexOf(term) !== -1;
         });
 
-        html.push('</div>');
-        container.innerHTML = html.join('');
+        var html = [];
+
+        // "All Documents" Tag Chip (visible when no search term or if search matches 'همه اسناد')
+        if (!term || 'همه اسناد'.indexOf(term) !== -1) {
+            var isAllActive = state.selectedTagIds.size === 0;
+            html.push(
+                '<div class="ea-tag-chip ' + (isAllActive ? 'active is-active' : '') + '" data-tag-all="true" title="نمایش همه اسناد بدون فیلتر برچسب">',
+                '  <span>همه اسناد</span>',
+                '</div>'
+            );
+        }
+
+        if (visibleTags.length === 0 && (!term || 'همه اسناد'.indexOf(term) === -1)) {
+            html.push('<div class="ea-tag-empty-msg">برچسبی یافت نشد.</div>');
+        } else {
+            visibleTags.forEach(function (tag) {
+                var isActive = state.selectedTagIds.has(tag.id);
+                var checkIcon = isActive ? '✓ ' : '';
+                html.push(
+                    '<div class="ea-tag-chip ' + (isActive ? 'active is-active' : '') + '" data-tag-id="' + tag.id + '" title="' + escapeHtml(tag.name) + '">',
+                    '  <span>' + checkIcon + escapeHtml(tag.name) + '</span>',
+                    '  <span class="ea-chip-count chip-count">' + toPersianDigits(tag.count) + '</span>',
+                    '</div>'
+                );
+            });
+        }
+
+        chipsWrapper.innerHTML = html.join('');
 
         // Attach chip click handlers
-        var chips = container.querySelectorAll('.ea-tag-chip');
-        chips.forEach(function (chip) {
-            chip.addEventListener('click', function () {
+        chipsWrapper.querySelectorAll('.ea-tag-chip').forEach(function (chip) {
+            chip.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
                 state.isFolderView = false;
                 if (chip.getAttribute('data-tag-all') === 'true') {
                     state.selectedTagIds.clear();

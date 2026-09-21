@@ -320,76 +320,169 @@ body[theme="dark"] :root,
   margin-right: 8px;
 }
 
-/* Faceted Tag Cloud Bar */
+/* =========================================================================
+   Faceted Multi-Tag Filter Card (Obsidian Theme & Multi-Tag Intersection)
+   Vertical scrolling cloud with real-time tag search, matching Admin UI
+   ========================================================================= */
+
 .ea-tag-bar-wrapper {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
-.ea-tag-bar {
+.ea-tag-filter-card {
+  padding: 16px 20px;
+  background: #11141b;
+  border: 1px solid #202632;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  font-family: var(--ea-font, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Vazirmatn", Tahoma, sans-serif);
+  direction: rtl;
+  text-align: right;
+  transition: all 0.25s ease;
+  position: relative;
+  box-sizing: border-box;
+  color: #f8fafc;
+}
+
+.ea-tag-filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ea-tag-filter-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  overflow-x: auto;
-  padding: 6px 2px 12px 2px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.ea-tag-filter-title .ea-tag-icon {
+  font-size: 18px;
+  color: #f97316;
+}
+
+.ea-tag-filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ea-tag-search-input {
+  padding: 6px 14px;
+  border: 1px solid #2d3647;
+  border-radius: 20px;
+  font-size: 13px;
+  outline: none;
+  transition: all 0.2s;
+  background: #181d27;
+  color: #f8fafc;
+  min-width: 170px;
+  direction: rtl;
+  font-family: inherit;
+}
+
+.ea-tag-search-input:focus {
+  border-color: #f97316;
+  background: #1f2533;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.25);
+}
+
+.ea-tag-chips-wrapper,
+.ea-tag-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 140px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 2px;
   scrollbar-width: thin;
-  scrollbar-color: var(--ea-border-medium) transparent;
+  scrollbar-color: #f97316 rgba(0, 0, 0, 0.2);
 }
 
+.ea-tag-chips-wrapper::-webkit-scrollbar,
 .ea-tag-bar::-webkit-scrollbar {
-  height: 4px;
+  width: 6px;
+  height: 6px;
 }
 
-.ea-tag-bar::-webkit-scrollbar-thumb {
-  background: var(--ea-border-medium);
+.ea-tag-chips-wrapper::-webkit-scrollbar-track,
+.ea-tag-bar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.25);
   border-radius: 4px;
+}
+
+.ea-tag-chips-wrapper::-webkit-scrollbar-thumb,
+.ea-tag-bar::-webkit-scrollbar-thumb {
+  background: #2d3647;
+  border-radius: 4px;
+}
+
+.ea-tag-chips-wrapper::-webkit-scrollbar-thumb:hover,
+.ea-tag-bar::-webkit-scrollbar-thumb:hover {
+  background: #f97316;
 }
 
 .ea-tag-chip {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 14px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  border-radius: var(--ea-radius-full);
-  background: var(--ea-surface-card);
-  color: var(--ea-text-muted);
-  border: 1px solid var(--ea-border);
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  border-radius: 16px;
+  border: 1px solid #202632;
+  background: #181d27;
+  color: #94a3b8;
   cursor: pointer;
-  white-space: nowrap;
-  transition: var(--ea-transition);
-  box-shadow: var(--ea-shadow-sm);
   user-select: none;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  box-sizing: border-box;
 }
 
 .ea-tag-chip:hover {
-  border-color: var(--ea-primary-border);
-  color: var(--ea-text-main);
-  background: var(--ea-surface-elevated);
-  transform: translateY(-2px);
+  background: #1f2533;
+  border-color: rgba(249, 115, 22, 0.45);
+  color: #f8fafc;
+  transform: translateY(-1px);
 }
 
-.ea-tag-chip.active {
-  background: var(--ea-primary-gradient) !important;
-  border-color: transparent !important;
+.ea-tag-chip.active,
+.ea-tag-chip.is-active {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%) !important;
   color: #ffffff !important;
-  box-shadow: 0 4px 14px -2px var(--ea-primary-glow);
+  border-color: transparent !important;
+  box-shadow: 0 3px 10px rgba(249, 115, 22, 0.35);
   font-weight: 700;
 }
 
-.ea-tag-chip.active .ea-chip-count {
+.ea-tag-chip .ea-chip-count,
+.ea-tag-chip .chip-count {
+  display: inline-block;
+  padding: 1px 7px;
+  font-size: 11px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  margin-right: 4px;
+}
+
+.ea-tag-chip.active .ea-chip-count,
+.ea-tag-chip.active .chip-count {
   background: rgba(0, 0, 0, 0.28);
   color: #ffffff;
 }
 
-.ea-chip-count {
-  font-size: 0.72rem;
-  padding: 1px 6px;
-  border-radius: 10px;
-  background: var(--ea-surface-elevated);
-  border: 1px solid var(--ea-border);
-  color: var(--ea-text-muted);
-  font-weight: 700;
+.ea-tag-empty-msg {
+  color: #94a3b8;
+  font-size: 13px;
+  padding: 8px 4px;
 }
 
 /* Active Filter Badges Ribbon */
