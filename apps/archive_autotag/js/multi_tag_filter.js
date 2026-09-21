@@ -588,7 +588,6 @@
                 actionButtonsHtml = '';
             } else {
                 actionButtonsHtml = 
-                    '<a class="archive-action-btn archive-locate-btn" href="' + escapeHtml(file.web_url) + '" data-file-id="' + file.id + '" data-is-dir="false" data-target-dir="' + escapeHtml(targetDir) + '" title="مشاهده در پوشه">📂 مشاهده در پوشه</a>' +
                     '<a class="archive-action-btn archive-download-btn" href="' + escapeHtml(file.download_url) + '" download title="دانلود">⬇️ دانلود</a>';
             }
 
