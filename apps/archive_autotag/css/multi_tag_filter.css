@@ -232,17 +232,19 @@
 }
 
 .archive-results-table th {
-    padding: 10px 14px;
+    padding: 6px 10px;
     background: #181d27;
     color: #94a3b8;
     font-weight: 600;
+    font-size: 12px;
     border-bottom: 2px solid #2d3647;
     text-align: right;
     white-space: nowrap;
 }
 
 .archive-results-table td {
-    padding: 10px 12px;
+    padding: 6px 10px;
+    font-size: 12px;
     border-bottom: 1px solid #202632;
     vertical-align: middle;
     text-align: right;

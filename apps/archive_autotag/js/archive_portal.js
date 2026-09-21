@@ -394,7 +394,7 @@
             '    <header class="ea-portal-header">',
             '    <div class="ea-header-brand">',
             '      <div class="ea-brand-icon">',
-            '        <svg width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>',
+            '        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>',
             '      </div>',
             '      <div>',
             '        <h1 class="ea-brand-title">سامانه بایگانی اسناد سازمانی</h1>',
@@ -404,15 +404,15 @@
             '    <div class="ea-header-actions">',
             '      <div id="ea-workflow-actions" class="ea-workflow-actions"></div>',
             '      <button id="ea-upload-btn" class="ea-btn ea-btn-primary" title="بارگذاری سند سازمانی جدید در پوشه گروه">',
-            '        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+            '        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
             '        <span>📤 بارگذاری فایل</span>',
             '      </button>',
             '      <button id="ea-refresh-btn" class="ea-btn" title="تازه سازی اطلاعات">',
-            '        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
+            '        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
             '        <span>به‌روزرسانی</span>',
             '      </button>',
             '      <button type="button" id="ea-folder-view-btn" class="ea-btn" title="مشاهده و مرور ساختار درختی پوشه‌ها در همین صفحه">',
-            '        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
+            '        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
             '        <span>نمای پوشه‌ها</span>',
             '      </button>',
             '    </div>',
@@ -422,7 +422,7 @@
             '  <section class="ea-search-hero">',
             '    <div class="ea-search-box">',
             '      <span class="ea-search-icon">',
-            '        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+            '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
             '      </span>',
             '      <input type="text" id="ea-search-input" class="ea-search-input" placeholder="جستجو در عنوان یا مسیر سند سازمانی..." value="' + escapeHtml(state.searchTerm) + '">',
             '      <span id="ea-search-count" class="ea-search-count-pill">' + toPersianDigits(state.files.length) + ' سند</span>',
@@ -586,10 +586,14 @@
                 '  <div class="ea-tag-filter-header">',
                 '    <div class="ea-tag-filter-title">',
                 '      <span class="ea-tag-icon">🏷️</span>',
-                '      <span>فیلتر پیشرفته برچسب‌های اسناد (Multi-Tag Intersection)</span>',
+                '      <span>فیلتر برچسب‌های اسناد</span>',
                 '    </div>',
                 '    <div class="ea-tag-filter-controls">',
                 '      <input type="text" class="ea-tag-search-input" id="ea-tag-filter-search-input" placeholder="جستجوی برچسب..." value="' + escapeHtml(state.tagSearchTerm) + '">',
+                '      <button type="button" class="ea-tag-toggle-btn" id="ea-tag-toggle-btn" title="جمع کردن / باز کردن برچسب‌ها">',
+                '        <span id="ea-tag-toggle-icon">▲</span>',
+                '        <span id="ea-tag-toggle-text">بستن</span>',
+                '      </button>',
                 '    </div>',
                 '  </div>',
                 '  <div class="ea-tag-chips-wrapper ea-tag-bar" id="ea-tag-chips-wrapper"></div>',
@@ -599,10 +603,28 @@
 
             chipsWrapper = container.querySelector('#ea-tag-chips-wrapper');
             searchInput = container.querySelector('#ea-tag-filter-search-input');
+            var toggleBtn = container.querySelector('#ea-tag-toggle-btn');
+
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', function () {
+                    var isCollapsed = chipsWrapper.classList.toggle('is-collapsed');
+                    var icon = document.getElementById('ea-tag-toggle-icon');
+                    var text = document.getElementById('ea-tag-toggle-text');
+                    if (icon) icon.textContent = isCollapsed ? '▼' : '▲';
+                    if (text) text.textContent = isCollapsed ? 'مشاهده برچسب‌ها' : 'بستن';
+                });
+            }
 
             if (searchInput) {
                 searchInput.addEventListener('input', function () {
                     state.tagSearchTerm = this.value;
+                    if (chipsWrapper.classList.contains('is-collapsed')) {
+                        chipsWrapper.classList.remove('is-collapsed');
+                        var icon = document.getElementById('ea-tag-toggle-icon');
+                        var text = document.getElementById('ea-tag-toggle-text');
+                        if (icon) icon.textContent = '▲';
+                        if (text) text.textContent = 'بستن';
+                    }
                     renderTagChips(chipsWrapper);
                 });
             }

@@ -1,0 +1,118 @@
+# Requirement 25 — Mandatory Document Metadata Capture Before Archive Upload
+
+## هدف
+
+در سامانه enterprise-archive-system باید هنگام آپلود یک فایل توسط کاربری که مجوز Upload دارد، قبل از نهایی‌شدن Upload، اطلاعات توصیفی و Metadata مربوط به سند از کاربر دریافت شود.
+
+هدف این قابلیت ایجاد یک لایه Metadata مستقل از:
+
+- Folder Structure
+- System Tags
+- Parent Folder Tagging
+- File Name
+- OCR Content
+
+است.
+
+این Metadata باید در آینده امکان جست‌وجوی دقیق و سریع اسناد را فراهم کند.
+
+## دلیل نیاز به این قابلیت
+
+در سامانه، OCR فعلاً قابل اتکا نیست و در برخی فایل‌ها امکان استخراج محتوای واقعی سند وجود ندارد.
+
+بنابراین جست‌وجوی صرفاً مبتنی بر:
+
+File Content / OCR
+
+کافی نیست.
+
+در نتیجه هنگام ثبت سند، کاربر باید اطلاعات اصلی سند را وارد کند تا سیستم بتواند بعداً بر اساس این اطلاعات، فایل موردنظر را پیدا کند.
+
+این Metadata باید به فایل متصل باشد و مستقل از Folder و Tag قابل جست‌وجو باشد.
+
+---
+
+# بخش 1 — اصل مهم
+
+Metadata نباید جایگزین:
+
+- Folder بندی
+- Tagگذاری
+- Permission
+- ACL
+- OCR
+
+شود.
+
+بلکه یک لایه اطلاعاتی مستقل است:
+
+File
+ ├── Folder
+ ├── System Tags
+ ├── Metadata
+ └── OCR Content (در صورت وجود)
+
+---
+
+# بخش 2 — چه کاربرانی این قابلیت را ببینند؟
+
+فقط کاربرانی که طبق Permission Resolver فعلی اجازه Upload در Resource مربوطه را دارند.
+
+یعنی:
+
+Can Upload = TRUE
+        ↓
+Show Metadata Form
+        ↓
+Validate Metadata
+        ↓
+Upload File
+        ↓
+Save Metadata
+
+اگر:
+
+Can Upload = FALSE
+
+کاربر نباید به این flow دسترسی داشته باشد.
+
+---
+
+# بخش 3 — ترتیب عملیات
+
+Flow موردنظر:
+
+User
+ ↓
+Select Upload
+ ↓
+Select File
+ ↓
+Metadata Form
+ ↓
+Validate Metadata
+ ↓
+Confirm
+ ↓
+Upload File
+ ↓
+Persist Metadata
+ ↓
+Audit
+
+اصل مهم:
+
+**File نباید قبل از تکمیل موفق Metadata در Archive نهایی شود.**
+
+---
+
+# بخش 4 — Metadata پیشنهادی
+
+## فیلدهای اجباری
+
+### 4.1 موضوع سند
+
+Field:
+
+```text
+subject

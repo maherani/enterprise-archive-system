@@ -1,0 +1,107 @@
+# Requirement 26 — Secure System Administrator File & Folder Deletion
+
+## هدف
+
+در سامانه enterprise-archive-system، کاربر System Administrator در حال حاضر
+امکان حذف فایل یا Folder از طریق رابط کاربری Archive را ندارد، در حالی که
+معماری فعلی Permission، عملیات DELETE را تعریف کرده است.
+
+هدف این Requirement این است که حذف فایل و Folder برای کاربران عضو گروه
+system admin / Nextcloud admin به‌صورت کامل، امن، قابل ممیزی و سازگار با
+تمام لایه‌های فعلی سامانه فعال شود.
+
+این Requirement نباید یک سیستم Permission جدید ایجاد کند.
+
+باید از معماری فعلی استفاده کند:
+
+CentralPermissionResolver
+FileOwnershipService
+ArchiveFileIsolationWrapper
+Nextcloud File API / Storage API
+Group Share
+Effective ACL
+AutoTagService
+ReliableAuditService
+Document Metadata
+Existing E2E infrastructure
+
+---
+
+# 1 — ابتدا مشکل فعلی را پیدا کن
+
+قبل از هر تغییر کد، مشخص کن دقیقاً چرا System Admin قادر به حذف نیست.
+
+تمام زنجیره زیر را بررسی کن:
+
+UI
+ ↓
+Archive Portal
+ ↓
+Delete Action
+ ↓
+Frontend Request
+ ↓
+Backend Controller / Service
+ ↓
+CentralPermissionResolver
+ ↓
+ArchiveFileIsolationWrapper
+ ↓
+Nextcloud Storage / Node API
+ ↓
+NodeDeletedEvent / Delete Hook
+ ↓
+Cleanup
+ ↓
+Audit
+
+مشخص کن مشکل فعلی در کدام لایه است:
+
+- UI
+- Backend API
+- Authorization
+- Storage Wrapper
+- Nextcloud capability
+- Delete hook
+- Folder deletion
+- Cache
+- Audit
+- یا ترکیبی از چند مورد
+
+تا زمانی که root cause مشخص نشده، معماری جدید ایجاد نکن.
+
+---
+
+# 2 — Permission Model
+
+از PermissionOperation فعلی استفاده کن.
+
+عملیات:
+
+DELETE = 8
+
+نباید constant جدیدی برای Delete ایجاد شود.
+
+تمام تصمیمات Authorization باید از:
+
+IPermissionResolver
+CentralPermissionResolver
+
+عبور کنند.
+
+---
+
+# 3 — System Admin
+
+معیار System Admin باید همان منطق فعلی پروژه باشد:
+
+- `groupManager->isAdmin($userId)`
+- و رفتار موجود برای کاربر `admin`
+
+از بررسی username اختصاصی در نقاط جدید خودداری کن.
+
+مثال:
+
+```text
+if user is System Admin
+    DELETE may be allowed
