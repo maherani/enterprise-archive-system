@@ -1,12 +1,12 @@
 # مستندات نیازمندی‌های سامانه آرشیو سازمانی (Enterprise Archive System Requirements)
 
-این پوشه، مرجع رسمی، زنده و ماژولار (Living Documentation) برای تمامی نیازمندی‌ها، سوابق معماری، جریان‌های کاری و جزئیات پیاده‌سازی پروژه **Enterprise Archive System** است. هر سند در این مجموعه، یک نیازمندی واقعی را همراه با کلیه جزئیات فنی، مدل مفهومی، اجزای بک‌اند، فرانت‌اند، دیتابیس، امنیت، آزمون‌های واقعی و چک‌لیست‌های استقرار در ۲۳ بخش استاندارد مستند می‌کند.
+این پوشه، مرجع رسمی، زنده و ماژولار (Living Documentation) برای تمامی نیازمندی‌ها، سوابق معماری، جریان‌های کاری و جزئیات پیاده‌سازی پروژه **Enterprise Archive System** است. هر سند در این مجموعه، یک نیازمندی واقعی را همراه با کلیه جزئیات فنی، مدل مفهومی، اجزای بک‌اند، فرانت‌اند، دیتابیس، امنیت، آزمون‌های واقعی و چک‌لیست‌های استقرار در ۲۸ نیازمندی استاندارد مستند می‌کند.
 
 ---
 
 ## ۱. نقشه جامع نیازمندی‌های سامانه (Master Requirement Map)
 
-بر اساس بررسی موشکافانه کل مخزن Git، کلیه کامیت‌ها، کدهای عملیاتی و تغییرات تاریخی، تمامی نیازمندی‌های سیستم در قالب **۱۲ سند استاندارد و ماژولار** تدوین و نهایی‌سازی شده‌اند:
+بر اساس بررسی موشکافانه کل مخزن Git، کلیه کامیت‌ها، کدهای عملیاتی و تغییرات تاریخی، تمامی نیازمندی‌های سیستم در قالب **۲۸ سند استاندارد و ماژولار** تدوین و نهایی‌سازی شده‌اند:
 
 | شماره | عنوان نیازمندی | سند مرجع | ماهیت | وابستگی‌ها | خلاصه حوزه پیاده‌سازی | وضعیت در مخزن |
 | :---: | :--- | :--- | :---: | :---: | :--- | :---: |
@@ -77,3 +77,36 @@ Requirement → Design → Approval → Implementation → Test → Verification
 * **توسعه قابلیت‌های موجود:** در صورت توسعه یا بهینه‌سازی قابلیت‌های قبلی، سند شماره‌دار مربوطه مستقیماً به‌روزرسانی و سوابق آن تکمیل می‌شود.
 * **معرفی قابلیت‌های بنیادین جدید:** در صورت ارائه نیازمندی کاملاً مستقل با دامنه جدید، سند شماره ۲۱ به بعد طبق همین فرمت ۲۳گانه ایجاد خواهد شد.
 
+
+
+---
+
+## Canonicalization of Historical Prompts
+
+از این commit به بعد، Requirementها مرجع اصلی و زنده پروژه هستند و Promptهای تاریخیِ هم‌پوشان به‌عنوان فایل مستقل نگهداری نمی‌شوند. محتوای آن‌ها در Requirement متناظر ادغام شده است.
+
+| Prompt تاریخی | مرجع نهایی | وضعیت |
+|---|---|---|
+| Prompt 01 — امنیت AI Token و Delegated Identity | Requirement 13 | ادغام شد |
+| Done-Prompt 02 — Central Permission Resolver | Requirement 17 | ادغام شد |
+| Done-Prompt 03 — Fail-Closed Storage Isolation | Requirement 18 | ادغام شد |
+| Done-Prompt 04 — FileOwnershipService / Effective ACL | Requirement 19 | ادغام شد |
+| Done-Prompt 05 — Atomic Group Tag Deletion | Requirement 20 | ادغام شد |
+| Done-Prompt 06 — Reliable Audit | Requirement 21 | ادغام شد |
+| Done-Prompt 07 — AI Audit Semantic Model | Requirement 22 | ادغام شد |
+| Done-Prompt 08 — Browser E2E | Requirement 23 | ادغام شد |
+| Prompt 09 — همگام‌سازی Requirement 16 | Requirement 16 | ادغام شد |
+| Prompt 10 — پوشش Navigation در صفحات | Requirement 16 | ادغام شد |
+| Prompt 12 — Navigation Semantics | Requirement 16 | ادغام شد |
+| Prompt 13 — حذف Polling Navigation | Requirement 16 | ادغام شد |
+| Prompt 14 — Portable Test Runner | Requirement 23 | ادغام شد |
+| Prompt 15 — حذف Credentialهای Hard-coded | Requirement 23 | ادغام شد |
+| Prompt 16 — Mutating Test Isolation / Cleanup | Requirement 23 | ادغام شد |
+| Prompt 11 — Group Sharing / Group Management | Requirement 24 | ادغام شد |
+| Prompt 17 — Documentation Drift | Documentation Governance همین سند + PROJECT_STATE/README | ادغام شد |
+
+### قاعده نگهداری
+- برای رفتار محصول، امنیت، معماری و Acceptance Criteria فقط Requirement متناظر معتبر است.
+- برای وضعیت فعلی implementation و verification، PROJECT_STATE.md و تست‌های موجود ملاک هستند.
+- Prompt جدید فقط وقتی ایجاد می‌شود که یک نیاز مستقل و هنوز مستندنشده وجود داشته باشد؛ Promptی که صرفاً همان Requirement موجود را تکرار می‌کند نباید اضافه شود.
+- حذف فایل Prompt به معنی حذف نیازمندی نیست؛ نیازمندی در سند Canonical آن حفظ شده است.
