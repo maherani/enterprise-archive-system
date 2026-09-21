@@ -68,6 +68,14 @@
             return;
         }
 
+        if (!isAdmin) {
+            // Back-Office Guard: /apps/files is strictly reserved for Admin users
+            if (window.location.pathname.includes('/apps/files')) {
+                window.location.replace('/index.php/apps/archive_autotag/');
+                return;
+            }
+        }
+
         // Non-admin user: Mark html & body with isolation class
         if (document.documentElement && !document.documentElement.classList.contains('ea-non-admin')) {
             document.documentElement.classList.add('ea-non-admin');

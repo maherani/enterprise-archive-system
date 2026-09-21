@@ -117,6 +117,7 @@
                 state.allTags = data.tags;
                 renderFilterBar();
         setupSidebarDrawer();
+        bindHeaderFilesToggle();
             }
         })
         .catch(function (err) {
@@ -151,32 +152,21 @@
 
 
     /**
-     * Collapsible Sidebar Drawer Management for All Users
+     * Collapsible Sidebar Drawer Management - Admin Back-Office
+     * Toggled by clicking on the word 'Files' in the top header
      */
     function setupSidebarDrawer() {
-        // Read preference or default to collapsed for wide table experience
         var stored = localStorage.getItem('ea_sidebar_collapsed');
-        if (stored === '1' || stored === null) {
-            document.body.classList.add('ea-sidebar-collapsed');
-        } else {
+        if (stored === '0') {
             document.body.classList.remove('ea-sidebar-collapsed');
+        } else {
+            // Default to collapsed for maximized back-office workspace
+            document.body.classList.add('ea-sidebar-collapsed');
         }
 
-        // 1. Inject Floating Tab on left edge
-        if (!document.getElementById('ea-floating-sidebar-tab')) {
-            var tab = document.createElement('button');
-            tab.id = 'ea-floating-sidebar-tab';
-            tab.type = 'button';
-            tab.className = 'ea-floating-sidebar-tab';
-            tab.title = 'نمایش منوی فایل‌ها (کشویی)';
-            tab.innerHTML = '<span>☰ منوی فایل‌ها</span>';
-            tab.addEventListener('click', function () {
-                toggleSidebar(false);
-            });
-            document.body.appendChild(tab);
-        }
+        bindHeaderFilesToggle();
 
-        // 2. Inject Sidebar Header inside .app-navigation
+        // Inject Sidebar Header inside .app-navigation
         var nav = document.querySelector('.app-navigation');
         if (nav && !nav.querySelector('.ea-sidebar-header')) {
             var header = document.createElement('div');
@@ -187,22 +177,39 @@
             });
             nav.insertBefore(header, nav.firstChild);
         }
+    }
 
-        // 3. Inject Toggle Button in Filter Header
-        var controls = document.querySelector('.archive-tag-filter-controls');
-        if (controls && !controls.querySelector('.ea-filter-toggle-btn')) {
-            var btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'ea-filter-toggle-btn';
-            btn.innerHTML = '<span>☵ منوی فایل‌ها</span>';
-            btn.addEventListener('click', function () {
+    function bindHeaderFilesToggle() {
+        var appBtn = document.querySelector('.app-menu__current-app');
+        if (appBtn && !appBtn.hasAttribute('data-ea-btn-bound')) {
+            appBtn.setAttribute('data-ea-btn-bound', 'true');
+            appBtn.style.cursor = 'pointer';
+            appBtn.setAttribute('title', 'کلیک برای باز/بستن منوی فایل‌ها (کشویی)');
+
+            appBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
                 var isCurrentlyCollapsed = document.body.classList.contains('ea-sidebar-collapsed');
                 toggleSidebar(!isCurrentlyCollapsed);
-            });
-            controls.insertBefore(btn, controls.firstChild);
+            }, true);
         }
 
-        updateToggleButtonsState();
+        var filesName = document.querySelector('.app-menu__current-app-name') ||
+                        document.querySelector('.app-menu__current-app .button-vue__text');
+        if (filesName && !filesName.hasAttribute('data-ea-toggle-bound')) {
+            filesName.setAttribute('data-ea-toggle-bound', 'true');
+            filesName.style.cursor = 'pointer';
+            filesName.setAttribute('title', 'کلیک برای باز/بستن منوی فایل‌ها (کشویی)');
+
+            filesName.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                var isCurrentlyCollapsed = document.body.classList.contains('ea-sidebar-collapsed');
+                toggleSidebar(!isCurrentlyCollapsed);
+            }, true);
+        }
     }
 
     function toggleSidebar(collapse) {
@@ -212,16 +219,6 @@
         } else {
             document.body.classList.remove('ea-sidebar-collapsed');
             localStorage.setItem('ea_sidebar_collapsed', '0');
-        }
-        updateToggleButtonsState();
-    }
-
-    function updateToggleButtonsState() {
-        var isCollapsed = document.body.classList.contains('ea-sidebar-collapsed');
-        var btn = document.querySelector('.ea-filter-toggle-btn');
-        if (btn) {
-            btn.innerHTML = isCollapsed ? '<span>▶ باز کردن منو</span>' : '<span>◀ بستن منو</span>';
-            btn.title = isCollapsed ? 'باز کردن منوی فایل‌ها' : 'بستن منوی فایل‌ها برای مشاهده عریض جدول';
         }
     }
 
@@ -279,6 +276,7 @@
 
         renderFilterBar();
         setupSidebarDrawer();
+        bindHeaderFilesToggle();
 
         if (state.selectedTagIds.size > 0) {
             fetchFilteredFiles();
@@ -370,6 +368,7 @@
                 }
                 renderFilterBar();
         setupSidebarDrawer();
+        bindHeaderFilesToggle();
                 onFilterChange();
             });
         });
@@ -384,6 +383,7 @@
                 state.selectedTagIds.delete(tagId);
                 renderFilterBar();
         setupSidebarDrawer();
+        bindHeaderFilesToggle();
                 onFilterChange();
             });
         });
@@ -397,6 +397,7 @@
                 state.selectedTagIds.clear();
                 renderFilterBar();
         setupSidebarDrawer();
+        bindHeaderFilesToggle();
                 onFilterChange();
             });
         }
@@ -434,6 +435,7 @@
                             }
                             renderFilterBar();
         setupSidebarDrawer();
+        bindHeaderFilesToggle();
                             onFilterChange();
                         });
                     });
@@ -671,6 +673,7 @@
                     state.selectedTagIds.clear();
                     renderFilterBar();
         setupSidebarDrawer();
+        bindHeaderFilesToggle();
                 }
 
                 navigateToDirectory(targetDir, webUrl);
