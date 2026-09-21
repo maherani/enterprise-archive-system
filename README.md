@@ -306,3 +306,12 @@ Automated operations scripts are available in `deploy/`:
     - 100% self-hosted, air-gapped Swagger UI (`/api/docs`) and OpenAPI 3.0.3 specification (`/api/openapi.json`) without any external CDN dependencies.
     - Immutable audit trail recorded in PostgreSQL table `oc_archive_ai_audit` with correlation IDs (`X-Request-ID`), actor UID, client ID, auth type, byte count, and outcome.
 
+
+
+---
+
+## Canonical Requirement & Prompt Consolidation
+
+از این نقطه، `docs/requirements/` مرجع اصلی نیازمندی‌های زنده پروژه است و تعداد نیازمندی‌های Canonical برابر **۲۸** است. Promptهای تاریخی که صرفاً همان نیازمندی‌ها را تکرار می‌کردند حذف و محتوای آن‌ها در Requirement متناظر ادغام شده است.
+
+برای traceability، نگاشت Promptهای تاریخی به Requirementهای نهایی در `docs/requirements/README.md` و `Prompts/README.md` ثبت شده است. برای وضعیت واقعی implementation و verification، `PROJECT_STATE.md`، کد و تست‌های موجود ملاک هستند.
