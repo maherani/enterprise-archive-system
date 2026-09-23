@@ -135,7 +135,7 @@ class FileGrantCommand extends Command {
                    $qb->expr()->like('path', $qb->createNamedParameter('files/' . $cleanPath))
                )
            )
-           ->setMaxResults(1);
+           ->orderBy('fileid', 'ASC')->setMaxResults(1);
         $res = $qb->executeQuery()->fetchAssociative();
         return $res ? (int)$res['fileid'] : null;
     }
