@@ -175,7 +175,11 @@ class CentralPermissionResolver implements IPermissionResolver {
 
         // Rule 4: Native Nextcloud Shares (oc_share) - DAC Layer
         $sQb = $this->db->getQueryBuilder();
-        $shareSourceIds = array_map('strval', array_unique(array_merge([$fileId], $ancestorIds)));
+        if ($owner === 'admin' || $owner === 'system' || $owner === null) {
+            $shareSourceIds = array_map('strval', array_unique(array_merge([$fileId], $ancestorIds)));
+        } else {
+            $shareSourceIds = [(string)$fileId];
+        }
         $sOrConds = [
             $sQb->expr()->andX(
                 $sQb->expr()->in('share_type', $sQb->createNamedParameter([0, 2], IQueryBuilder::PARAM_INT_ARRAY)),

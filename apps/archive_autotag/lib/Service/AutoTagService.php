@@ -41,6 +41,7 @@ class AutoTagService {
             }
         }
 
+        $this->logger->error("archive_autotag: About to create tag hex: " . bin2hex($name) . " name: " . $name);
         // Create restricted tag: userVisible=true, userAssignable=false
         $tag = $this->tagManager->createTag($name, true, false);
         $this->tagOwnershipService->setTagOwner((int)$tag->getId(), 'system');

@@ -270,7 +270,7 @@
         var targetDir = file.target_dir || (file.is_dir ? ('/' + file.path.replace(/^\/+/g, '')) : ('/' + (file.parent_dir || '').replace(/^\/+/g, '')));
         targetDir = targetDir.replace(/\/+/g, '/');
         var folderUrl = file.folder_url || file.web_url || ('/index.php/apps/files/files?dir=' + encodeURIComponent(targetDir));
-        var fullUrl = window.location.origin + folderUrl;
+        var fullUrl = window.location.origin + folderUrl; /* escapeHtml(folderUrl) */
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(fullUrl).then(function () {
                 showToast('لینک داخلی سند کپی شد.');
@@ -1242,7 +1242,7 @@
         ].join('');
 
         var theadHtml = [
-            '<thead>',
+            '  <thead style=\"position: sticky; top: 0; z-index: 10; background: var(--ea-surface-elevated);\">',
             '  <tr>',
             '    <th data-col="type"><div class="ea-th-content"><span>نوع</span></div><div class="ea-resize-handle" data-col="type" title="تغییر عرض ستون نوع"></div></th>',
             '    <th data-col="title"><div class="ea-th-content"><span>عنوان سند و مسیر</span></div><div class="ea-resize-handle" data-col="title" title="تغییر عرض ستون عنوان"></div></th>',
@@ -1807,13 +1807,23 @@
 
         // 1. Group roots from user role
         if (state.userRole) {
-            if (Array.isArray(state.userRole.member_groups) && state.userRole.member_groups.length > 0) {
+            if (Array.isArray(state.userRole.member_groups_details) && state.userRole.member_groups_details.length > 0) {
+                state.userRole.member_groups_details.forEach(function(g) {
+                    var p = '/' + g.id;
+                    folderMap[p] = { path: p, display: '📁 ' + g.name + ' (ریشه گروه سازمانی)' };
+                });
+            } else if (Array.isArray(state.userRole.member_groups) && state.userRole.member_groups.length > 0) {
                 state.userRole.member_groups.forEach(function(grp) {
                     var p = '/' + grp;
                     folderMap[p] = { path: p, display: '📁 ' + grp + ' (ریشه گروه سازمانی)' };
                 });
             }
-            if (Array.isArray(state.userRole.subadmin_groups)) {
+            if (Array.isArray(state.userRole.subadmin_groups_details) && state.userRole.subadmin_groups_details.length > 0) {
+                state.userRole.subadmin_groups_details.forEach(function(g) {
+                    var p = '/' + g.id;
+                    folderMap[p] = { path: p, display: '📁 ' + g.name + ' (مدیریت گروه سازمانی)' };
+                });
+            } else if (Array.isArray(state.userRole.subadmin_groups)) {
                 state.userRole.subadmin_groups.forEach(function(grp) {
                     var p = '/' + grp;
                     folderMap[p] = { path: p, display: '📁 ' + grp + ' (مدیریت گروه سازمانی)' };
@@ -2210,10 +2220,18 @@
             return;
         }
 
-        var groups = state.userRole.subadmin_groups;
-        var groupOptions = groups.map(function (g) {
-            return '<option value="' + escapeHtml(g) + '">' + escapeHtml(g) + '</option>';
-        }).join('');
+        var groupsDetails = state.userRole.subadmin_groups_details || [];
+        var groupOptions = '';
+        if (groupsDetails.length > 0) {
+            groupOptions = groupsDetails.map(function (g) {
+                return '<option value="' + escapeHtml(g.id) + '">' + escapeHtml(g.name) + '</option>';
+            }).join('');
+        } else {
+            var groups = state.userRole.subadmin_groups;
+            groupOptions = groups.map(function (g) {
+                return '<option value="' + escapeHtml(g) + '">' + escapeHtml(g) + '</option>';
+            }).join('');
+        }
 
         var overlay = document.createElement('div');
         overlay.id = 'ea-active-modal';
@@ -2424,7 +2442,7 @@
             body.innerHTML = [
                 '<div class="ea-req-table-wrap">',
                 '  <table class="ea-req-table">',
-                '    <thead>',
+                '  <thead style=\"position: sticky; top: 0; z-index: 10; background: var(--ea-surface-elevated);\">',
                 '      <tr>',
                 '        <th style="min-width:140px;text-align:right;">نام پوشه</th>',
                 '        <th style="width:120px;text-align:right;">مسیر والد</th>',
@@ -2571,7 +2589,7 @@
             body.innerHTML = [
                 '<div class="ea-req-table-wrap">',
                 '  <table class="ea-req-table">',
-                '    <thead>',
+                '  <thead style=\"position: sticky; top: 0; z-index: 10; background: var(--ea-surface-elevated);\">',
                 '      <tr>',
                 '        <th style="width:60px;text-align:center;">شناسه</th>',
                 '        <th style="min-width:240px;text-align:right;">نام پوشه و توضیحات</th>',
@@ -2850,8 +2868,19 @@
             return;
         }
 
-        var groups = state.userRole.subadmin_groups;
-        var selectedGroup = groups[0];
+        var groupsDetails = state.userRole.subadmin_groups_details || [];
+        var groupOptions = '';
+        if (groupsDetails.length > 0) {
+            groupOptions = groupsDetails.map(function (g) {
+                return '<option value="' + escapeHtml(g.id) + '">' + escapeHtml(g.name) + '</option>';
+            }).join('');
+        } else {
+            var groups = state.userRole.subadmin_groups;
+            groupOptions = groups.map(function (g) {
+                return '<option value="' + escapeHtml(g) + '">' + escapeHtml(g) + '</option>';
+            }).join('');
+        }
+        var selectedGroup = (groupsDetails.length > 0) ? groupsDetails[0].id : state.userRole.subadmin_groups[0];
 
         var overlay = document.createElement('div');
         overlay.id = 'ea-active-modal';
@@ -2868,9 +2897,7 @@
             '  <div class="ea-modal-body">',
             '    <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px; background: var(--ea-surface); padding: 12px 16px; border-radius: var(--ea-radius); border: 1px solid var(--ea-border);">',
             '      <label style="font-weight: 700; font-size: 0.9rem; color: var(--ea-text-main);">گروه سازمانی:</label>',
-            '      <select id="ea-gtag-group-select" class="ea-form-select" style="max-width: 250px;">' + groups.map(function (g) {
-                        return '<option value="' + escapeHtml(g) + '">' + escapeHtml(g) + '</option>';
-                   }).join('') + '</select>',
+            '      <select id="ea-gtag-group-select" class="ea-form-select" style="max-width: 250px;">' + groupOptions + '</select>',
             '      <div style="font-size: 0.8rem; color: var(--ea-text-muted); margin-right: auto;">تگ‌های تعریف‌شده صرفاً توسط اعضای همین گروه قابل مشاهده و جستجو هستند.</div>',
             '    </div>',
             '    <!-- Create New Tag Form -->',
@@ -2991,11 +3018,11 @@
                     }
                     var html = [
                         '<table style="width: 100%; border-collapse: collapse; text-align: right; font-size: 0.88rem;">',
-                        '  <thead>',
+                        '  <thead style=\"position: sticky; top: 0; z-index: 10; background: var(--ea-surface-elevated);\">',
                         '    <tr style="border-bottom: 1px solid var(--ea-border); background: rgba(255,255,255,0.03);">',
-                        '      <th style="padding: 10px 14px;">نام تگ اختصاصی</th>',
-                        '      <th style="padding: 10px 14px;">اسناد متصل</th>',
-                        '      <th style="padding: 10px 14px; text-align: center;">عملیات</th>',
+                        '      <th style="padding: 8px 10px;">نام تگ اختصاصی</th>',
+                        '      <th style="padding: 8px 10px;">اسناد متصل</th>',
+                        '      <th style="padding: 8px 10px; text-align: center;">عملیات</th>',
                         '    </tr>',
                         '  </thead>',
                         '  <tbody>'
@@ -3011,7 +3038,7 @@
                         }
                         html.push(
                             '<tr style="border-bottom: 1px solid var(--ea-border); transition: background 0.2s;" onmouseover="this.style.background=\'rgba(255,255,255,0.02)\'" onmouseout="this.style.background=\'transparent\'">',
-                            '  <td style="padding: 10px 14px; font-weight: 700; color: var(--ea-text-main);"><span class="ea-mini-tag" style="font-size: 0.82rem;">🏷️ ' + escapeHtml(t.clean_name || t.name) + '</span>' + statBadge + '</td>',
+                            '  <td style="padding: 10px 14px; font-weight: 700; color: var(--ea-text-main);"><span class="ea-mini-tag" style="font-size: 0.78rem;">🏷️ ' + escapeHtml(t.clean_name || t.name) + '</span>' + statBadge + '</td>',
                             '  <td style="padding: 10px 14px; color: var(--ea-text-muted);">' + toPersianDigits(fc) + ' سند</td>',
                             '  <td style="padding: 10px 14px; text-align: center;">',
                             (t.can_delete !== false ? '    <button class="ea-btn" style="padding: 4px 10px; font-size: 0.8rem; color: #ef4444; border-color: rgba(239,68,68,0.3);" onclick="window._eaDeleteGroupTag(\'' + escapeHtml(grp) + '\', ' + t.id + ', \'' + escapeHtml(t.clean_name || t.name) + '\', ' + fc + ')">🗑️ حذف</button>' : '    <span style="color: var(--ea-text-dim); font-size: 0.75rem;">🔒 تگ سیستمی</span>'),
@@ -3271,7 +3298,7 @@
         overlay.id = 'ea-active-modal';
         overlay.className = 'ea-modal-overlay';
         overlay.innerHTML = [
-            '<div class="ea-modal-card" style="max-width: 960px; width: 95%; max-height: 85vh; display: flex; flex-direction: column;">',
+            '<div class="ea-modal-card" style="max-width: 1080px; width: 95%; max-height: 85vh; display: flex; flex-direction: column;">',
             '  <div class="ea-modal-header">',
             '    <div class="ea-modal-title">',
             '      <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
@@ -3279,7 +3306,7 @@
             '    </div>',
             '    <button class="ea-modal-close" id="ea-admin-tag-modal-close-btn" title="بستن">&times;</button>',
             '  </div>',
-            '  <div class="ea-modal-body" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 16px;">',
+            '  <div class="ea-modal-body" style="overflow-y: hidden; flex: 1; display: flex; flex-direction: column; gap: 16px; min-height: 0;">',
             '    <!-- Creation & Reconciliation Box -->',
             '    <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--ea-border); border-radius: 8px; padding: 14px;">',
             '      <div style="font-size: 0.88rem; font-weight: 700; color: var(--ea-text-main); margin-bottom: 10px;">➕ ایجاد تگ جدید یا همگام‌سازی ساختار:</div>',
@@ -3310,7 +3337,7 @@
             '    </div>',
             '',
             '    <!-- Tags Table Container -->',
-            '    <div id="ea-admin-tags-table-container" style="border: 1px solid var(--ea-border); border-radius: 8px; overflow: hidden; background: var(--ea-surface-elevated);">',
+            '    <div id="ea-admin-tags-table-container" style="border: 1px solid var(--ea-border); border-radius: 8px; overflow-y: auto; overflow-x: auto; background: var(--ea-surface-elevated); flex: 1; min-height: 0;">',
             '      <div style="padding: 24px; text-align: center; color: var(--ea-text-muted);">⏳ در حال دریافت کاتالوگ تگ‌ها...</div>',
             '    </div>',
             '  </div>',
@@ -3374,16 +3401,16 @@
             }
 
             var html = [
-                '<table style="width: 100%; border-collapse: collapse; text-align: right; font-size: 0.86rem;">',
-                '  <thead>',
+                '<table style="width: 100%; border-collapse: collapse; text-align: right; font-size: 0.82rem; white-space: nowrap;">',
+                '  <thead style=\"position: sticky; top: 0; z-index: 10; background: var(--ea-surface-elevated);\">',
                 '    <tr style="border-bottom: 1px solid var(--ea-border); background: rgba(255,255,255,0.03); color: var(--ea-text-muted);">',
-                '      <th style="padding: 10px 14px;">شناسه</th>',
-                '      <th style="padding: 10px 14px;">نام تگ</th>',
-                '      <th style="padding: 10px 14px;">دامنه / گروه</th>',
-                '      <th style="padding: 10px 14px;">وضعیت چرخه حیات</th>',
-                '      <th style="padding: 10px 14px;">منابع متصل</th>',
-                '      <th style="padding: 10px 14px;">مالک</th>',
-                '      <th style="padding: 10px 14px; text-align: center;">عملیات</th>',
+                '      <th style="padding: 8px 10px;">شناسه</th>',
+                '      <th style="padding: 8px 10px;">نام تگ</th>',
+                '      <th style="padding: 8px 10px;">دامنه / گروه</th>',
+                '      <th style="padding: 8px 10px;">وضعیت چرخه حیات</th>',
+                '      <th style="padding: 8px 10px;">منابع متصل</th>',
+                '      <th style="padding: 8px 10px;">مالک</th>',
+                '      <th style="padding: 8px 10px; text-align: center;">عملیات</th>',
                 '    </tr>',
                 '  </thead>',
                 '  <tbody>'
@@ -3407,13 +3434,13 @@
 
                 html.push(
                     '<tr style="border-bottom: 1px solid var(--ea-border); transition: background 0.15s;" onmouseover="this.style.background=\'rgba(255,255,255,0.02)\'" onmouseout="this.style.background=\'transparent\'">',
-                    '  <td style="padding: 9px 14px; color: var(--ea-text-subtle); font-family: monospace;">#' + t.id + '</td>',
-                    '  <td style="padding: 9px 14px; font-weight: 700; color: var(--ea-text-main);"><span class="ea-mini-tag" style="font-size: 0.82rem;">🏷️ ' + escapeHtml(t.clean_name || t.name) + '</span></td>',
-                    '  <td style="padding: 9px 14px;">' + scopeBadge + '</td>',
-                    '  <td style="padding: 9px 14px;">' + statBadge + '</td>',
-                    '  <td style="padding: 9px 14px;">' + resCountHtml + '</td>',
-                    '  <td style="padding: 9px 14px; color: var(--ea-text-muted); font-size: 0.8rem;">' + escapeHtml(t.owner_uid || 'system') + '</td>',
-                    '  <td style="padding: 9px 14px; text-align: center;">',
+                    '  <td style="padding: 8px 10px; color: var(--ea-text-subtle); font-family: monospace;">#' + t.id + '</td>',
+                    '  <td style="padding: 8px 10px; font-weight: 700; color: var(--ea-text-main);"><span class="ea-mini-tag" style="font-size: 0.78rem;">🏷️ ' + escapeHtml(t.clean_name || t.name) + '</span></td>',
+                    '  <td style="padding: 8px 10px;">' + scopeBadge + '</td>',
+                    '  <td style="padding: 8px 10px;">' + statBadge + '</td>',
+                    '  <td style="padding: 8px 10px;">' + resCountHtml + '</td>',
+                    '  <td style="padding: 8px 10px; color: var(--ea-text-muted); font-size: 0.8rem;">' + escapeHtml(t.owner_uid || 'system') + '</td>',
+                    '  <td style="padding: 8px 10px; text-align: center;">',
                     '    <button class="ea-btn ea-admin-tag-del-btn" data-tag-id="' + t.id + '" data-tag-name="' + escapeHtml(t.clean_name || t.name) + '" data-usage="' + cnt + '" style="padding: 4px 10px; font-size: 0.78rem; color: #ef4444; border-color: rgba(239,68,68,0.3);" title="حذف تگ">🗑️ حذف</button>',
                     '  </td>',
                     '</tr>'
@@ -3896,7 +3923,7 @@
                 '  <div style="font-size:0.88rem;font-weight:700;color:var(--ea-text-muted);margin-bottom:10px;">توکن‌های احراز هویت این سرویس:</div>',
                 '  <div style="overflow-x:auto;">',
                 '    <table class="ea-table" style="width:100%;font-size:0.82rem;">',
-                '      <thead>',
+                '  <thead style=\"position: sticky; top: 0; z-index: 10; background: var(--ea-surface-elevated);\">',
                 '        <tr>',
                 '          <th>شناسه / نام توکن</th>',
                 '          <th>پیشوند امن (Prefix)</th>',
@@ -4026,7 +4053,7 @@
             '  <h4 style="margin:0 0 14px;color:var(--ea-text-main);">سیاست‌های نمایندگی ثبت‌شده (Allowlist):</h4>',
             '  <div style="overflow-x:auto;">',
             '    <table class="ea-table" style="width:100%;font-size:0.84rem;">',
-            '      <thead>',
+            '  <thead style=\"position: sticky; top: 0; z-index: 10; background: var(--ea-surface-elevated);\">',
             '        <tr>',
             '          <th>سرویس</th>',
             '          <th>نوع موجودیت</th>',
@@ -4149,7 +4176,7 @@
             var html = [
                 '<div style="overflow-x:auto;">',
                 '  <table class="ea-table" style="width:100%;font-size:0.8rem;">',
-                '    <thead>',
+                '  <thead style=\"position: sticky; top: 0; z-index: 10; background: var(--ea-surface-elevated);\">',
                 '      <tr>',
                 '        <th>زمان</th>',
                 '        <th>شناسه درخواست</th>',
@@ -4856,7 +4883,7 @@
 
             c.innerHTML = [
                 '<table style="width:100%;border-collapse:collapse;font-size:12px;text-align:right;">',
-                '  <thead>',
+                '  <thead style=\"position: sticky; top: 0; z-index: 10; background: var(--ea-surface-elevated);\">',
                 '    <tr style="border-bottom:2px solid #475569;color:#94a3b8;font-size:11px;">',
                 '      <th style="padding:8px 12px;">دامنه</th>',
                 '      <th style="padding:8px 12px;">عملیات</th>',
@@ -4971,6 +4998,10 @@
                         openFolderInPortal(state.currentFolder, null);
                     } else {
                         fetchFiles();
+                    }
+                    if (typeof fetchTags === 'function') fetchTags();
+                    if (typeof loadAdminTags === 'function' && document.getElementById('ea-active-modal') && document.getElementById('ea-admin-tags-table-container')) {
+                        loadAdminTags();
                     }
                 } else {
                     confirmBtn.disabled = false;
@@ -5111,7 +5142,7 @@
 
                 return [
                     '<tr>',
-                    '  <td style="font-weight:600;color:#f1f5f9;">👥 ' + escapeHtml(s.group_id) + '</td>',
+                    '  <td style="font-weight:600;color:#f1f5f9;">👥 ' + escapeHtml(s.group_display_name || s.group_id) + '</td>',
                     '  <td>' + badges.join(' ') + '</td>',
                     '  <td style="text-align:left;width:80px;">',
                     '    <button class="ea-btn ea-btn-danger ea-delete-share-btn" data-group-id="' + escapeHtml(s.group_id) + '" style="padding:4px 8px;font-size:0.75rem;background:#7f1d1d;color:#fca5a5;border-color:#ef4444;" title="حذف دسترسی گروه">حذف</button>',
@@ -5122,7 +5153,7 @@
 
             sharesContainer.innerHTML = [
                 '<table class="ea-share-table">',
-                '  <thead>',
+                '  <thead style=\"position: sticky; top: 0; z-index: 10; background: var(--ea-surface-elevated);\">',
                 '    <tr>',
                 '      <th>نام گروه</th>',
                 '      <th>مجوزهای اعطا شده</th>',

@@ -390,7 +390,22 @@ class AiFileService {
             ];
         }
 
-        $nodes = $this->rootFolder->getById($fileId);
+        $nodes = [];
+        if ($actorUid !== '') {
+            try {
+                $userFolder = $this->rootFolder->getUserFolder($actorUid);
+                $nodes = $userFolder->getById($fileId);
+            } catch (\Throwable $e) {}
+        }
+        if (empty($nodes)) {
+            try {
+                $adminFolder = $this->rootFolder->getUserFolder('admin');
+                $nodes = $adminFolder->getById($fileId);
+            } catch (\Throwable $e) {}
+        }
+        if (empty($nodes)) {
+            $nodes = $this->rootFolder->getById($fileId);
+        }
         if (empty($nodes)) {
             return [
                 'allowed' => false,

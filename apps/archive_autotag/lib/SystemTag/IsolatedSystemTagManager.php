@@ -111,6 +111,7 @@ class IsolatedSystemTagManager extends SystemTagManager {
 
     #[\Override]
     public function createTag(string $tagName, bool $userVisible, bool $userAssignable, ?IUser $user = null): ISystemTag {
+        if (strlen($tagName) > 64) { $tagName = mb_strcut($tagName, 0, 64, "UTF-8"); }
         $tag = parent::createTag($tagName, $userVisible, $userAssignable, $user);
 
         if ($user === null) {
@@ -168,6 +169,7 @@ class IsolatedSystemTagManager extends SystemTagManager {
         ?string $color,
         ?IUser $user = null,
     ): void {
+        if (strlen($newName) > 64) { $newName = mb_strcut($newName, 0, 64, "UTF-8"); }
         if ($user === null) {
             $user = \OC::$server->get(IUserSession::class)->getUser();
         }

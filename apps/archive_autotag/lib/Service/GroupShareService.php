@@ -59,11 +59,22 @@ class GroupShareService {
         foreach ($groups as $group) {
             if ($group instanceof IGroup) {
                 $gid = $group->getGID();
-                $result[] = [
-                    'id' => $gid,
-                    'name' => $gid,
-                    'user_count' => $group->count(''),
-                ];
+                $displayName = method_exists($group, 'getDisplayName') ? $group->getDisplayName() : $gid;
+                if (empty($displayName)) {
+                    $displayName = $gid;
+                }
+                
+                $lowerGid = strtolower(trim($gid));
+                
+                // Filter: Must NOT be 'admin'. Empty groups are allowed.
+                $userCount = $group->count('');
+                if ($lowerGid !== 'admin') {
+                    $result[] = [
+                        'id' => $gid,
+                        'name' => $displayName,
+                        'user_count' => $userCount,
+                    ];
+                }
             }
         }
 
@@ -90,11 +101,22 @@ class GroupShareService {
         $shares = [];
         foreach ($rows as $row) {
             $perms = (int)$row['permissions'];
+            $groupId = (string)$row['share_with'];
+            $groupObj = $this->groupManager->get($groupId);
+            $displayName = $groupId;
+            if ($groupObj) {
+                $displayName = method_exists($groupObj, 'getDisplayName') ? $groupObj->getDisplayName() : $groupId;
+                if (empty($displayName)) {
+                    $displayName = $groupId;
+                }
+            }
+
             $shares[] = [
                 'id' => (int)$row['id'],
                 'file_id' => (int)$row['item_source'],
                 'item_type' => (string)$row['item_type'],
-                'group_id' => (string)$row['share_with'],
+                'group_id' => $groupId, // Keep raw GID for API operations
+                'group_display_name' => $displayName, // UI display name
                 'permissions' => $perms,
                 'permissions_details' => [
                     'read' => ($perms & 1) !== 0,
@@ -131,6 +153,12 @@ class GroupShareService {
         $targetGroup = trim($groupId);
         if ($targetGroup === '' || !$this->groupManager->groupExists($targetGroup)) {
             throw new \InvalidArgumentException("Invalid target group '{$targetGroup}'. Group does not exist.");
+        }
+
+        // In Nextcloud, uploading a file with content requires UPDATE (2) permission. 
+        // If the user requests CREATE (4), we automatically add UPDATE (2) to prevent "Could not create path" errors during upload.
+        if (($permissions & 4) !== 0) {
+            $permissions |= 2;
         }
 
         if ($permissions < 1 || $permissions > 31) {

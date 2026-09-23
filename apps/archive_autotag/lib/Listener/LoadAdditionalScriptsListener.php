@@ -29,7 +29,7 @@ class LoadAdditionalScriptsListener implements IEventListener {
         if ($user !== null) {
             $uid = $user->getUID();
             $isAdmin = $this->groupManager->isAdmin($uid);
-            if (!$isAdmin) {
+            if (!$isAdmin && !isset($_GET['dir'])) {
                 // Non-admin user attempted to access Admin Back-Office; redirect to Archive Portal
                 header('Location: /index.php/apps/archive_autotag/');
                 exit();

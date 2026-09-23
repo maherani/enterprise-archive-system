@@ -165,6 +165,31 @@ class Application extends App implements IBootstrap {
                 }
                 return [];
             });
+
+            $initialStateService->provideLazyInitialState(self::APP_ID, 'subadmin_groups_details', static function () {
+                $container = \OC::$server;
+                $userSession = $container->get(IUserSession::class);
+                $user = $userSession->getUser();
+                if ($user !== null) {
+                    $db = $container->get(\OCP\IDBConnection::class);
+                    $groupManager = $container->get(\OCP\IGroupManager::class);
+                    $qb = $db->getQueryBuilder();
+                    $qb->select('gid')
+                       ->from('group_admin')
+                       ->where($qb->expr()->eq('uid', $qb->createNamedParameter($user->getUID())));
+                    $rows = $qb->executeQuery()->fetchAllAssociative();
+                    return array_map(function($r) use ($groupManager) {
+                        $gid = (string)$r['gid'];
+                        $group = $groupManager->get($gid);
+                        $displayName = $group && method_exists($group, 'getDisplayName') ? $group->getDisplayName() : $gid;
+                        return [
+                            'id' => $gid,
+                            'name' => $displayName ?: $gid
+                        ];
+                    }, $rows);
+                }
+                return [];
+            });
         } catch (\Throwable $t) {
         }
 

@@ -106,6 +106,43 @@ class FolderRequestService {
 
         return $gids;
     }
+    
+    public function getSubadminGroupsDetails(string $userId): array {
+        $details = [];
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('gid')
+               ->from('group_admin')
+               ->where($qb->expr()->eq('uid', $qb->createNamedParameter($userId)));
+            $rows = $qb->executeQuery()->fetchAllAssociative();
+            foreach ($rows as $row) {
+                $gid = (string)$row['gid'];
+                $group = $this->groupManager->get($gid);
+                $displayName = $group && method_exists($group, 'getDisplayName') ? $group->getDisplayName() : $gid;
+                $details[] = [
+                    'id' => $gid,
+                    'name' => $displayName ?: $gid
+                ];
+            }
+        } catch (\Throwable $t) {
+            $this->logger->warning("FolderRequestService::getSubadminGroupsDetails DB error: " . $t->getMessage());
+        }
+        return $details;
+    }
+    
+    public function getMemberGroupsDetails(array $memberGroupIds): array {
+        if (empty($memberGroupIds)) return [];
+        $details = [];
+        foreach ($memberGroupIds as $gid) {
+            $group = $this->groupManager->get($gid);
+            $displayName = $group && method_exists($group, 'getDisplayName') ? $group->getDisplayName() : $gid;
+            $details[] = [
+                'id' => $gid,
+                'name' => $displayName ?: $gid
+            ];
+        }
+        return $details;
+    }
 
     /**
      * Check if user is an admin of at least one group.
@@ -120,15 +157,19 @@ class FolderRequestService {
     public function getUserRoleInfo(string $userId): array {
         $isAdmin = $this->isSystemAdmin($userId);
         $subadminGroups = $this->getSubadminGroups($userId);
+        $subadminGroupsDetails = $this->getSubadminGroupsDetails($userId);
         $user = $this->userManager->get($userId);
         $memberGroups = $user !== null ? $this->groupManager->getUserGroupIds($user) : [];
+        $memberGroupsDetails = $this->getMemberGroupsDetails($memberGroups);
 
         return [
             'user_id' => $userId,
             'is_admin' => $isAdmin,
             'is_group_admin' => !empty($subadminGroups),
             'subadmin_groups' => $subadminGroups,
+            'subadmin_groups_details' => $subadminGroupsDetails,
             'member_groups' => $memberGroups,
+            'member_groups_details' => $memberGroupsDetails,
         ];
     }
 

@@ -152,6 +152,20 @@ class ArchiveFileIsolationWrapper extends Wrapper {
         }
         $userId = $user->getUID();
 
+        $storage = $this->getWrapperStorage();
+        while ($storage instanceof \OC\Files\Storage\Wrapper\Wrapper) {
+            $storage = $storage->getWrapperStorage();
+        }
+        if ($storage instanceof \OC\Files\Storage\Home) {
+            $owner = $storage->getUser()->getUID();
+            $currentUser = $user->getUID();
+            if ($owner !== $currentUser) {
+                // Cross-user access (e.g. via Nextcloud Share).
+                // Nextcloud's native SharedStorage wrapper has already enforced permissions.
+                return true;
+            }
+        }
+
         // System admin has unrestricted superuser access across all files and folders
         if ($userId === 'admin' || $this->groupManager->isAdmin($userId)) {
             return true;

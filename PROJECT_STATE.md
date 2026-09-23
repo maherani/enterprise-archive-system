@@ -828,3 +828,9 @@ un_e2e_tests.py, 100%).
 ## Latest Validation Status
 
 All 30 integration suites (including security, ACL, and AI Audit semantics) passed successfully with a 100% success rate.
+
+### UI & Security Refinements: Group Sharing & Farsi Display Names
+- **Archive File Isolation Wrapper Patch:** Fixed a critical bug in \ArchiveFileIsolationWrapper\ that caused a \500 Internal Server Error\ (Call to a member function getUID() on null) when uploading files into natively shared group folders. The wrapper now elegantly defers to Nextcloud's native \SharedStorage\ authorization layer for cross-user operations, allowing group members (e.g. SOC members) to successfully upload files to group shares.
+- **Group Share Permission Inference:** Added backend logic in \GroupShareService\ to automatically append \UPDATE\ (2) permission if \CREATE\ (4) is granted, preventing WebDAV stream errors during client-side uploads.
+- **Native Group Name Resolution:** Fixed database query errors in \Application.php\ and \FolderRequestService.php\ by shifting to \IGroupManager->getDisplayName()\ for robust, native retrieval of Farsi group names.
+- **Frontend Presentation Layer (\rchive_portal.js\):** Extracted \subadmin_groups_details\ and \member_groups_details\ into Nextcloud's \OCP.InitialState\ and REST API responses. The folder creation modal, group tags modal, and target path drop-downs now display rich, localized Farsi names (e.g. \مرکز عملیات و پاسخ‌گویی امنیت سایبری(SOC)\) instead of raw IDs.

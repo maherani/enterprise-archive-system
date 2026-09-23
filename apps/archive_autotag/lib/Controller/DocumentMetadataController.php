@@ -186,10 +186,15 @@ class DocumentMetadataController extends Controller {
             if (is_resource($stream)) {
                 fclose($stream);
             }
+            
+            $msg = $e->getMessage();
+            $trace = $e->getTraceAsString();
+            $prev = $e->getPrevious() ? get_class($e->getPrevious()) . ': ' . $e->getPrevious()->getMessage() : 'None';
+            
             return new DataResponse([
                 'status' => 'error',
                 'code' => 'STORAGE_ERROR',
-                'message' => 'خطا در ذخیره‌سازی فایل: ' . $e->getMessage(),
+                'message' => 'خطا در ذخیره‌سازی فایل: ' . $msg . ' | Prev: ' . $prev . ' | File: ' . $e->getFile() . ':' . $e->getLine(),
             ], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
 

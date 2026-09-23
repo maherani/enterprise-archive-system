@@ -185,11 +185,38 @@ class TagFilterController extends Controller {
                 ];
             }
 
-            // Bulk fetch metadata for folder items
+            // Bulk fetch metadata and tags for folder items
             $fileIds = array_map(fn($f) => (int)$f['id'], $filesResult);
             $metaMap = $this->documentMetadataService->getMetadataByFileIds($fileIds);
+
+            $tagMappings = $this->tagMapper->getTagIdsForObjects($fileIds, 'files');
+            $allTags = $this->tagManager->getAllTags(true);
+            $visibleTagIds = $this->tagOwnershipService->getVisibleTagIds($uid);
+            
+            $tagMapById = [];
+            foreach ($allTags as $t) {
+                $tId = (int)$t->getId();
+                if (in_array($tId, $visibleTagIds, true)) {
+                    $tagMapById[$tId] = $t;
+                }
+            }
+
             foreach ($filesResult as &$item) {
-                $item['metadata'] = $metaMap[$item['id']] ?? null;
+                $fId = $item['id'];
+                $item['metadata'] = $metaMap[$fId] ?? null;
+                
+                $fileTags = [];
+                $fileTagIds = $tagMappings[$fId] ?? [];
+                foreach ($fileTagIds as $tid) {
+                    $tidInt = (int)$tid;
+                    if (isset($tagMapById[$tidInt]) && $this->tagOwnershipService->canUserSeeTag($tidInt, $uid)) {
+                        $fileTags[] = [
+                            'id' => $tidInt,
+                            'name' => $tagMapById[$tidInt]->getName(),
+                        ];
+                    }
+                }
+                $item['tags'] = $fileTags;
             }
             unset($item);
 
