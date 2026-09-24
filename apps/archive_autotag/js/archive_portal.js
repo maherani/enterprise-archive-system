@@ -1804,8 +1804,9 @@
             '      </div>',
             '      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">',
             '        <div>',
-            '          <label class="ea-form-label" style="font-size: 0.82rem;">شماره سند (اختیاری):</label>',
+            '          <label class="ea-form-label" style="font-size: 0.82rem;">شماره سند (الزامی) <span style="color: #ef4444;">*</span>:</label>',
             '          <input type="text" id="ea-meta-number" class="ea-form-input" placeholder="مثال: SEC-1405-09" style="width: 100%; box-sizing: border-box; font-family: monospace;">',
+            '          <div id="ea-meta-number-hint" style="font-size: 0.76rem; color: var(--ea-text-muted); margin-top: 3px;">ورود شماره سند الزامی است.</div>',
             '        </div>',
             '        <div>',
             '          <label class="ea-form-label" style="font-size: 0.82rem;">تاریخ سند (اختیاری):</label>',
@@ -2068,6 +2069,8 @@
 
         submitBtn.onclick = function() {
             var subjectVal = (subjectInput ? subjectInput.value : '').trim();
+            var numberVal = (numberInput ? numberInput.value : '').trim();
+
             if (!selectedFile) {
                 errorDiv.style.display = 'block';
                 errorDiv.textContent = 'لطفاً ابتدا یک فایل را انتخاب فرمایید.';
@@ -2079,6 +2082,12 @@
                 if (subjectInput) subjectInput.focus();
                 return;
             }
+            if (!numberVal) {
+                errorDiv.style.display = 'block';
+                errorDiv.textContent = 'ورود شماره سند الزامی است.';
+                if (numberInput) numberInput.focus();
+                return;
+            }
 
             var targetDir = (folderSelect.value || '').replace(/^\/+|\/+$/g, '');
 
@@ -2086,9 +2095,7 @@
             formData.append('file', selectedFile);
             formData.append('target_folder', targetDir);
             formData.append('subject', subjectVal);
-            if (numberInput && numberInput.value.trim()) {
-                formData.append('document_number', numberInput.value.trim());
-            }
+            formData.append('document_number', numberVal);
             if (dateInput && dateInput.value.trim()) {
                 formData.append('document_date', dateInput.value.trim());
             }

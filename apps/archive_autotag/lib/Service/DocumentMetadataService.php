@@ -39,6 +39,9 @@ class DocumentMetadataService {
         }
 
         $docNumber = trim((string)($data['document_number'] ?? ''));
+        if ($docNumber === '') {
+            throw new \InvalidArgumentException('ورود شماره سند الزامی است.');
+        }
         $docDate = trim((string)($data['document_date'] ?? ''));
         $issuer = trim((string)($data['issuer'] ?? ''));
         $description = trim((string)($data['description'] ?? ''));

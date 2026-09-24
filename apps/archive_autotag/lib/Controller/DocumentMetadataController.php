@@ -65,6 +65,15 @@ class DocumentMetadataController extends Controller {
             ], Http::STATUS_UNPROCESSABLE_ENTITY);
         }
 
+        $docNumber = trim((string)($this->request->getParam('document_number') ?? $_POST['document_number'] ?? ''));
+        if ($docNumber === '') {
+            return new DataResponse([
+                'status' => 'error',
+                'code' => 'VALIDATION_ERROR',
+                'message' => 'ورود شماره سند الزامی است.',
+            ], Http::STATUS_UNPROCESSABLE_ENTITY);
+        }
+
         // 2. Validate uploaded file
         if (!isset($_FILES['file']) || !is_uploaded_file($_FILES['file']['tmp_name'])) {
             return new DataResponse([
@@ -217,7 +226,7 @@ class DocumentMetadataController extends Controller {
         // 8. Save Document Metadata
         $metadataData = [
             'subject' => $subject,
-            'document_number' => $this->request->getParam('document_number') ?? $_POST['document_number'] ?? null,
+            'document_number' => $docNumber,
             'document_date' => $this->request->getParam('document_date') ?? $_POST['document_date'] ?? null,
             'confidentiality' => $this->request->getParam('confidentiality') ?? $_POST['confidentiality'] ?? 'normal',
             'issuer' => $this->request->getParam('issuer') ?? $_POST['issuer'] ?? null,
