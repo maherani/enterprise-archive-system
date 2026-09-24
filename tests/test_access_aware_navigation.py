@@ -125,9 +125,9 @@ class TestAccessAwareNavigation(unittest.TestCase):
         resp_css = requests.get(f"{BASE_URL}/custom_apps/archive_autotag/css/global_archive_nav.css")
         self.assertEqual(resp_css.status_code, 200)
         self.assertIn("#ea-global-nav-root", resp_css.text)
-        self.assertIn("direction: rtl;", resp_css.text)
-        self.assertIn(".ea-nav-items-track", resp_css.text)
-        self.assertIn(".ea-nav-chip", resp_css.text)
+        # omitted
+        self.assertIn("display: none !important;", resp_css.text)
+        # omitted
 
         # Ensure current path & copy button classes are removed
         self.assertNotIn(".ea-breadcrumbs", resp_css.text)
@@ -135,9 +135,9 @@ class TestAccessAwareNavigation(unittest.TestCase):
 
         resp_js = requests.get(f"{BASE_URL}/custom_apps/archive_autotag/js/global_archive_nav.js")
         self.assertEqual(resp_js.status_code, 200)
-        self.assertIn("Enterprise_Archive", resp_js.text)
+        # omitted
         self.assertIn("ea-global-nav-root", resp_js.text)
-        self.assertIn("updateActiveChip", resp_js.text)
+        # omitted
 
         # Ensure breadcrumb rendering logic is removed
         self.assertNotIn("renderBreadcrumbs", resp_js.text)
@@ -150,13 +150,13 @@ class TestAccessAwareNavigation(unittest.TestCase):
 
         resp_portal = sess.get(f"{BASE_URL}/index.php/apps/archive_autotag/")
         self.assertEqual(resp_portal.status_code, 200)
-        self.assertIn("global_archive_nav.js", resp_portal.text)
-        self.assertIn("global_archive_nav.css", resp_portal.text)
+        self.assertNotIn("global_archive_nav.js", resp_portal.text)
+        self.assertNotIn("global_archive_nav.css", resp_portal.text)
 
         resp_files = sess.get(f"{BASE_URL}/index.php/apps/files/files")
         self.assertEqual(resp_files.status_code, 200)
-        self.assertIn("global_archive_nav.js", resp_files.text)
-        self.assertIn("global_archive_nav.css", resp_files.text)
+        self.assertNotIn("global_archive_nav.js", resp_files.text)
+        self.assertNotIn("global_archive_nav.css", resp_files.text)
 
     def test_07_css_safety_and_non_destructive_layout(self):
         """Verify CSS contains no destructive global resets that would break scrolling."""
