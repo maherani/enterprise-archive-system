@@ -72,6 +72,7 @@ class GroupShareService {
                     $result[] = [
                         'id' => $gid,
                         'name' => $displayName,
+                        'display_name' => $displayName,
                         'user_count' => $userCount,
                     ];
                 }
@@ -116,6 +117,7 @@ class GroupShareService {
                 'file_id' => (int)$row['item_source'],
                 'item_type' => (string)$row['item_type'],
                 'group_id' => $groupId, // Keep raw GID for API operations
+                'group_name' => $displayName,
                 'group_display_name' => $displayName, // UI display name
                 'permissions' => $perms,
                 'permissions_details' => [

@@ -163,6 +163,30 @@ class Application extends App implements IBootstrap {
                 return [];
             });
 
+            $initialStateService->provideLazyInitialState(self::APP_ID, 'all_groups_details', static function () {
+                $container = \OC::$server;
+                try {
+                    $groupManager = $container->get(\OCP\IGroupManager::class);
+                    $groups = $groupManager->search('');
+                    $res = [];
+                    foreach ($groups as $g) {
+                        if ($g instanceof \OCP\IGroup) {
+                            $gid = $g->getGID();
+                            if (strtolower(trim($gid)) === 'admin') continue;
+                            $displayName = method_exists($g, 'getDisplayName') ? $g->getDisplayName() : $gid;
+                            $res[] = [
+                                'id' => $gid,
+                                'name' => !empty($displayName) ? $displayName : $gid,
+                            ];
+                        }
+                    }
+                    usort($res, fn($a, $b) => strcasecmp($a['name'], $b['name']));
+                    return $res;
+                } catch (\Throwable $t) {
+                    return [];
+                }
+            });
+
             $initialStateService->provideLazyInitialState(self::APP_ID, 'subadmin_groups_details', static function () {
                 $container = \OC::$server;
                 $userSession = $container->get(IUserSession::class);

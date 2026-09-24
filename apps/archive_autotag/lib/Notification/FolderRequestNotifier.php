@@ -34,20 +34,24 @@ class FolderRequestNotifier implements INotifier {
 
         $folderName = (string)($params['folderName'] ?? 'پوشه');
         $groupId = (string)($params['groupId'] ?? '');
+        $groupName = (string)($params['groupName'] ?? $params['group_name'] ?? $groupId);
+        if (empty($groupName)) {
+            $groupName = $groupId;
+        }
         $targetPath = (string)($params['targetPath'] ?? '');
         $reason = (string)($params['reason'] ?? '');
         $error = (string)($params['error'] ?? '');
 
         if ($subject === 'folder_request_approved') {
             $notification->setParsedSubject("درخواست ایجاد پوشه «{$folderName}» تأیید شد");
-            $msg = "درخواست شما برای ایجاد پوشه «{$folderName}» در گروه «{$groupId}» توسط مدیر ارشد سیستم تأیید و در ساختار آرشیو فعال گردید.";
+            $msg = "درخواست شما برای ایجاد پوشه «{$folderName}» در گروه «{$groupName}» توسط مدیر ارشد سیستم تأیید و در ساختار آرشیو فعال گردید.";
             if ($targetPath !== '') {
                 $msg .= " (مسیر: {$targetPath})";
             }
             $notification->setParsedMessage($msg);
         } elseif ($subject === 'folder_request_rejected') {
             $notification->setParsedSubject("درخواست ایجاد پوشه «{$folderName}» رد شد");
-            $msg = "درخواست ایجاد پوشه «{$folderName}» برای گروه «{$groupId}» توسط مدیر سیستم رد شد.";
+            $msg = "درخواست ایجاد پوشه «{$folderName}» برای گروه «{$groupName}» توسط مدیر سیستم رد شد.";
             if ($reason !== '') {
                 $msg .= " دلیل رد: {$reason}";
             }

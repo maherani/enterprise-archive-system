@@ -894,12 +894,26 @@ class GroupTagService {
                 $scope = 'system';
             }
 
+            $groupDisplayName = null;
+            if ($detectedGroup !== null) {
+                try {
+                    $gObj = \OC::$server->getGroupManager()->get($detectedGroup);
+                    if ($gObj && method_exists($gObj, 'getDisplayName')) {
+                        $d = $gObj->getDisplayName();
+                        if (!empty($d)) $groupDisplayName = $d;
+                    }
+                } catch (\Throwable $t) {}
+                if ($groupDisplayName === null) $groupDisplayName = $detectedGroup;
+            }
+
             $catalog[] = [
                 'id' => $tId,
                 'name' => $fullName,
                 'clean_name' => $cleanName,
                 'scope' => $scope,
                 'group_id' => $detectedGroup,
+                'group_name' => $groupDisplayName,
+                'group_display_name' => $groupDisplayName,
                 'groups' => $grps,
                 'status' => $own['status'],
                 'owner_uid' => $own['owner_uid'],

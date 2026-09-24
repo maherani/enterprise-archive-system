@@ -792,7 +792,7 @@
             .then(function (data) {
                 if (data && data.status === 'success' && Array.isArray(data.groups)) {
                     groupSelect.innerHTML = '<option value="">-- انتخاب گروه --</option>' + data.groups.map(function (g) {
-                        return '<option value="' + escapeHtml(g.id) + '">' + escapeHtml(g.name) + '</option>';
+                        return '<option value="' + escapeHtml(g.id) + '">' + escapeHtml(g.display_name || g.name || g.id) + '</option>';
                     }).join('');
                 } else {
                     groupSelect.innerHTML = '<option value="">خطا در دریافت لیست گروه‌ها</option>';
@@ -820,7 +820,7 @@
 
                 return [
                     '<tr>',
-                    '  <td style="font-weight:600;color:#f1f5f9;">👥 ' + escapeHtml(s.group_id) + '</td>',
+                    '  <td style="font-weight:600;color:#f1f5f9;">👥 ' + escapeHtml(s.group_display_name || s.group_name || s.group_id) + '</td>',
                     '  <td>' + badges.join(' ') + '</td>',
                     '  <td style="text-align:left;width:80px;">',
                     '    <button type="button" class="ea-delete-share-btn" data-group-id="' + escapeHtml(s.group_id) + '" style="padding:4px 8px;font-size:0.75rem;background:#7f1d1d;color:#fca5a5;border:1px solid #ef4444;border-radius:4px;cursor:pointer;" title="حذف دسترسی گروه">حذف</button>',

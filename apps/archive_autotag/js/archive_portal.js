@@ -2428,11 +2428,12 @@
                 var pathDisplay = req.target_path ? escapeHtml(req.target_path) : '<span style="color:var(--ea-text-dim);">ریشه گروه</span>';
                 var descDisplay = req.description ? '<div style="font-size:0.75rem;color:var(--ea-text-dim);margin-top:3px;word-break:break-word;">' + escapeHtml(req.description) + '</div>' : '';
 
+                var groupDisplay = req.group_display_name || req.group_name || getGroupDisplayName(req.group_id) || req.group_id;
                 return [
                     '<tr>',
                     '  <td style="word-break:break-word;min-width:140px;"><strong style="color:#ffffff;font-size:0.88rem;">' + escapeHtml(req.folder_name) + '</strong>' + descDisplay + '</td>',
                     '  <td style="word-break:break-all;font-size:0.82rem;">' + pathDisplay + '</td>',
-                    '  <td style="text-align:center;white-space:nowrap;"><span class="ea-meta-tag-chip" style="margin:0;font-size:0.76rem;padding:2px 8px;">' + escapeHtml(req.group_id) + '</span></td>',
+                    '  <td style="text-align:center;white-space:nowrap;"><span class="ea-meta-tag-chip" style="margin:0;font-size:0.76rem;padding:2px 8px;" title="شناسه گروه: ' + escapeHtml(req.group_id) + '">' + escapeHtml(groupDisplay) + '</span></td>',
                     '  <td style="text-align:center;font-size:0.78rem;color:var(--ea-text-muted);white-space:nowrap;">' + formatDate(req.created_at) + '</td>',
                     '  <td style="text-align:center;">' + statusHtml + reasonHtml + '</td>',
                     '</tr>'
@@ -2554,11 +2555,13 @@
             var rows = list.map(function (req) {
                 var statusHtml = getStatusBadgeHtml(req.status);
                 var actionsHtml = '';
+                var groupDisplay = req.group_display_name || req.group_name || getGroupDisplayName(req.group_id) || req.group_id;
+                var reqDisplay = req.requester_display_name || req.requester_name || req.requester_uid;
 
                 if (req.status === 'pending') {
                     actionsHtml = [
                         '<div class="ea-table-actions" style="display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:nowrap;">',
-                        '  <button type="button" class="ea-btn ea-btn-sm ea-btn-approve" data-id="' + req.id + '" data-folder-name="' + escapeHtml(req.folder_name) + '" data-group-id="' + escapeHtml(req.group_id) + '" style="white-space:nowrap;padding:6px 12px;font-size:0.82rem;">✔ تأیید و ساخت</button>',
+                        '  <button type="button" class="ea-btn ea-btn-sm ea-btn-approve" data-id="' + req.id + '" data-folder-name="' + escapeHtml(req.folder_name) + '" data-group-id="' + escapeHtml(req.group_id) + '" data-group-display="' + escapeHtml(groupDisplay) + '" style="white-space:nowrap;padding:6px 12px;font-size:0.82rem;">✔ تأیید و ساخت</button>',
                         '  <button type="button" class="ea-btn ea-btn-sm ea-btn-reject" data-id="' + req.id + '" data-folder-name="' + escapeHtml(req.folder_name) + '" style="white-space:nowrap;padding:6px 12px;font-size:0.82rem;">✖ رد درخواست</button>',
                         '</div>'
                     ].join('\n');
@@ -2577,8 +2580,8 @@
                     '<tr>',
                     '  <td style="text-align:center;font-weight:700;color:var(--ea-text-muted);font-size:0.8rem;white-space:nowrap;">#' + toPersianDigits(req.id) + '</td>',
                     '  <td style="word-break:break-word;min-width:240px;"><strong style="color:#ffffff;font-size:0.92rem;">' + escapeHtml(req.folder_name) + '</strong>' + pathInfo + descInfo + '</td>',
-                    '  <td style="text-align:center;white-space:nowrap;"><span class="ea-meta-tag-chip" style="margin:0;font-size:0.76rem;padding:2px 8px;">' + escapeHtml(req.group_id) + '</span></td>',
-                    '  <td style="text-align:center;font-size:0.8rem;word-break:break-all;">' + escapeHtml(req.requester_uid) + '</td>',
+                    '  <td style="text-align:center;white-space:nowrap;"><span class="ea-meta-tag-chip" style="margin:0;font-size:0.76rem;padding:2px 8px;" title="شناسه گروه: ' + escapeHtml(req.group_id) + '">' + escapeHtml(groupDisplay) + '</span></td>',
+                    '  <td style="text-align:center;font-size:0.8rem;word-break:break-all;" title="شناسه: ' + escapeHtml(req.requester_uid) + '">' + escapeHtml(reqDisplay) + '</td>',
                     '  <td style="text-align:center;font-size:0.78rem;color:var(--ea-text-muted);white-space:nowrap;">' + formatDate(req.created_at) + '</td>',
                     '  <td style="text-align:center;white-space:nowrap;">' + statusHtml + '</td>',
                     '  <td style="text-align:center;min-width:200px;">' + actionsHtml + '</td>',
@@ -2613,7 +2616,8 @@
                     var id = btn.getAttribute('data-id');
                     var folderName = btn.getAttribute('data-folder-name') || '';
                     var groupId = btn.getAttribute('data-group-id') || '';
-                    handleApproveRequest(btn, id, folderName, groupId);
+                    var groupDisplay = btn.getAttribute('data-group-display') || groupId;
+                    handleApproveRequest(btn, id, folderName, groupId, groupDisplay);
                 };
             });
 
@@ -2633,8 +2637,9 @@
         });
     }
 
-    function handleApproveRequest(btn, id, folderName, groupId) {
-        if (!confirm('آیا از تأیید درخواست ایجاد پوشه «' + folderName + '» برای گروه «' + groupId + '» اطمینان دارید؟\nاین عملیات پوشه را در ساختار آرشیو ساخته و تگ متناظر را خودکار ثبت و مقید می‌کند.')) {
+    function handleApproveRequest(btn, id, folderName, groupId, groupDisplay) {
+        var groupLabel = groupDisplay || groupId;
+        if (!confirm('آیا از تأیید درخواست ایجاد پوشه «' + folderName + '» برای گروه «' + groupLabel + '» اطمینان دارید؟\nاین عملیات پوشه را در ساختار آرشیو ساخته و تگ متناظر را خودکار ثبت و مقید می‌کند.')) {
             return;
         }
 
@@ -3186,7 +3191,7 @@
                     addBtn.disabled = true;
                 } else {
                     selectEl.innerHTML = '<option value="">-- انتخاب تگ جهت الصاق --</option>' + unassigned.map(function (t) {
-                        var scopeBadge = t.scope === 'system' ? '[سراسری] ' : ('[' + (t.group_id || 'گروهی') + '] ');
+                        var scopeBadge = t.scope === 'system' ? '[سراسری] ' : ('[' + (t.group_display_name || t.group_name || getGroupDisplayName(t.group_id) || t.group_id || 'گروهی') + '] ');
                         return '<option value="' + t.id + '">' + escapeHtml(scopeBadge + (t.clean_name || t.name)) + '</option>';
                     }).join('');
                     addBtn.disabled = false;
@@ -3363,7 +3368,7 @@
                 data.groups.forEach(function (g) {
                     var opt = document.createElement('option');
                     opt.value = 'group:' + g.id;
-                    opt.textContent = '👥 گروه ' + (g.display_name || g.id);
+                    opt.textContent = '👥 گروه ' + (g.display_name || g.name || g.id);
                     scopeSelect.appendChild(opt);
                 });
             }
@@ -3420,7 +3425,7 @@
                 var isSys = (t.scope === 'system');
                 var scopeBadge = isSys
                     ? '<span class="ea-scope-system">🌐 سراسری</span>'
-                    : '<span class="ea-scope-group">👥 ' + escapeHtml(t.group_id || 'گروهی') + '</span>';
+                    : '<span class="ea-scope-group">👥 ' + escapeHtml(t.group_display_name || t.group_name || getGroupDisplayName(t.group_id) || t.group_id || 'گروهی') + '</span>';
 
                 var statBadge = '<span class="ea-status-active">● فعال</span>';
                 if (t.status === 'DELETING') {

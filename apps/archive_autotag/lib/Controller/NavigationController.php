@@ -173,9 +173,17 @@ class NavigationController extends Controller {
             }
 
             $tagId = $tagMapByName[$folderName] ?? null;
+            $groupObj = $this->groupManager->get($folderName);
+            $displayName = ($groupObj && method_exists($groupObj, 'getDisplayName')) ? $groupObj->getDisplayName() : $folderName;
+            if (empty($displayName)) {
+                $displayName = $folderName;
+            }
+
             $items[] = [
                 'id' => $folderName,
-                'name' => $folderName,
+                'name' => $displayName,
+                'raw_name' => $folderName,
+                'display_name' => $displayName,
                 'type' => 'department',
                 'icon' => '📁',
                 'path' => $folderRelPath,
@@ -194,6 +202,11 @@ class NavigationController extends Controller {
                 'display_name' => $user->getDisplayName(),
                 'is_admin' => $isAdmin,
                 'groups' => $userGroups,
+                'groups_details' => array_map(function($ug) {
+                    $g = $this->groupManager->get($ug);
+                    $d = ($g && method_exists($g, 'getDisplayName')) ? $g->getDisplayName() : $ug;
+                    return ['id' => $ug, 'name' => !empty($d) ? $d : $ug];
+                }, $userGroups),
             ]
         ]);
     }

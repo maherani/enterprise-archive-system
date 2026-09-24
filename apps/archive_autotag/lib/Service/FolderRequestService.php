@@ -154,6 +154,28 @@ class FolderRequestService {
     /**
      * Return complete user role profile for client state and permissions.
      */
+    public function getAllGroupsDetails(): array {
+        $details = [];
+        try {
+            $groups = $this->groupManager->search('');
+            foreach ($groups as $g) {
+                if ($g instanceof \OCP\IGroup) {
+                    $gid = $g->getGID();
+                    if (strtolower(trim($gid)) === 'admin') continue;
+                    $displayName = method_exists($g, 'getDisplayName') ? $g->getDisplayName() : $gid;
+                    $details[] = [
+                        'id' => $gid,
+                        'name' => !empty($displayName) ? $displayName : $gid,
+                    ];
+                }
+            }
+            usort($details, fn($a, $b) => strcasecmp($a['name'], $b['name']));
+        } catch (\Throwable $t) {
+            $this->logger->warning("FolderRequestService::getAllGroupsDetails DB error: " . $t->getMessage());
+        }
+        return $details;
+    }
+
     public function getUserRoleInfo(string $userId): array {
         $isAdmin = $this->isSystemAdmin($userId);
         $subadminGroups = $this->getSubadminGroups($userId);
@@ -170,6 +192,7 @@ class FolderRequestService {
             'subadmin_groups_details' => $subadminGroupsDetails,
             'member_groups' => $memberGroups,
             'member_groups_details' => $memberGroupsDetails,
+            'all_groups_details' => $this->getAllGroupsDetails(),
         ];
     }
 
@@ -498,12 +521,24 @@ class FolderRequestService {
         $rows = $qb->executeQuery()->fetchAllAssociative();
 
         return array_map(function (array $r) {
+            $gid = (string)$r['group_id'];
+            $groupDisplayName = $gid;
+            try {
+                $g = $this->groupManager->get($gid);
+                if ($g && method_exists($g, 'getDisplayName')) {
+                    $d = $g->getDisplayName();
+                    if (!empty($d)) $groupDisplayName = $d;
+                }
+            } catch (\Throwable $t) {}
+
             return [
                 'id' => (int)$r['id'],
                 'request_id' => (int)$r['request_id'],
                 'event_type' => (string)$r['event_type'],
                 'actor_uid' => (string)$r['actor_uid'],
-                'group_id' => (string)$r['group_id'],
+                'group_id' => $gid,
+                'group_name' => $groupDisplayName,
+                'group_display_name' => $groupDisplayName,
                 'folder_name' => (string)$r['folder_name'],
                 'folder_path' => (string)$r['folder_path'],
                 'prev_status' => $r['prev_status'] ? (string)$r['prev_status'] : null,
@@ -647,6 +682,7 @@ class FolderRequestService {
             $this->sendNotificationToUser($requesterUid, 'folder_request_approved', [
                 'folderName' => $folderName,
                 'groupId' => $groupId,
+                'groupName' => ($request['group_display_name'] ?? $groupId),
                 'targetPath' => $targetPath,
                 'adminUid' => $adminUid,
             ], $id);
@@ -675,6 +711,7 @@ class FolderRequestService {
             $this->sendNotificationToUser($requesterUid, 'folder_request_failed', [
                 'folderName' => $folderName,
                 'groupId' => $groupId,
+                'groupName' => ($request['group_display_name'] ?? $groupId),
                 'error' => $e->getMessage(),
             ], $id);
 
@@ -730,6 +767,7 @@ class FolderRequestService {
         $this->sendNotificationToUser($request['requester_uid'], 'folder_request_rejected', [
             'folderName' => $request['folder_name'],
             'groupId' => $request['group_id'],
+            'groupName' => ($request['group_display_name'] ?? $request['group_id']),
             'reason' => $reason,
             'adminUid' => $adminUid,
         ], $id);
@@ -852,17 +890,61 @@ class FolderRequestService {
      * Helper to cast DB row to standard format.
      */
     private function formatRequestRow(array $row): array {
+        $gid = (string)$row['group_id'];
+        $groupDisplayName = $gid;
+        try {
+            $group = $this->groupManager->get($gid);
+            if ($group && method_exists($group, 'getDisplayName')) {
+                $d = $group->getDisplayName();
+                if (!empty($d)) {
+                    $groupDisplayName = $d;
+                }
+            }
+        } catch (\Throwable $t) {}
+
+        $ruid = (string)$row['requester_uid'];
+        $requesterDisplayName = $ruid;
+        try {
+            $user = $this->userManager->get($ruid);
+            if ($user && method_exists($user, 'getDisplayName')) {
+                $ud = $user->getDisplayName();
+                if (!empty($ud)) {
+                    $requesterDisplayName = $ud;
+                }
+            }
+        } catch (\Throwable $t) {}
+
+        $reviewerUid = $row['reviewer_uid'] ? (string)$row['reviewer_uid'] : null;
+        $reviewerDisplayName = $reviewerUid;
+        if ($reviewerUid !== null) {
+            try {
+                $revUser = $this->userManager->get($reviewerUid);
+                if ($revUser && method_exists($revUser, 'getDisplayName')) {
+                    $rd = $revUser->getDisplayName();
+                    if (!empty($rd)) {
+                        $reviewerDisplayName = $rd;
+                    }
+                }
+            } catch (\Throwable $t) {}
+        }
+
         return [
             'id' => (int)$row['id'],
             'folder_name' => (string)$row['folder_name'],
             'target_path' => (string)$row['target_path'],
             'description' => (string)($row['description'] ?? ''),
-            'group_id' => (string)$row['group_id'],
-            'requester_uid' => (string)$row['requester_uid'],
+            'group_id' => $gid,
+            'group_name' => $groupDisplayName,
+            'group_display_name' => $groupDisplayName,
+            'requester_uid' => $ruid,
+            'requester_name' => $requesterDisplayName,
+            'requester_display_name' => $requesterDisplayName,
             'status' => (string)$row['status'],
             'created_at' => (int)$row['created_at'],
             'updated_at' => (int)$row['updated_at'],
-            'reviewer_uid' => $row['reviewer_uid'] ? (string)$row['reviewer_uid'] : null,
+            'reviewer_uid' => $reviewerUid,
+            'reviewer_name' => $reviewerDisplayName,
+            'reviewer_display_name' => $reviewerDisplayName,
             'reviewed_at' => $row['reviewed_at'] ? (int)$row['reviewed_at'] : null,
             'rejection_reason' => $row['rejection_reason'] ? (string)$row['rejection_reason'] : null,
             'error_message' => $row['error_message'] ? (string)$row['error_message'] : null,
