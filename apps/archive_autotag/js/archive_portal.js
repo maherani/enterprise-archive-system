@@ -22,7 +22,9 @@
         pendingRequestsCount: 0,
         isFolderView: false,
         currentFolderDir: '/',
-        highlightedFileId: null
+        highlightedFileId: null,
+        isSearchInvalid: false,
+        searchTerms: []
     };
 
     // Helper: Escape HTML to prevent XSS
@@ -34,6 +36,32 @@
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
+    }
+
+    // Helper: Parse and validate search query with '+' delimiter and AND logic
+    function parseSearchQuery(query) {
+        if (!query || !query.trim()) {
+            return { isValid: true, terms: [], isBlank: true };
+        }
+        var segments = query.split('+');
+        var terms = [];
+        var invalid = false;
+
+        for (var i = 0; i < segments.length; i++) {
+            var trimmed = segments[i].trim();
+            if (trimmed === '') continue;
+            // If segment has internal spaces, user separated words with space instead of '+'
+            if (/\s+/.test(trimmed)) {
+                invalid = true;
+                break;
+            }
+            terms.push(trimmed);
+        }
+
+        if (invalid || terms.length === 0) {
+            return { isValid: false, terms: [], isBlank: false };
+        }
+        return { isValid: true, terms: terms, isBlank: false };
     }
 
     // Helper: Format Persian numbers
@@ -164,7 +192,21 @@
         }
 
         if (state.searchTerm.trim() !== '') {
+            var sCheck = parseSearchQuery(state.searchTerm);
+            if (!sCheck.isBlank && !sCheck.isValid) {
+                // Invalid format: words separated by spaces rather than '+'
+                state.isLoadingFiles = false;
+                state.files = [];
+                state.isSearchInvalid = true;
+                state.searchTerms = [];
+                renderDocumentList();
+                renderStatsAndRibbon();
+                return;
+            }
+            state.isSearchInvalid = false;
             params.set('q', state.searchTerm.trim());
+        } else {
+            state.isSearchInvalid = false;
         }
 
         var url = '/index.php/apps/archive_autotag/api/filter?' + params.toString();
@@ -178,8 +220,12 @@
             state.isLoadingFiles = false;
             if (data && data.status === 'success') {
                 state.files = data.files || [];
+                state.isSearchInvalid = Boolean(data.invalid_search);
+                state.searchTerms = data.search_terms || [];
             } else {
                 state.files = [];
+                state.isSearchInvalid = false;
+                state.searchTerms = [];
             }
             renderDocumentList();
             renderStatsAndRibbon();
@@ -209,6 +255,8 @@
         state.selectedTagIds.clear();
         state.searchTerm = '';
         state.tagSearchTerm = '';
+        state.isSearchInvalid = false;
+        state.searchTerms = [];
         var input = document.getElementById('ea-search-input');
         if (input) input.value = '';
         var tagSearchInput = document.getElementById('ea-tag-filter-search-input');
@@ -420,7 +468,7 @@
             '      <span class="ea-search-icon">',
             '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
             '      </span>',
-            '      <input type="text" id="ea-search-input" class="ea-search-input" placeholder="جستجو در عنوان یا مسیر سند سازمانی..." value="' + escapeHtml(state.searchTerm) + '">',
+            '      <input type="text" id="ea-search-input" class="ea-search-input" placeholder="جستجوی همزمان با علامت + (مثال: گزارش + isms + afta)..." value="' + escapeHtml(state.searchTerm) + '">',
             '      <span id="ea-search-count" class="ea-search-count-pill">' + toPersianDigits(state.files.length) + ' سند</span>',
             '      <button id="ea-search-clear" class="ea-search-clear" title="پاک کردن جستجو" style="display: ' + (state.searchTerm ? 'flex' : 'none') + ';">',
             '        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
@@ -516,6 +564,15 @@
                 if (clearBtn) {
                     clearBtn.style.display = state.searchTerm ? 'flex' : 'none';
                 }
+                var box = searchInput.closest('.ea-search-box');
+                var chk = parseSearchQuery(state.searchTerm);
+                if (box) {
+                    if (!chk.isBlank && !chk.isValid) {
+                        box.classList.add('has-invalid-query');
+                    } else {
+                        box.classList.remove('has-invalid-query');
+                    }
+                }
                 clearTimeout(state.debounceTimer);
                 state.debounceTimer = setTimeout(function () {
                     fetchFiles();
@@ -526,6 +583,10 @@
         if (clearBtn) {
             clearBtn.addEventListener('click', function () {
                 state.searchTerm = '';
+                state.isSearchInvalid = false;
+                state.searchTerms = [];
+                var box = searchInput ? searchInput.closest('.ea-search-box') : null;
+                if (box) box.classList.remove('has-invalid-query');
                 searchInput.value = '';
                 clearBtn.style.display = 'none';
                 fetchFiles();
@@ -710,11 +771,21 @@
             }
         } else {
             if (countPill) {
-                countPill.textContent = toPersianDigits(state.files.length) + ' سند';
+                if (state.isSearchInvalid) {
+                    countPill.textContent = '۰ سند';
+                } else {
+                    countPill.textContent = toPersianDigits(state.files.length) + ' سند';
+                }
             }
             if (summary) {
                 if (state.isLoadingFiles) {
                     summary.innerHTML = 'در حال جستجو و فیلتر اسناد...';
+                } else if (state.isSearchInvalid) {
+                    summary.innerHTML = '<span style="color: #f97316; font-weight: 600;">⚠️ تفکیک کلمات با علامت + رعایت نشده است (بدون نتیجه)</span>';
+                } else if (state.searchTerm) {
+                    var sValidation = parseSearchQuery(state.searchTerm);
+                    var termsDisplay = sValidation.terms.map(escapeHtml).join(' <span style="color: #f97316; font-weight: 700;">+</span> ');
+                    summary.innerHTML = 'نتایج جستجوی همزمان (AND) برای: <strong>' + termsDisplay + '</strong> (' + toPersianDigits(state.files.length) + ' سند یافت شد)';
                 } else {
                     summary.innerHTML = 'نمایش <strong>' + toPersianDigits(state.files.length) + '</strong> سند در دسترس';
                 }
@@ -822,9 +893,11 @@
 
         // Search term badge
         if (state.searchTerm) {
+            var badgeCheck = parseSearchQuery(state.searchTerm);
+            var isBadFormat = !badgeCheck.isBlank && !badgeCheck.isValid;
             html.push(
-                '<span class="ea-active-badge">',
-                '  <span>عبارت: ' + escapeHtml(state.searchTerm) + '</span>',
+                '<span class="ea-active-badge' + (isBadFormat ? ' is-invalid-search' : '') + '" title="' + (isBadFormat ? 'تفکیک کلمات باید با علامت + باشد' : '') + '">',
+                '  <span>' + (isBadFormat ? '⚠️ ' : '') + 'عبارت: ' + escapeHtml(state.searchTerm) + '</span>',
                 '  <button data-clear="search">✕</button>',
                 '</span>'
             );
@@ -853,8 +926,14 @@
         if (clearSearch) {
             clearSearch.addEventListener('click', function () {
                 state.searchTerm = '';
+                state.isSearchInvalid = false;
+                state.searchTerms = [];
                 var input = document.getElementById('ea-search-input');
-                if (input) input.value = '';
+                if (input) {
+                    input.value = '';
+                    var box = input.closest('.ea-search-box');
+                    if (box) box.classList.remove('has-invalid-query');
+                }
                 fetchFiles();
             });
         }
@@ -918,6 +997,17 @@
                 '  <div class="ea-empty-icon">📁</div>',
                 '  <div class="ea-empty-title">این پوشه خالی است یا سندی در این مسیر یافت نشد</div>',
                 '  <div class="ea-empty-desc">می‌توانید از نوار بالای پوشه به سطوح بالاتر بروید یا سند جدیدی بارگذاری نمایید.</div>',
+                '</div>'
+            ].join('');
+            return;
+        }
+
+        if (state.isSearchInvalid) {
+            container.innerHTML = [
+                '<div class="ea-empty-state">',
+                '  <div class="ea-empty-icon" style="font-size: 32px; margin-bottom: 12px;">⚠️</div>',
+                '  <div class="ea-empty-title" style="color: #f97316; font-size: 1.05rem; font-weight: 700; margin-bottom: 8px;">فرمت جستجو نامعتبر است</div>',
+                '  <div class="ea-empty-desc" style="max-width: 480px; line-height: 1.8; color: var(--ea-text-muted);">کلمات مورد نظر برای جستجو باید الزاماً با علامت <strong>+</strong> از یکدیگر جدا شوند.<br>مثال: <code style="direction: ltr; display: inline-block; padding: 2px 8px; border-radius: 4px; background: rgba(249, 115, 22, 0.15); color: #f97316; font-weight: 600;">گزارش + isms + afta</code></div>',
                 '</div>'
             ].join('');
             return;

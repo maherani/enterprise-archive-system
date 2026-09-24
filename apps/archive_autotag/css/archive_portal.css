@@ -2458,3 +2458,15 @@ body[theme="dark"] :root,
     font-size: 0.76rem;
     font-weight: 600;
 }
+
+/* Search validation feedback for + delimiter */
+.ea-search-box.has-invalid-query {
+    border-color: #f97316 !important;
+    box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.25) !important;
+}
+
+.ea-active-badge.is-invalid-search {
+    border-color: #ef4444 !important;
+    background: rgba(239, 68, 68, 0.15) !important;
+    color: #fca5a5 !important;
+}

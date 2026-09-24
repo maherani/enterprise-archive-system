@@ -264,7 +264,43 @@ class TagFilterController extends Controller {
             ?? ($_GET['tag_ids'] ?? '')
         ));
 
-        $q = trim((string)($this->request->getParam('q', '') ?: ($_GET['q'] ?? '')));
+        $rawQ = trim((string)($this->request->getParam('q', '') ?: ($_GET['q'] ?? '')));
+        $searchTerms = [];
+        $invalidSearchFormat = false;
+
+        if ($rawQ !== '') {
+            // Words must be separated by '+'. Extra spaces around '+' are handled.
+            // If user did not use '+' to separate multiple words (e.g. used spaces), no results are returned.
+            $rawSegments = explode('+', $rawQ);
+            $cleanTerms = [];
+
+            foreach ($rawSegments as $seg) {
+                $trimmed = trim($seg);
+                if ($trimmed === '') {
+                    continue;
+                }
+                // If segment has spaces inside it, user separated multiple words with spaces instead of '+'
+                if (preg_match('/\s+/u', $trimmed)) {
+                    $invalidSearchFormat = true;
+                    break;
+                }
+                $cleanTerms[] = $trimmed;
+            }
+
+            if ($invalidSearchFormat || empty($cleanTerms)) {
+                return new DataResponse([
+                    'status' => 'success',
+                    'files' => [],
+                    'total' => 0,
+                    'selected_tags' => [],
+                    'search_terms' => [],
+                    'invalid_search' => true,
+                    'message' => 'کلمات جستجو باید با علامت + از هم تفکیک شوند (مثال: گزارش + isms + afta)',
+                ]);
+            }
+
+            $searchTerms = $cleanTerms;
+        }
 
         // Map names and IDs to tag objects
         $allTags = $this->tagManager->getAllTags(true);
@@ -395,24 +431,6 @@ class TagFilterController extends Controller {
             }
 
             $fileMeta = $metadataMap[$fileId] ?? null;
-            $metaMatch = false;
-            if ($fileMeta !== null) {
-                $metaSubj = (string)($fileMeta['subject'] ?? '');
-                $metaNum = (string)($fileMeta['document_number'] ?? '');
-                $metaIss = (string)($fileMeta['issuer'] ?? '');
-                $metaDesc = (string)($fileMeta['description'] ?? '');
-                if (mb_stripos($metaSubj, $q) !== false || mb_stripos($metaNum, $q) !== false || mb_stripos($metaIss, $q) !== false || mb_stripos($metaDesc, $q) !== false) {
-                    $metaMatch = true;
-                }
-            }
-
-            // Optional keyword search filter across filename, path, and metadata
-            if ($q !== '') {
-                $nodeName = $node->getName();
-                if (!$metaMatch && mb_stripos($nodeName, $q) === false && mb_stripos($relPath, $q) === false) {
-                    continue;
-                }
-            }
 
             $parentDir = dirname($relPath);
             if ($parentDir === '.') {
@@ -422,13 +440,44 @@ class TagFilterController extends Controller {
             // Build tags list for this file (only include tags visible to user)
             $fileTagIds = $tagMappings[$fileId] ?? [];
             $fileTags = [];
+            $fileTagNames = [];
             foreach ($fileTagIds as $tid) {
                 $tidInt = (int)$tid;
                 if (isset($tagMapById[$tidInt]) && $this->tagOwnershipService->canUserSeeTag($tidInt, $uid)) {
+                    $tName = $tagMapById[$tidInt]->getName();
                     $fileTags[] = [
                         'id' => $tidInt,
-                        'name' => $tagMapById[$tidInt]->getName(),
+                        'name' => $tName,
                     ];
+                    $fileTagNames[] = $tName;
+                }
+            }
+
+            // Keyword search filter across filename, path, metadata, and tags (AND logic with '+' separator)
+            if (!empty($searchTerms)) {
+                $nodeName = $node->getName();
+                $metaSubj = (string)($fileMeta['subject'] ?? '');
+                $metaNum = (string)($fileMeta['document_number'] ?? '');
+                $metaIss = (string)($fileMeta['issuer'] ?? '');
+                $metaDesc = (string)($fileMeta['description'] ?? '');
+
+                $haystackParts = array_merge(
+                    [$nodeName, $relPath, $metaSubj, $metaNum, $metaIss, $metaDesc],
+                    $fileTagNames
+                );
+                $normalizedHaystack = $this->normalizeSearchText(implode(' ', $haystackParts));
+
+                $allMatch = true;
+                foreach ($searchTerms as $term) {
+                    $normalizedTerm = $this->normalizeSearchText($term);
+                    if (!$this->termMatchesHaystack($normalizedHaystack, $normalizedTerm)) {
+                        $allMatch = false;
+                        break;
+                    }
+                }
+
+                if (!$allMatch) {
+                    continue; // Skip file if not all AND terms match
                 }
             }
 
@@ -467,6 +516,53 @@ class TagFilterController extends Controller {
             'total' => count($filesResult),
             'selected_tags' => $selectedTagDetails,
         ]);
+    }
+
+    /**
+     * Normalize Persian, Arabic, and Latin text for resilient search matching.
+     */
+    private function normalizeSearchText(string $str): string {
+        $str = mb_strtolower($str, 'UTF-8');
+        // Arabic Kaf to Persian Kaf
+        $str = str_replace("\u{0643}", "\u{06A9}", $str);
+        // Arabic Yeh / Alef Maksura to Persian Yeh
+        $str = str_replace(["\u{064A}", "\u{0649}"], "\u{06CC}", $str);
+        // Remove ZWNJ
+        $str = str_replace("\u{200C}", '', $str);
+        // Normalize digits
+        $persianDigits = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
+        $arabicDigits  = ['٠','١','٢','٣','٤','٥','٦','٧','٨','٩'];
+        $latinDigits   = ['0','1','2','3','4','5','6','7','8','9'];
+        $str = str_replace($persianDigits, $latinDigits, $str);
+        $str = str_replace($arabicDigits, $latinDigits, $str);
+        return $str;
+    }
+
+    /**
+     * Test whether a normalized haystack string contains a normalized search term,
+     * with bidirectional support for common acronyms/terms (e.g. afta <-> افتا, isms <-> ایسمس).
+     */
+    private function termMatchesHaystack(string $haystack, string $term): bool {
+        if ($term === '') {
+            return true;
+        }
+        if (mb_stripos($haystack, $term) !== false) {
+            return true;
+        }
+        $synonyms = [
+            'afta'  => 'افتا',
+            'افتا'  => 'afta',
+            'isms'  => 'ایسمس',
+            'ایسمس' => 'isms',
+            'soc'   => 'سوک',
+            'سوک'   => 'soc',
+            'cert'  => 'سرت',
+            'سرت'   => 'cert',
+        ];
+        if (isset($synonyms[$term]) && mb_stripos($haystack, $synonyms[$term]) !== false) {
+            return true;
+        }
+        return false;
     }
 
     private function formatBytes(int $bytes): string {
