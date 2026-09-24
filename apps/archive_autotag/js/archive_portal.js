@@ -1162,29 +1162,15 @@
     }
 
     function loadTableWidths() {
+        // Table always returns to initial default widths on refresh
         try {
-            var raw = localStorage.getItem(getTableWidthsStorageKey());
-            if (raw) {
-                var parsed = JSON.parse(raw);
-                if (parsed && typeof parsed === 'object') {
-                    var widths = Object.assign({}, DEFAULT_COL_WIDTHS);
-                    Object.keys(DEFAULT_COL_WIDTHS).forEach(function (k) {
-                        var w = parseInt(parsed[k], 10);
-                        if (!isNaN(w) && w >= COL_CONSTRAINTS[k].min && w <= COL_CONSTRAINTS[k].max) {
-                            widths[k] = w;
-                        }
-                    });
-                    return widths;
-                }
-            }
+            localStorage.removeItem(getTableWidthsStorageKey());
         } catch (e) {}
         return Object.assign({}, DEFAULT_COL_WIDTHS);
     }
 
     function saveTableWidths(widths) {
-        try {
-            localStorage.setItem(getTableWidthsStorageKey(), JSON.stringify(widths));
-        } catch (e) {}
+        // Resizing is kept in-session memory only; on page refresh table returns to initial state
     }
 
     function resetTableWidths() {
@@ -1256,13 +1242,7 @@
             });
         });
 
-        var resetBtn = container.querySelector('#ea-table-reset-widths');
-        if (resetBtn) {
-            resetBtn.addEventListener('click', function (e) {
-                e.preventDefault();
-                resetTableWidths();
-            });
-        }
+        // Reset button removed per user requirement; table resets on page refresh
     }
 
     // Table View
@@ -1347,10 +1327,6 @@
         var toolbarHtml = [
             '<div class="ea-table-toolbar">',
             '  <span>نمای جدولی اسناد بایگانی (ستون‌های قابل تغییر اندازه با کشیدن ماوس)</span>',
-            '  <button type="button" class="ea-table-reset-btn" id="ea-table-reset-widths" title="بازنشانی اندازه تمام ستون‌ها به حالت پیش‌فرض">',
-            '    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>',
-            '    <span>بازنشانی اندازه ستون‌ها</span>',
-            '  </button>',
             '</div>'
         ].join('');
 

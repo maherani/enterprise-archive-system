@@ -524,3 +524,9 @@ button[type="submit"]:active,
     background-size: contain !important;
     filter: drop-shadow(0 0 4px rgba(249, 115, 22, 0.3)) !important;
 }
+
+/* Hide table reset button across all views */
+.ea-table-reset-btn,
+#ea-table-reset-widths {
+    display: none !important;
+}

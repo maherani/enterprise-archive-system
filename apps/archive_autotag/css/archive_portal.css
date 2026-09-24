@@ -886,7 +886,12 @@ body[theme="dark"] :root,
   color: var(--ea-text-muted);
 }
 
-.ea-table-reset-btn {
+.ea-table-reset-btn,
+#ea-table-reset-widths {
+  display: none !important;
+}
+
+.ea-table-reset-btn-unused {
   display: inline-flex;
   align-items: center;
   gap: 4px;
