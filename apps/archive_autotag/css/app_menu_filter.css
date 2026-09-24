@@ -83,15 +83,55 @@ body,
     z-index: 2000 !important;
 }
 
-/* Header Start & Brand Logo */
+/* Header Start & Bank Maskan Brand Logo */
 #header .header-start {
     display: flex;
     align-items: center;
     gap: 12px;
 }
 
-#header #nextcloud .logo {
-    filter: drop-shadow(0 0 6px rgba(249, 115, 22, 0.5));
+#header #nextcloud,
+#header .header-appname-container,
+#header .logo,
+.header-menu__logo {
+    display: flex !important;
+    align-items: center !important;
+}
+
+#header #nextcloud .logo,
+#header .header-appname-container .logo,
+#header .logo,
+.header-menu__logo {
+    background-image: url('/custom_branding/logoheader.svg') !important;
+    background-repeat: no-repeat !important;
+    background-position: right center !important;
+    background-size: contain !important;
+    min-width: 145px !important;
+    width: 145px !important;
+    height: 38px !important;
+    filter: drop-shadow(0 0 6px rgba(249, 115, 22, 0.4)) !important;
+}
+
+#body-login .logo {
+    background-image: url('/custom_branding/logo.svg') !important;
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    background-size: contain !important;
+    width: 160px !important;
+    height: 190px !important;
+    margin: 0 auto 20px auto !important;
+    filter: drop-shadow(0 0 16px rgba(249, 115, 22, 0.45)) !important;
+}
+
+/* Eliminate all Nextcloud text references & footers */
+.logo-claim,
+.theming-logo-claim,
+#nextcloud-footer,
+.footer-text,
+[data-id="firstrunwizard_about"],
+a[href*="nextcloud.com"],
+a[href*="docs.nextcloud.com"] {
+    display: none !important;
 }
 
 /* Header Navigation Links */

@@ -61,7 +61,31 @@
         return false;
     }
 
+    function applyBankMaskanBranding() {
+        try {
+            const logos = document.querySelectorAll('#header .logo img, #nextcloud img, .header-menu__logo img, #body-login .logo img');
+            logos.forEach(img => {
+                if (!img.src.includes('logoheader.svg') && !img.src.includes('logo.svg')) {
+                    img.src = '/custom_branding/logoheader.svg';
+                    img.alt = '???? ????';
+                }
+            });
+
+            const favicons = document.querySelectorAll('link[rel*="icon"]');
+            favicons.forEach(fav => {
+                if (!fav.href.includes('/custom_branding/favicon')) {
+                    fav.href = '/custom_branding/favicon.png';
+                }
+            });
+
+            if (document.title && document.title.includes('Nextcloud')) {
+                document.title = document.title.replace(/Nextcloud/g, '???? ????');
+            }
+        } catch (e) {}
+    }
+
     function applyAppMenuFilter() {
+        applyBankMaskanBranding();
         const isAdmin = isCurrentUserAdmin();
         if (isAdmin) {
             // Admin users see all apps normally (including App store)
