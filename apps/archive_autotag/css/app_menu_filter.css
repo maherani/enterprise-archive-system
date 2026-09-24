@@ -480,3 +480,47 @@ button[type="submit"]:active,
 #body-login button[type="submit"]:active {
     transform: translateY(0px) scale(0.98) !important;
 }
+/* -------------------------------------------------------------------------
+   Bank Maskan Top Bar Header Brand Logo & App Icon Customization
+   ------------------------------------------------------------------------- */
+.ea-header-brand-link {
+    display: inline-flex !important;
+    align-items: center !important;
+    text-decoration: none !important;
+    height: 100% !important;
+    padding: 0 12px !important;
+    margin-inline-end: 8px !important;
+    flex-shrink: 0 !important;
+    cursor: pointer !important;
+    transition: opacity 0.2s ease !important;
+}
+
+.ea-header-brand-link:hover {
+    opacity: 0.85 !important;
+}
+
+.ea-header-brand-img {
+    height: 32px !important;
+    max-height: 32px !important;
+    width: auto !important;
+    max-width: 145px !important;
+    object-fit: contain !important;
+    filter: drop-shadow(0 0 6px rgba(249, 115, 22, 0.4)) !important;
+    display: block !important;
+}
+
+/* Force Bank Maskan icon inside header app switcher button */
+#header-start__appmenu [data-id="archive_autotag"] .app-icon,
+#header-start__appmenu a[href*="archive_autotag"] .app-icon,
+.header-appmenu [data-id="archive_autotag"] .app-icon,
+#header [data-id="archive_autotag"] .app-icon,
+#header-start__appmenu [data-id="archive_autotag"] svg,
+#header [data-id="archive_autotag"] svg,
+#header-start__appmenu [data-id="archive_autotag"] img,
+#header [data-id="archive_autotag"] img {
+    background-image: url('/apps/archive_autotag/img/archive.svg') !important;
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    background-size: contain !important;
+    filter: drop-shadow(0 0 4px rgba(249, 115, 22, 0.3)) !important;
+}

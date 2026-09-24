@@ -63,11 +63,42 @@
 
     function applyBankMaskanBranding() {
         try {
+            // 1. Ensure official Bank Maskan brand logo in top header bar (.header-start)
+            const header = document.getElementById('header');
+            if (header) {
+                const headerStart = header.querySelector('.header-start') || header;
+                let brandLink = document.getElementById('ea-header-bank-maskan-brand');
+                if (!brandLink) {
+                    brandLink = document.createElement('a');
+                    brandLink.id = 'ea-header-bank-maskan-brand';
+                    brandLink.href = '/index.php/apps/archive_autotag/';
+                    brandLink.title = 'بانک مسکن - سامانه بایگانی اسناد سازمانی';
+                    brandLink.className = 'ea-header-brand-link';
+                    brandLink.innerHTML = '<img src="/custom_branding/logoheader.svg" alt="بانک مسکن" class="ea-header-brand-img">';
+                    headerStart.insertBefore(brandLink, headerStart.firstChild);
+                }
+            }
+
+            // 2. Ensure app button icon in header displays Bank Maskan icon
+            const navIcons = document.querySelectorAll(
+                '#header-start__appmenu [data-id="archive_autotag"] img, ' +
+                '#header-start__appmenu a[href*="archive_autotag"] img, ' +
+                '.header-appmenu [data-id="archive_autotag"] img, ' +
+                '#header [data-id="archive_autotag"] img'
+            );
+            navIcons.forEach(img => {
+                if (!img.src.includes('archive.svg') && !img.src.includes('logo')) {
+                    img.src = '/apps/archive_autotag/img/archive.svg';
+                    img.alt = 'بانک مسکن';
+                }
+            });
+
+            // 3. Other logos and branding
             const logos = document.querySelectorAll('#header .logo img, #nextcloud img, .header-menu__logo img, #body-login .logo img');
             logos.forEach(img => {
                 if (!img.src.includes('logoheader.svg') && !img.src.includes('logo.svg')) {
                     img.src = '/custom_branding/logoheader.svg';
-                    img.alt = '???? ????';
+                    img.alt = 'بانک مسکن';
                 }
             });
 
@@ -79,7 +110,7 @@
             });
 
             if (document.title && document.title.includes('Nextcloud')) {
-                document.title = document.title.replace(/Nextcloud/g, '???? ????');
+                document.title = document.title.replace(/Nextcloud/g, 'بانک مسکن');
             }
         } catch (e) {}
     }
