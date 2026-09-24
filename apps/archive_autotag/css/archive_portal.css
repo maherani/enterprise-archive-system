@@ -653,13 +653,14 @@ body[theme="dark"] :root,
   background: rgba(239, 68, 68, 0.15);
 }
 
-/* Controls Bar (Stats + View Toggle) */
+/* Controls Bar (Stats + View Toggle - Inside Sticky Top Section) */
 .ea-controls-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 4px;
-  margin-bottom: 6px;
+  margin-top: 6px;
+  margin-bottom: 2px;
+  padding-top: 4px;
 }
 
 .ea-results-summary {
@@ -702,6 +703,10 @@ body[theme="dark"] :root,
   background: var(--ea-surface-elevated);
   color: var(--ea-primary);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+#ea-document-container {
+  margin-top: 12px;
 }
 
 /* Document Grid View */
