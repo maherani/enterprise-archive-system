@@ -393,7 +393,7 @@
             '    <!-- Header -->',
             '    <header class="ea-portal-header">',
             '    <div class="ea-header-brand">',
-            '      <div class="ea-brand-icon" title="???? ????">',
+            '      <div class="ea-brand-icon" title="بانک مسکن">',
             '        <svg width="22" height="22" viewBox="0 0 119.24 119.24"><path fill-rule="evenodd" fill="#f97316" d="M102.2014008,17.0287781H17.0359039v85.1729126h85.1654968V17.0287781z M119.2376099,0 H0v119.2378845h119.2376099V0z"/><polygon fill-rule="evenodd" fill="#f97316" points="98.9226074,76.647583 98.9226074,58.3074951 59.6188049,42.5828857 20.3150024,58.3074951 20.3150024,76.647583 59.6188049,60.9306946"/></svg>',
             '      </div>',
             '      <div>',
