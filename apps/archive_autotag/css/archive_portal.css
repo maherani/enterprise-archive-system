@@ -179,11 +179,11 @@ body[theme="dark"] :root,
 /* Header Section */
 .ea-portal-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   margin-bottom: 4px;
   flex-wrap: nowrap;
-  gap: 8px;
+  gap: 14px;
   width: 100%;
 }
 
@@ -191,6 +191,8 @@ body[theme="dark"] :root,
   display: flex;
   align-items: center;
   gap: 9px;
+  flex-shrink: 0;
+  width: max-content;
 }
 
 .ea-brand-icon {
