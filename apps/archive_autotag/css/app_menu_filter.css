@@ -365,3 +365,78 @@ html.ea-non-admin #firstrunwizard {
     display: none !important;
     pointer-events: none !important;
 }
+
+/* -------------------------------------------------------------------------
+   9. Universal Button Styling & Interactive Effects (All Pages, All Users)
+   Harmonized with Industrial Obsidian & Orange Theme
+   ------------------------------------------------------------------------- */
+button,
+.button,
+.button-vue,
+input[type="button"],
+input[type="submit"],
+.action-item__button,
+.app-navigation__new-button,
+.header-menu__trigger {
+    border-radius: 8px !important;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    cursor: pointer !important;
+}
+
+/* Hover lift and glow effect for standard / neutral buttons */
+button:not(.primary):not(.button-vue--primary):not(.ea-btn-primary):not([class*="danger"]):not([class*="reject"]):not(#body-login button):hover,
+.button:not(.primary):not(.button-vue--primary):not(.ea-btn-primary):not([class*="danger"]):not([class*="reject"]):hover,
+.button-vue:not(.button-vue--primary):not(.primary):hover,
+.action-item__button:hover {
+    transform: translateY(-1px) !important;
+    border-color: #f97316 !important;
+    color: #f97316 !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35), 0 0 10px rgba(249, 115, 22, 0.25) !important;
+}
+
+/* Active click press effect */
+button:active,
+.button:active,
+.button-vue:active,
+input[type="button"]:active,
+input[type="submit"]:active,
+.action-item__button:active {
+    transform: translateY(0px) scale(0.98) !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Primary buttons across all pages */
+button.primary,
+.button.primary,
+.button-vue--primary,
+.primary-button,
+button[type="submit"]:not(.ea-btn-secondary):not(.ea-btn-outline),
+#body-login button[type="submit"] {
+    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%) !important;
+    border: 1px solid rgba(249, 115, 22, 0.45) !important;
+    color: #ffffff !important;
+    box-shadow: 0 3px 12px rgba(249, 115, 22, 0.35) !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+}
+
+button.primary:hover,
+.button.primary:hover,
+.button-vue--primary:hover,
+.primary-button:hover,
+button[type="submit"]:not(.ea-btn-secondary):not(.ea-btn-outline):hover,
+#body-login button[type="submit"]:hover {
+    background: linear-gradient(135deg, #fb923c 0%, #ea580c 100%) !important;
+    box-shadow: 0 5px 18px rgba(249, 115, 22, 0.5) !important;
+    transform: translateY(-1px) !important;
+    color: #ffffff !important;
+}
+
+button.primary:active,
+.button.primary:active,
+.button-vue--primary:active,
+.primary-button:active,
+button[type="submit"]:active,
+#body-login button[type="submit"]:active {
+    transform: translateY(0px) scale(0.98) !important;
+}

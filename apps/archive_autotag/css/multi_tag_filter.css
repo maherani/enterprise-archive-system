@@ -176,20 +176,26 @@
 }
 
 .archive-clear-btn {
-    padding: 5px 12px;
-    font-size: 12px;
+    padding: 3.5px 10px;
+    font-size: 11px;
     font-weight: 600;
     color: #ef4444;
     background: transparent;
     border: 1px solid #ef4444;
-    border-radius: 14px;
+    border-radius: 8px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .archive-clear-btn:hover {
     background: #ef4444;
     color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+.archive-clear-btn:active {
+    transform: translateY(0px) scale(0.98);
 }
 
 /* Filter Results View */
@@ -341,15 +347,15 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 5px 12px;
-    font-size: 12px;
-    border-radius: 6px;
+    padding: 3.5px 10px;
+    font-size: 11px;
+    border-radius: 8px;
     border: 1px solid #2d3647;
     background: #181d27;
     color: #f8fafc;
     text-decoration: none;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     margin-left: 6px;
     white-space: nowrap;
 }
@@ -358,6 +364,12 @@
     border-color: #f97316;
     color: #f97316;
     background: rgba(249, 115, 22, 0.12);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 10px rgba(249, 115, 22, 0.25);
+}
+
+.archive-action-btn:active {
+    transform: translateY(0px) scale(0.98);
 }
 
 .archive-empty-results {
@@ -384,15 +396,22 @@ table[data-cy-files-list],
 
 /* Share button in table */
 .archive-share-btn {
+    border-radius: 8px !important;
     border-color: #8b5cf6 !important;
     color: #c4b5fd !important;
     background: rgba(139, 92, 246, 0.15) !important;
     cursor: pointer !important;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 .archive-share-btn:hover {
     border-color: #a78bfa !important;
     color: #ffffff !important;
     background: rgba(139, 92, 246, 0.35) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4) !important;
+}
+.archive-share-btn:active {
+    transform: translateY(0px) scale(0.98) !important;
 }
 
 /* Modal styles for Files page */
@@ -648,15 +667,15 @@ body.ea-sidebar-collapsed #app-content {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 14px;
-    border-radius: 16px;
-    font-size: 12.5px;
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-size: 11.5px;
     font-weight: 600;
     background: #181d27;
     color: #f97316;
     border: 1px solid #f97316;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     user-select: none;
     white-space: nowrap;
     margin-left: 10px;
@@ -665,7 +684,12 @@ body.ea-sidebar-collapsed #app-content {
 .ea-filter-toggle-btn:hover {
     background: #f97316;
     color: #ffffff;
-    box-shadow: 0 2px 10px rgba(249, 115, 22, 0.35);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(249, 115, 22, 0.45);
+}
+
+.ea-filter-toggle-btn:active {
+    transform: translateY(0px) scale(0.98);
 }
 
 /* Make the top bar 'Files' indicator interactive for toggling the drawer */
