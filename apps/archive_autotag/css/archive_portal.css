@@ -156,7 +156,7 @@ body[theme="dark"] :root,
 
 .ea-sticky-top-section {
   position: sticky;
-  top: 48px;
+  top: 0;
   z-index: 90;
   background: var(--ea-bg-canvas, #090b0e);
   margin-left: -28px;

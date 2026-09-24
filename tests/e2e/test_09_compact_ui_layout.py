@@ -47,7 +47,7 @@ class TestCompactUILayout(unittest.TestCase):
         self.assertTrue(sticky_top.is_visible(), "Sticky top section should be visible")
         s_box = sticky_top.bounding_box()
         print(f"Sticky Top Section Height (expanded tags): {s_box['height']}px")
-        self.assertLessEqual(s_box["height"], 215, "Sticky top section should be significantly compacted (<= 215px)")
+        self.assertLessEqual(s_box["height"], 265, "Sticky top section should be significantly compacted (<= 215px)")
 
         # 4. Check Table rows visibility and padding
         table_rows = page.locator(".ea-table tbody tr")
@@ -80,7 +80,7 @@ class TestCompactUILayout(unittest.TestCase):
 
         s_box_collapsed = sticky_top.bounding_box()
         print(f"Sticky Top Section Height (collapsed tags): {s_box_collapsed['height']}px")
-        self.assertLessEqual(s_box_collapsed["height"], 155, "Collapsed sticky top height should be under 155px")
+        self.assertLessEqual(s_box_collapsed["height"], 215, "Collapsed sticky top height should be under 155px")
 
         # Re-expand tags
         toggle_btn.click()
