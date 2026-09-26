@@ -879,6 +879,14 @@ Status: **Completed & Living Document Active**
 
 Status: **Completed & Living Document Active**
 
+### Group Member User Guide (docs/MEMBER_USER_GUIDE.md)
+- **Role Scoping & Member Capabilities:** Authored an exhaustive, accessible, step-by-step user guide crafted specifically for enterprise group members (regular users), clearly defining authorized actions and security boundaries.
+- **Visual Evidence:** Embedded 8 authentic live screenshots captured directly from active member account (`Nazanin` / SOC group), demonstrating secure login, portal workspace, breadcrumb-driven folder tree navigation, mandatory metadata upload modal (Requirement 25), faceted multi-tag filtering, keyword search with `+` delimiter, slide-out document metadata drawer, and Nextcloud Files workspace.
+- **Strict Role Boundaries:** Clear delineation separating member capabilities (searching, downloading, viewing metadata, uploading files with required metadata) from administrative privileges (user management, central tag governance, root folder creation, AI API security, and backup/recovery consoles).
+- **Living Document Policy:** Formally linked to the system lifecycle to be updated synchronously with all future UI/UX, permission, or workflow modifications.
+
+Status: **Completed & Living Document Active**
+
 ## Latest Validation Status
 
 All 30 integration suites (including security, ACL, and AI Audit semantics) passed successfully with a 100% success rate.
