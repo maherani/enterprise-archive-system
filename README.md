@@ -182,7 +182,7 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
 - **Step 15 — Custom Enterprise Archive Onboarding & 2-Slide Wizard**: Replaced default Nextcloud Hub 26 promotional screens with an authentic, Obsidian-themed, RTL-first 2-slide enterprise onboarding wizard.
 
 
-See [PROJECT_STATE.md](PROJECT_STATE.md), [docs/ADMIN_USER_GUIDE.md](docs/ADMIN_USER_GUIDE.md) (Administrator User Guide), [docs/GROUP_ADMIN_USER_GUIDE.md](docs/GROUP_ADMIN_USER_GUIDE.md) (Group Administrator Guide), [docs/MEMBER_USER_GUIDE.md](docs/MEMBER_USER_GUIDE.md) (Group Member User Guide), and [docs/DEPLOYMENT_RUNBOOK.md](docs/DEPLOYMENT_RUNBOOK.md) (Deployment Runbook) for full operational guides and architectural records.
+See [PROJECT_STATE.md](PROJECT_STATE.md), [docs/user_guides/ADMIN_USER_GUIDE.md](docs/user_guides/ADMIN_USER_GUIDE.md) (Administrator User Guide), [docs/user_guides/GROUP_ADMIN_USER_GUIDE.md](docs/user_guides/GROUP_ADMIN_USER_GUIDE.md) (Group Administrator Guide), [docs/user_guides/MEMBER_USER_GUIDE.md](docs/user_guides/MEMBER_USER_GUIDE.md) (Group Member User Guide), and [docs/DEPLOYMENT_RUNBOOK.md](docs/DEPLOYMENT_RUNBOOK.md) (Deployment Runbook) for full operational guides and architectural records.
 
 ---
 

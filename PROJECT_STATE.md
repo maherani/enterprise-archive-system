@@ -865,21 +865,21 @@ un_e2e_tests.py, 100%).
 
 Status: **Completed & Living Document Active**
 
-### System Administrator User Guide (docs/ADMIN_USER_GUIDE.md)
+### System Administrator User Guide (docs/user_guides/ADMIN_USER_GUIDE.md)
 - **Living Document Policy:** Established the official, comprehensive System Administrator User Guide based on real live screens, genuine UI components, Obsidian Dark Theme, Vazirmatn typography, and standard button designs.
 - **Visual Evidence:** Embedded 11 verified live screenshots covering authentication, portal workspace, user & group governance, central tag management, folder cartable, metadata drawer, backup console, and system settings.
 - **Coverage:** Complete step-by-step procedures for user lifecycle, group administration, root `/Enterprise_Archive` folder structure, central tag management, document metadata, folder approval cartable, audit oversight, backup/recovery console, and disaster runbook.
 
 Status: **Completed & Living Document Active**
 
-### Group Administrator User Guide (docs/GROUP_ADMIN_USER_GUIDE.md)
+### Group Administrator User Guide (docs/user_guides/GROUP_ADMIN_USER_GUIDE.md)
 - **Role Isolation & Operational Boundaries:** Authored comprehensive, step-by-step user guide tailored specifically for Group Administrators (Subadmins), detailing strict role boundaries separating System Admin, Group Admin, and regular group members.
 - **Visual Evidence:** Embedded 7 live screenshots captured directly from active Subadmin account (`Bakbari` / SOC group), demonstrating folder request submissions, department request tracking, group tag governance, subadmin user management, and document metadata.
 - **Governance Alignment:** Enforced strict documentation of the hard ban on user deletion by Subadmins (HTTP 403 Forbidden), protection of system tags (🔒), and the formal 2-tier folder creation cartable workflow.
 
 Status: **Completed & Living Document Active**
 
-### Group Member User Guide (docs/MEMBER_USER_GUIDE.md)
+### Group Member User Guide (docs/user_guides/MEMBER_USER_GUIDE.md)
 - **Role Scoping & Member Capabilities:** Authored an exhaustive, accessible, step-by-step user guide crafted specifically for enterprise group members (regular users), clearly defining authorized actions and security boundaries.
 - **Visual Evidence:** Embedded 8 authentic live screenshots captured directly from active member account (`Nazanin` / SOC group), demonstrating secure login, portal workspace, breadcrumb-driven folder tree navigation, mandatory metadata upload modal (Requirement 25), faceted multi-tag filtering, keyword search with `+` delimiter, slide-out document metadata drawer, and Nextcloud Files workspace.
 - **Strict Role Boundaries:** Clear delineation separating member capabilities (searching, downloading, viewing metadata, uploading files with required metadata) from administrative privileges (user management, central tag governance, root folder creation, AI API security, and backup/recovery consoles).
