@@ -182,7 +182,7 @@ A secure, scalable, and audit-compliant enterprise document archiving system bui
 - **Step 15 — Custom Enterprise Archive Onboarding & 2-Slide Wizard**: Replaced default Nextcloud Hub 26 promotional screens with an authentic, Obsidian-themed, RTL-first 2-slide enterprise onboarding wizard.
 
 
-See [PROJECT_STATE.md](PROJECT_STATE.md) and [docs/DEPLOYMENT_RUNBOOK.md](docs/DEPLOYMENT_RUNBOOK.md) for full operational guides and architectural records.
+See [PROJECT_STATE.md](PROJECT_STATE.md), [docs/ADMIN_USER_GUIDE.md](docs/ADMIN_USER_GUIDE.md) (Administrator User Guide), and [docs/DEPLOYMENT_RUNBOOK.md](docs/DEPLOYMENT_RUNBOOK.md) (Deployment Runbook) for full operational guides and architectural records.
 
 ---
 
@@ -312,6 +312,6 @@ Automated operations scripts are available in `deploy/`:
 
 ## Canonical Requirement & Prompt Consolidation
 
-از این نقطه، `docs/requirements/` مرجع اصلی نیازمندی‌های زنده پروژه است و تعداد نیازمندی‌های Canonical برابر **۲۸** است. Promptهای تاریخی که صرفاً همان نیازمندی‌ها را تکرار می‌کردند حذف و محتوای آن‌ها در Requirement متناظر ادغام شده است.
+از این نقطه، `docs/requirements/` مرجع اصلی نیازمندی‌های زنده پروژه است و تعداد نیازمندی‌های Canonical برابر **۳۰** است. Promptهای تاریخی که صرفاً همان نیازمندی‌ها را تکرار می‌کردند حذف و محتوای آن‌ها در Requirement متناظر ادغام شده است.
 
 برای traceability، نگاشت Promptهای تاریخی به Requirementهای نهایی در `docs/requirements/README.md` و `Prompts/README.md` ثبت شده است. برای وضعیت واقعی implementation و verification، `PROJECT_STATE.md`، کد و تست‌های موجود ملاک هستند.

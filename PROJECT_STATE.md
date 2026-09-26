@@ -865,6 +865,13 @@ un_e2e_tests.py, 100%).
 
 Status: **Completed & Living Document Active**
 
+### System Administrator User Guide (docs/ADMIN_USER_GUIDE.md)
+- **Living Document Policy:** Established the official, comprehensive System Administrator User Guide based on real live screens, genuine UI components, Obsidian Dark Theme, Vazirmatn typography, and standard button designs.
+- **Visual Evidence:** Embedded 11 verified live screenshots covering authentication, portal workspace, user & group governance, central tag management, folder cartable, metadata drawer, backup console, and system settings.
+- **Coverage:** Complete step-by-step procedures for user lifecycle, group administration, root `/Enterprise_Archive` folder structure, central tag management, document metadata, folder approval cartable, audit oversight, backup/recovery console, and disaster runbook.
+
+Status: **Completed & Living Document Active**
+
 ## Latest Validation Status
 
 All 30 integration suites (including security, ACL, and AI Audit semantics) passed successfully with a 100% success rate.
