@@ -40,11 +40,17 @@ TESTS = [
     ("test_atomic_group_tag_deletion.py", "Governance: Atomic Group Tag Deletion, Consistency & Reconciliation Engine"),
     ("test_reliable_audit_subsystem.py", "Audit Security: Reliable Audit Subsystem, Fail-Closed Gating & DLQ Flush"),
     ("test_ai_audit_semantics.py", "AI Engine: Audit Semantic Model, Precise Byte Accounting & Lifecycle Transitions"),
+    ("test_admin_group_sharing.py", "Governance: Admin Group Sharing & Group-Level File Management"),
+    ("test_document_metadata.py", "Metadata: Mandatory Document Metadata Layer & Fail-Closed Uploads"),
+    ("test_secure_deletion.py", "Security: Secure System Administrator File & Folder Deletion"),
+    ("test_central_tag_management.py", "Governance: Central Tag Management for System Administrator"),
+    ("test_backup_and_recovery.py", "BCP/DR: Data Backup & Recovery Specification (Requirement 29)"),
+    ("test_system_deployment_and_recovery.py", "DevOps: System Deployment & Recovery Runbook (Requirement 30)"),
 ]
 
 def main():
     print("=" * 80)
-    print(" ENTERPRISE ARCHIVE SYSTEM - COMPREHENSIVE 29-SUITE AUDIT")
+    print(" ENTERPRISE ARCHIVE SYSTEM - COMPREHENSIVE 36-SUITE AUDIT")
     print("=" * 80)
 
     results = []

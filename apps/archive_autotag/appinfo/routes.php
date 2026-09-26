@@ -75,6 +75,19 @@ return [
         ['name' => 'AdminTag#assignTag', 'url' => '/api/admin/tags/assign', 'verb' => 'POST'],
         ['name' => 'AdminTag#removeTag', 'url' => '/api/admin/tags/remove', 'verb' => 'POST'],
         ['name' => 'AdminTag#reconcileTags', 'url' => '/api/admin/tags/reconcile', 'verb' => 'POST'],
+        // Central System Administrator Backup & Disaster Recovery (Requirement 29)
+        ['name' => 'AdminBackup#status', 'url' => '/api/admin/backup/status', 'verb' => 'GET'],
+        ['name' => 'AdminBackup#listBackups', 'url' => '/api/admin/backup/list', 'verb' => 'GET'],
+        ['name' => 'AdminBackup#runBackup', 'url' => '/api/admin/backup/run', 'verb' => 'POST'],
+        ['name' => 'AdminBackup#runRestore', 'url' => '/api/admin/restore/run', 'verb' => 'POST'],
+        ['name' => 'AdminBackup#runTest', 'url' => '/api/admin/backup/test', 'verb' => 'POST'],
+        ['name' => 'AdminBackup#taskStatus', 'url' => '/api/admin/backup/task-status', 'verb' => 'GET'],
+        ['name' => 'AdminBackup#saveConfig', 'url' => '/api/admin/backup/config', 'verb' => 'POST'],
+        ['name' => 'AdminBackup#downloadBackup', 'url' => '/api/admin/backup/download', 'verb' => 'GET'],
+        ['name' => 'AdminBackup#testReport', 'url' => '/api/admin/backup/test-report', 'verb' => 'GET'],
+        ['name' => 'AdminBackup#maintenanceStatus', 'url' => '/api/system/maintenance-status', 'verb' => 'GET'],
+
+
 
 
     ],
@@ -147,6 +160,19 @@ return [
         ['name' => 'AdminTag#assignTag', 'url' => '/api/admin/tags/assign', 'verb' => 'POST'],
         ['name' => 'AdminTag#removeTag', 'url' => '/api/admin/tags/remove', 'verb' => 'POST'],
         ['name' => 'AdminTag#reconcileTags', 'url' => '/api/admin/tags/reconcile', 'verb' => 'POST'],
+        // Central System Administrator Backup & Disaster Recovery (Requirement 29)
+        ['name' => 'AdminBackup#status', 'url' => '/api/admin/backup/status', 'verb' => 'GET'],
+        ['name' => 'AdminBackup#listBackups', 'url' => '/api/admin/backup/list', 'verb' => 'GET'],
+        ['name' => 'AdminBackup#runBackup', 'url' => '/api/admin/backup/run', 'verb' => 'POST'],
+        ['name' => 'AdminBackup#runRestore', 'url' => '/api/admin/restore/run', 'verb' => 'POST'],
+        ['name' => 'AdminBackup#runTest', 'url' => '/api/admin/backup/test', 'verb' => 'POST'],
+        ['name' => 'AdminBackup#taskStatus', 'url' => '/api/admin/backup/task-status', 'verb' => 'GET'],
+        ['name' => 'AdminBackup#saveConfig', 'url' => '/api/admin/backup/config', 'verb' => 'POST'],
+        ['name' => 'AdminBackup#downloadBackup', 'url' => '/api/admin/backup/download', 'verb' => 'GET'],
+        ['name' => 'AdminBackup#testReport', 'url' => '/api/admin/backup/test-report', 'verb' => 'GET'],
+        ['name' => 'AdminBackup#maintenanceStatus', 'url' => '/api/system/maintenance-status', 'verb' => 'GET'],
+
+
 
 
     ],

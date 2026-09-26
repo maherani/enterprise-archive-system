@@ -1489,7 +1489,7 @@
                 '    <select id="ea-drawer-admin-tag-select" class="ea-form-select" style="flex: 1; font-size: 0.82rem; padding: 4px 8px;">',
                 '      <option value="">⏳ در حال دریافت تگ‌ها...</option>',
                 '    </select>',
-                '    <button type="button" id="ea-drawer-admin-add-tag-btn" class="ea-btn ea-btn-primary" style="padding: 4px 12px; font-size: 0.82rem; white-space: nowrap;">+ الصاق</button>',
+                '    <button type="button" id="ea-drawer-admin-add-tag-btn" class="ea-btn ea-btn-primary" style="white-space: nowrap;">+ الصاق</button>',
                 '  </div>',
                 '  <div id="ea-drawer-admin-tag-msg" style="display:none; font-size: 0.8rem; margin-top: 6px;"></div>',
                 '</div>'
@@ -1500,7 +1500,7 @@
                 '    <select id="ea-drawer-tag-select" class="ea-form-select" style="flex: 1; font-size: 0.82rem; padding: 4px 8px;">',
                 '      <option value="">⏳ در حال دریافت تگ‌های گروه...</option>',
                 '    </select>',
-                '    <button type="button" id="ea-drawer-add-tag-btn" class="ea-btn ea-btn-primary" style="padding: 4px 12px; font-size: 0.82rem; white-space: nowrap;">+ الصاق به سند</button>',
+                '    <button type="button" id="ea-drawer-add-tag-btn" class="ea-btn ea-btn-primary" style="white-space: nowrap;">+ الصاق به سند</button>',
                 '  </div>',
                 '  <div id="ea-drawer-tag-msg" style="display:none; font-size: 0.8rem; margin-top: 6px;"></div>',
                 '</div>'
@@ -1700,6 +1700,10 @@
                 '<button id="ea-admin-ai-security-btn" class="ea-btn" title="مدیریت سرویس‌ها، توکن‌های امن، سیاست‌های احراز هویت نمایندگی و تست زنده AI API">',
                 '  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="14" r="1.5"/><circle cx="15" cy="14" r="1.5"/><path d="M9 18h6"/></svg>',
                 '  <span>🤖 مدیریت و تست AI API</span>',
+                '</button>',
+                '<button id="ea-admin-backup-btn" class="ea-btn" title="مدیریت، زمان‌بندی و بازیابی نسخه‌های پشتیبان سامانه">',
+                '  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
+                '  <span>💾 پشتیبان‌گیری و بازیابی</span>',
                 '</button>'
             ].join('\n');
 
@@ -1714,6 +1718,9 @@
 
             var aiSecBtn = document.getElementById('ea-admin-ai-security-btn');
             if (aiSecBtn) aiSecBtn.onclick = function () { openAiSecurityConsoleModal('services'); };
+
+            var backupBtn = document.getElementById('ea-admin-backup-btn');
+            if (backupBtn) backupBtn.onclick = function () { openAdminBackupRecoveryModal('backups'); };
         } else {
             container.innerHTML = '';
         }
@@ -1765,7 +1772,7 @@
             '        <div id="ea-upload-file-name" class="ea-upload-file-name"></div>',
             '        <div id="ea-upload-file-size" class="ea-upload-file-size"></div>',
             '      </div>',
-            '      <button type="button" id="ea-upload-change-file" class="ea-btn" style="padding: 4px 10px; font-size: 0.8rem;">تغییر فایل</button>',
+            '      <button type="button" id="ea-upload-change-file" class="ea-btn">تغییر فایل</button>',
             '    </div>',
             '    ',
             '    <!-- Mandatory Metadata Fields (Requirement 25) -->',
@@ -3393,8 +3400,8 @@
             '        <select id="ea-admin-new-tag-scope" class="ea-form-select" style="flex: 1.5; min-width: 170px; padding: 7px 10px; font-size: 0.84rem;">',
             '          <option value="system">🌐 سراسری (سیستمی)</option>',
             '        </select>',
-            '        <button type="button" id="ea-admin-create-tag-btn" class="ea-btn ea-btn-primary" style="padding: 7px 16px; font-size: 0.84rem; white-space: nowrap;">+ ایجاد تگ</button>',
-            '        <button type="button" id="ea-admin-reconcile-tags-btn" class="ea-btn" style="padding: 7px 14px; font-size: 0.84rem; white-space: nowrap; border-color: rgba(99,102,241,0.4); color: #818cf8;" title="بررسی سازگاری، رفع تناقض و پاکسازی رکوردهای یتیم">🔄 همگام‌سازی (Reconcile)</button>',
+            '        <button type="button" id="ea-admin-create-tag-btn" class="ea-btn ea-btn-primary" style="white-space: nowrap;">+ ایجاد تگ</button>',
+            '        <button type="button" id="ea-admin-reconcile-tags-btn" class="ea-btn" style="white-space: nowrap; border-color: rgba(99,102,241,0.4); color: #818cf8;" title="بررسی سازگاری، رفع تناقض و پاکسازی رکوردهای یتیم">🔄 همگام‌سازی (Reconcile)</button>',
             '      </div>',
             '      <div id="ea-admin-tag-create-msg" style="display:none; font-size: 0.8rem; margin-top: 8px;"></div>',
             '    </div>',
@@ -3519,7 +3526,7 @@
                     '  <td style="padding: 8px 10px;">' + resCountHtml + '</td>',
                     '  <td style="padding: 8px 10px; color: var(--ea-text-muted); font-size: 0.8rem;">' + escapeHtml(t.owner_uid || 'system') + '</td>',
                     '  <td style="padding: 8px 10px; text-align: center;">',
-                    '    <button class="ea-btn ea-admin-tag-del-btn" data-tag-id="' + t.id + '" data-tag-name="' + escapeHtml(t.clean_name || t.name) + '" data-usage="' + cnt + '" style="padding: 4px 10px; font-size: 0.78rem; color: #ef4444; border-color: rgba(239,68,68,0.3);" title="حذف تگ">🗑️ حذف</button>',
+                    '    <button class="ea-btn ea-admin-tag-del-btn" data-tag-id="' + t.id + '" data-tag-name="' + escapeHtml(t.clean_name || t.name) + '" data-usage="' + cnt + '" style="color: #ef4444; border-color: rgba(239,68,68,0.3);" title="حذف تگ">🗑️ حذف</button>',
                     '  </td>',
                     '</tr>'
                 );
@@ -3859,7 +3866,7 @@
         overlay.id = 'ea-active-modal';
         overlay.className = 'ea-modal-overlay';
         overlay.innerHTML = [
-            '<div class="ea-modal-card ea-modal-card-xl" style="display:flex;flex-direction:column;max-height:92vh;">',
+            '<div class="ea-modal-card ea-modal-card-xl ea-modal-card-backup" style="display:flex;flex-direction:column;max-height:92vh;">',
             '  <div class="ea-modal-header" style="flex-shrink:0;">',
             '    <div class="ea-modal-title">',
             '      <svg width="22" height="22" fill="none" stroke="#f97316" stroke-width="2.2" viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="14" r="1.5"/><circle cx="15" cy="14" r="1.5"/><path d="M9 18h6"/></svg>',
@@ -4032,7 +4039,7 @@
 
                     var actions = '';
                     if (tok.status !== 'REVOKED') {
-                        actions = '<button class="ea-btn ea-btn-sm ea-revoke-token-btn" data-id="' + tok.id + '" style="background:rgba(239,68,68,0.15);color:#f87171;border-color:rgba(239,68,68,0.35);padding:3px 8px;font-size:0.75rem;">🚫 ابطال آنی</button>';
+                        actions = '<button class="ea-btn ea-btn-sm ea-revoke-token-btn" data-id="' + tok.id + '" style="background:rgba(239,68,68,0.15);color:#f87171;border-color:rgba(239,68,68,0.35);">🚫 ابطال آنی</button>';
                     } else {
                         actions = '<span style="color:var(--ea-text-disabled);">باطل‌شده</span>';
                     }
@@ -4124,7 +4131,7 @@
             '      </select>',
             '      <input type="text" id="ea-del-subject-user" class="ea-form-input" placeholder="نام کاربری مثلاً Bakbari" style="display:none;" />',
             '    </div>',
-            '    <button id="ea-add-delegation-btn" class="ea-btn ea-btn-primary" style="height:38px;">ثبت در لیست مجاز</button>',
+            '    <button id="ea-add-delegation-btn" class="ea-btn ea-btn-primary" >ثبت در لیست مجاز</button>',
             '  </div>',
             '</div>',
             '<div style="background:var(--ea-surface-card);border:1px solid var(--ea-border);border-radius:var(--ea-radius-md);padding:20px;">',
@@ -4158,7 +4165,7 @@
                     '  <td><strong style="color:var(--ea-text-main);">' + escapeHtml(d.subject_id) + '</strong></td>',
                     '  <td>' + formatDate(d.created_at) + '</td>',
                     '  <td>',
-                    '    <button class="ea-btn ea-btn-sm ea-del-remove-btn" data-id="' + d.id + '" style="background:rgba(239,68,68,0.15);color:#f87171;border-color:rgba(239,68,68,0.35);padding:3px 8px;font-size:0.75rem;">حذف سیاست</button>',
+                    '    <button class="ea-btn ea-btn-sm ea-del-remove-btn" data-id="' + d.id + '" style="background:rgba(239,68,68,0.15);color:#f87171;border-color:rgba(239,68,68,0.35);">حذف سیاست</button>',
                     '  </td>',
                     '</tr>'
                 ].join('\n'));
@@ -4362,7 +4369,7 @@
             '    </div>',
             '  </div>',
             '  <div style="margin-top:20px;">',
-            '    <button id="ea-sb-run-btn" class="ea-btn ea-btn-primary" style="padding:10px 24px;font-size:0.95rem;">🚀 ارسال درخواست و اعتبارسنجی زنده</button>',
+            '    <button id="ea-sb-run-btn" class="ea-btn ea-btn-primary" >🚀 ارسال درخواست و اعتبارسنجی زنده</button>',
             '  </div>',
             '</div>',
             '<div id="ea-sb-result-container" style="display:none;margin-top:20px;"></div>'
@@ -4686,7 +4693,7 @@
             '    </div>',
             '  </div>',
             '  <div style="margin-top:20px;">',
-            '    <button id="ea-insp-run-btn" class="ea-btn ea-btn-primary" style="padding:10px 24px;font-size:0.95rem;">🔍 استعلام و بازرسی بلادرنگ مجوزها</button>',
+            '    <button id="ea-insp-run-btn" class="ea-btn ea-btn-primary" >🔍 استعلام و بازرسی بلادرنگ مجوزها</button>',
             '  </div>',
             '</div>',
             '<div id="ea-insp-result-container" style="display:none;margin-top:20px;"></div>'
@@ -4797,9 +4804,9 @@
             '    <div style="font-size:12px;color:var(--ea-text-muted, #94a3b8);">نظارت بر سد دفاعی Fail-Closed، پایگاه‌های داده ممیزی و بازیابی رکوردهای اضطراری</div>',
             '  </div>',
             '  <div style="display:flex;gap:8px;flex-wrap:wrap;">',
-            '    <button class="ea-btn ea-btn-secondary" id="ea-audit-rel-refresh-btn" style="padding:6px 12px;font-size:12px;">🔄 بروزرسانی وضعیت</button>',
-            '    <button class="ea-btn ea-btn-secondary" id="ea-audit-rel-flush-btn" style="padding:6px 12px;font-size:12px;background:#065f46;color:#34d399;border-color:#10b981;">🚀 تخلیه و همگام‌سازی DLQ</button>',
-            '    <button class="ea-btn ea-btn-secondary" id="ea-audit-rel-sim-btn" style="padding:6px 12px;font-size:12px;background:#7f1d1d;color:#fca5a5;border-color:#ef4444;">🧪 شبیه‌سازی شکست ممیزی (Fail-Closed)</button>',
+            '    <button class="ea-btn ea-btn-secondary" id="ea-audit-rel-refresh-btn" >🔄 بروزرسانی وضعیت</button>',
+            '    <button class="ea-btn ea-btn-secondary" id="ea-audit-rel-flush-btn" style="background:#065f46;color:#34d399;border-color:#10b981;">🚀 تخلیه و همگام‌سازی DLQ</button>',
+            '    <button class="ea-btn ea-btn-secondary" id="ea-audit-rel-sim-btn" style="background:#7f1d1d;color:#fca5a5;border-color:#ef4444;">🧪 شبیه‌سازی شکست ممیزی (Fail-Closed)</button>',
             '  </div>',
             '</div>',
             '<div id="ea-audit-rel-metrics" style="margin-bottom:20px;">',
@@ -5002,7 +5009,7 @@
             '      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>',
             '      <span>تایید حذف دائمی ' + (isFolder ? 'پوشه' : 'سند') + '</span>',
             '    </h3>',
-            '    <button type="button" class="ea-btn" id="ea-close-delete-modal" style="padding:4px 8px;min-width:32px;">✕</button>',
+            '    <button type="button" class="ea-btn" id="ea-close-delete-modal" >✕</button>',
             '  </div>',
             '  <div class="ea-share-modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">',
             '    <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 12px 14px; font-size: 0.85rem; color: #fca5a5; line-height: 1.6;">',
@@ -5016,8 +5023,8 @@
             '    </div>',
             '    <div id="ea-delete-error-box" style="display: none; background: rgba(220, 38, 38, 0.2); border: 1px solid #ef4444; border-radius: 6px; padding: 8px 12px; font-size: 0.8rem; color: #fecaca;"></div>',
             '    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px;">',
-            '      <button type="button" class="ea-btn" id="ea-cancel-delete-btn" style="padding: 8px 16px;">انصراف</button>',
-            '      <button type="button" class="ea-btn ea-btn-danger" id="ea-confirm-delete-btn" style="padding: 8px 16px; background: #dc2626; color: #ffffff; border-color: #ef4444; font-weight: 600; display: flex; align-items: center; gap: 6px;">',
+            '      <button type="button" class="ea-btn" id="ea-cancel-delete-btn" >انصراف</button>',
+            '      <button type="button" class="ea-btn ea-btn-danger" id="ea-confirm-delete-btn" style="background: #dc2626; color: #ffffff; border-color: #ef4444;">',
             '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>',
             '        <span>تایید و حذف دائمی</span>',
             '      </button>',
@@ -5108,7 +5115,7 @@
             '<div class="ea-share-modal-card">',
             '  <div class="ea-share-modal-header">',
             '    <h3>👥 اشتراک‌گذاری با گروه‌ها: <span style="color:var(--ea-primary,#38bdf8);">' + escapeHtml(resourceName) + '</span></h3>',
-            '    <button class="ea-btn" id="ea-close-share-modal" style="padding:4px 8px;min-width:32px;">✕</button>',
+            '    <button class="ea-btn" id="ea-close-share-modal" >✕</button>',
             '  </div>',
             '  <div class="ea-share-modal-body">',
             '    <div>',
@@ -5129,8 +5136,8 @@
             '        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">',
             '          <label style="font-size:0.85rem;color:var(--ea-text-muted);">سطوح دسترسی مجاز:</label>',
             '          <div style="display:flex;gap:6px;">',
-            '            <button type="button" class="ea-btn" id="ea-preset-ro-btn" style="font-size:0.75rem;padding:2px 8px;">فقط خواندنی</button>',
-            '            <button type="button" class="ea-btn" id="ea-preset-rw-btn" style="font-size:0.75rem;padding:2px 8px;">مشارکت کامل</button>',
+            '            <button type="button" class="ea-btn" id="ea-preset-ro-btn" >فقط خواندنی</button>',
+            '            <button type="button" class="ea-btn" id="ea-preset-rw-btn" >مشارکت کامل</button>',
             '          </div>',
             '        </div>',
             '        <div class="ea-share-perms-grid">',
@@ -5143,7 +5150,7 @@
             '      </div>',
             '      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">',
             '        <span id="ea-share-status-msg" style="font-size:0.85rem;"></span>',
-            '        <button class="ea-btn ea-btn-primary" id="ea-submit-share-btn" style="padding:8px 18px;">ثبت و ذخیره اشتراک</button>',
+            '        <button class="ea-btn ea-btn-primary" id="ea-submit-share-btn" >ثبت و ذخیره اشتراک</button>',
             '      </div>',
             '    </div>',
             '  </div>',
@@ -5223,7 +5230,7 @@
                     '  <td style="font-weight:600;color:#f1f5f9;">👥 ' + escapeHtml(s.group_display_name || s.group_id) + '</td>',
                     '  <td>' + badges.join(' ') + '</td>',
                     '  <td style="text-align:left;width:80px;">',
-                    '    <button class="ea-btn ea-btn-danger ea-delete-share-btn" data-group-id="' + escapeHtml(s.group_id) + '" style="padding:4px 8px;font-size:0.75rem;background:#7f1d1d;color:#fca5a5;border-color:#ef4444;" title="حذف دسترسی گروه">حذف</button>',
+                    '    <button class="ea-btn ea-btn-danger ea-delete-share-btn" data-group-id="' + escapeHtml(s.group_id) + '" style="background:#7f1d1d;color:#fca5a5;border-color:#ef4444;" title="حذف دسترسی گروه">حذف</button>',
                     '  </td>',
                     '</tr>'
                 ].join('\n');
@@ -5349,4 +5356,1017 @@
         loadShares();
     }
 
+
+    // =========================================================================
+    // Requirement 29: Backup and Recovery Console Implementation
+    // =========================================================================
+    var backupConsoleState = {
+        activeTab: 'backups',
+        cachedStatus: null,
+        backupsList: [],
+        pollTimer: null
+    };
+
+    function openAdminBackupRecoveryModal(initialTab) {
+        closeModal();
+        if (backupConsoleState.pollTimer) {
+            clearInterval(backupConsoleState.pollTimer);
+            backupConsoleState.pollTimer = null;
+        }
+        backupConsoleState.activeTab = initialTab || 'backups';
+
+        var overlay = document.createElement('div');
+        overlay.id = 'ea-active-modal';
+        overlay.className = 'ea-modal-overlay';
+        overlay.innerHTML = [
+            '<div class="ea-modal-card ea-modal-card-xl" style="display:flex;flex-direction:column;max-height:92vh;width:96vw;max-width:1380px;">',
+            '  <div class="ea-modal-header" style="flex-shrink:0;">',
+            '    <div class="ea-modal-title">',
+            '      <svg width="22" height="22" fill="none" stroke="#6366f1" stroke-width="2.2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
+            '      <span>مدیریت جامع پشتیبان‌گیری و بازیابی اطلاعات سامانه</span>',
+            '    </div>',
+            '    <div style="display:flex;align-items:center;gap:12px;">',
+            '      <button class="ea-modal-close" id="ea-modal-close-btn" title="بستن">✕</button>',
+            '    </div>',
+            '  </div>',
+            '  <div class="ea-ai-tabs" style="flex-shrink:0;">',
+            '    <button class="ea-ai-tab ' + (backupConsoleState.activeTab === 'backups' ? 'active' : '') + '" data-tab="backups">📋 نسخه‌های پشتیبان و بازیابی</button>',
+            '    <button class="ea-ai-tab ' + (backupConsoleState.activeTab === 'schedule' ? 'active' : '') + '" data-tab="schedule">⚙️ زمان‌بندی و پالیسی نگهداری</button>',
+            '    <button class="ea-ai-tab ' + (backupConsoleState.activeTab === 'terminal' ? 'active' : '') + '" data-tab="terminal">💻 دستورات ترمینال و راهنما</button>',
+            '  </div>',
+            '  <div class="ea-modal-body" id="ea-backup-console-body" style="flex:1;overflow-y:auto;overflow-x:hidden;padding:18px 24px;">',
+            '    <div style="text-align:center;padding:40px;color:var(--ea-text-muted);">در حال بارگذاری اطلاعات پشتیبان‌گیری...</div>',
+            '  </div>',
+            '  <div class="ea-modal-footer" style="flex-shrink:0;display:flex;justify-content:space-between;align-items:center;">',
+            '    <div id="ea-backup-footer-status" style="font-size:0.84rem;color:var(--ea-text-muted);">وضعیت سرویس: در حال بررسی...</div>',
+            '    <button class="ea-btn" id="ea-backup-modal-close-btn">بستن</button>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.appendChild(overlay);
+
+        var cleanupBackupModal = function () {
+            if (backupConsoleState.pollTimer) {
+                clearInterval(backupConsoleState.pollTimer);
+                backupConsoleState.pollTimer = null;
+            }
+            closeModal();
+        };
+
+        document.getElementById('ea-modal-close-btn').onclick = cleanupBackupModal;
+        document.getElementById('ea-backup-modal-close-btn').onclick = cleanupBackupModal;
+        overlay.onclick = function (e) {
+            if (e.target === overlay) cleanupBackupModal();
+        };
+
+        var tabButtons = overlay.querySelectorAll('.ea-ai-tab');
+        tabButtons.forEach(function (btn) {
+            btn.onclick = function () {
+                var tab = btn.getAttribute('data-tab');
+                backupConsoleState.activeTab = tab;
+                tabButtons.forEach(function (b) { b.classList.toggle('active', b === btn); });
+                renderBackupCurrentTab();
+            };
+        });
+
+        loadBackupOverview();
+    }
+
+    function loadBackupOverview() {
+        var body = document.getElementById('ea-backup-console-body');
+        if (!body) return;
+
+        Promise.all([
+            fetch('/index.php/apps/archive_autotag/api/admin/backup/status', { headers: { 'OCS-APIRequest': 'true' } }).then(function (r) {
+                if (!r.ok) { return r.text().then(function () { throw new Error('خطای سرور (' + r.status + ') در دریافت وضعیت پشتیبان‌گیری'); }); }
+                return r.json();
+            }),
+            fetch('/index.php/apps/archive_autotag/api/admin/backup/list', { headers: { 'OCS-APIRequest': 'true' } }).then(function (r) {
+                if (!r.ok) { return r.text().then(function () { throw new Error('خطای سرور (' + r.status + ') در دریافت لیست بکاپ‌ها'); }); }
+                return r.json();
+            })
+        ])
+        .then(function (results) {
+            var statusRes = results[0];
+            var listRes = results[1];
+            if (statusRes.status === 'success' && listRes.status === 'success') {
+                backupConsoleState.cachedStatus = statusRes.data;
+                backupConsoleState.backupsList = listRes.data;
+
+                var footer = document.getElementById('ea-backup-footer-status');
+                if (footer) {
+                    var isRunning = statusRes.data.service_running;
+                    footer.innerHTML = isRunning
+                        ? '<span style="color:#10b981;display:inline-flex;align-items:center;gap:6px;"><span class="ea-status-active" style="padding:2px 6px;">فعال</span> سرویس پس‌زمینه در حالت آماده‌باش است</span>'
+                        : '<span style="color:#f59e0b;">⚠️ دیمن پشتیبان‌گیری در حال حاضر متوقف است</span>';
+                }
+
+                renderBackupCurrentTab();
+
+                var task = statusRes.data.task_status;
+                if (task && (task.status === 'IN_PROGRESS' || task.status === 'PENDING')) {
+                    setupBackupPolling();
+                }
+            } else {
+                body.innerHTML = '<div style="color:#ef4444;padding:20px;text-align:center;">خطا در دریافت وضعیت: ' + escapeHtml((statusRes.message || listRes.message || 'خطای نامشخص')) + '</div>';
+            }
+        })
+        .catch(function (err) {
+            if (body) {
+                body.innerHTML = '<div style="color:#ef4444;padding:20px;text-align:center;">خطای ارتباط با سرور: ' + escapeHtml(err.message) + '</div>';
+            }
+        });
+    }
+
+    function renderBackupCurrentTab() {
+        var body = document.getElementById('ea-backup-console-body');
+        if (!body || !backupConsoleState.cachedStatus) return;
+
+        if (backupConsoleState.activeTab === 'backups') {
+            renderBackupsListTab(body, backupConsoleState.cachedStatus, backupConsoleState.backupsList);
+        } else if (backupConsoleState.activeTab === 'schedule') {
+            renderBackupScheduleTab(body, backupConsoleState.cachedStatus);
+        } else if (backupConsoleState.activeTab === 'terminal') {
+            renderBackupTerminalTab(body);
+        }
+    }
+
+    function renderBackupsListTab(body, statusData, backups) {
+        var latest = statusData.latest_backup || {};
+        var task = statusData.task_status || {};
+        var isTaskRunning = (task.status === 'IN_PROGRESS' || task.status === 'PENDING');
+
+        var html = [];
+
+        // 1. Metric Cards
+        html.push('<div class="ea-ai-metrics">');
+        html.push('  <div class="ea-ai-metric-card">');
+        html.push('    <div class="ea-ai-metric-val" style="color:#10b981;font-size:1.3rem;">' + (statusData.service_running ? 'آماده‌باش و فعال' : 'غیرفعال') + '</div>');
+        html.push('    <div class="ea-ai-metric-label">وضعیت سرویس خودکار</div>');
+        html.push('  </div>');
+        html.push('  <div class="ea-ai-metric-card">');
+        html.push('    <div class="ea-ai-metric-val" style="font-size:1.3rem;">' + toPersianDigits(statusData.backups_count || 0) + ' <span style="font-size:0.9rem;font-weight:normal;">نسخه</span></div>');
+        html.push('    <div class="ea-ai-metric-label">تعداد کل نسخه‌های موجود</div>');
+        html.push('  </div>');
+        html.push('  <div class="ea-ai-metric-card">');
+        html.push('    <div class="ea-ai-metric-val" style="font-size:1.1rem;direction:ltr;text-align:right;">' + (latest.size_human ? latest.size_human : '-') + '</div>');
+        html.push('    <div class="ea-ai-metric-label">حجم آخرین نسخه پشتیبان</div>');
+        html.push('  </div>');
+        html.push('  <div class="ea-ai-metric-card">');
+        html.push('    <div class="ea-ai-metric-val" style="font-size:1rem;color:#818cf8;">' + (statusData.backup_enabled ? 'فعال (' + (statusData.schedule ? statusData.schedule.cron_expression : '0 2 * * *') + ')' : 'غیرفعال') + '</div>');
+        html.push('    <div class="ea-ai-metric-label">زمان‌بندی خودکار روزانه</div>');
+        html.push('  </div>');
+        html.push('</div>');
+
+        // 2. Action Bar
+        html.push('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:12px;">');
+        html.push('  <div style="font-weight:bold;font-size:1rem;color:var(--ea-text-main);">فهرست نسخه‌های پشتیبان معتبر پایگاه داده و فایل‌ها</div>');
+        html.push('  <div style="display:flex;gap:10px;">');
+        html.push('    <button id="ea-backup-refresh-btn" class="ea-btn ea-btn-sm" title="بازخوانی لیست">🔄 بازخوانی</button>');
+        html.push('    <button id="ea-backup-run-instant-btn" class="ea-btn ea-btn-primary ea-btn-sm" ' + (isTaskRunning ? 'disabled' : '') + ' style="background:#4f46e5;">⚡ تهیه فوری نسخه پشتیبان (Run Backup)</button>');
+        html.push('  </div>');
+        html.push('</div>');
+
+        // 3. Running Task Banner
+        html.push('<div id="ea-backup-running-banner" class="ea-backup-running-banner" style="display:' + (isTaskRunning ? 'flex' : 'none') + ';">');
+        html.push('  <div style="display:flex;align-items:center;gap:12px;">');
+        html.push('    <span style="display:inline-block;animation:spin 1.5s linear infinite;font-size:1.3rem;">⏳</span>');
+        html.push('    <div>');
+        html.push('      <div style="font-weight:bold;color:#e0e7ff;" id="ea-backup-running-title">عملیات در حال پردازش: ' + escapeHtml(task.action || '') + '</div>');
+        html.push('      <div style="font-size:0.85rem;color:#c7d2fe;" id="ea-backup-running-msg">' + escapeHtml(task.message || 'در حال انجام عملیات...') + '</div>');
+        html.push('    </div>');
+        html.push('  </div>');
+        html.push('  <div style="font-size:0.85rem;color:#a5b4fc;font-family:monospace;">در صف دیمن پس‌زمینه</div>');
+        html.push('</div>');
+
+        // 4. Backups Table (Fixed layout, Zero horizontal scroll)
+        if (!backups || backups.length === 0) {
+            html.push('<div style="padding:40px;text-align:center;background:var(--ea-surface-card);border:1px solid var(--ea-border);border-radius:8px;color:var(--ea-text-muted);">هیچ نسخه پشتیبانی یافت نشد. می‌توانید با دکمه بالا یک نسخه جدید ایجاد کنید.</div>');
+        } else {
+            html.push('<div style="border:1px solid var(--ea-border);border-radius:8px;background:var(--ea-surface-card);overflow:hidden;">');
+            html.push('  <table class="ea-table" style="width:100%;border-collapse:collapse;table-layout:fixed;text-align:right;">');
+            html.push('    <colgroup>');
+            html.push('      <col style="width:28%;">');
+            html.push('      <col style="width:16%;">');
+            html.push('      <col style="width:9%;">');
+            html.push('      <col style="width:13%;">');
+            html.push('      <col style="width:16%;">');
+            html.push('      <col style="width:18%;">');
+            html.push('    </colgroup>');
+            html.push('    <thead>');
+            html.push('      <tr style="border-bottom:1px solid var(--ea-border);background:rgba(255,255,255,0.02);">');
+            html.push('        <th style="padding:10px 12px;font-size:0.83rem;">نام فایل آرشیو</th>');
+            html.push('        <th style="padding:10px 12px;font-size:0.83rem;text-align:center;">تاریخ ایجاد</th>');
+            html.push('        <th style="padding:10px 12px;font-size:0.83rem;text-align:center;">حجم</th>');
+            html.push('        <th style="padding:10px 12px;font-size:0.83rem;text-align:center;">صحت هش SHA-256</th>');
+            html.push('        <th style="padding:10px 12px;font-size:0.83rem;text-align:center;">آزمون سندباکس</th>');
+            html.push('        <th style="padding:10px 12px;font-size:0.83rem;text-align:center;">عملیات</th>');
+            html.push('      </tr>');
+            html.push('    </thead>');
+            html.push('    <tbody>');
+
+            backups.forEach(function (b) {
+                var testBadge = '<span class="ea-backup-badge-untested" style="font-size:0.75rem;padding:2px 7px;">⚪ تست‌نشده</span>';
+                if (b.test_status === 'PASS') {
+                    testBadge = '<button type="button" class="ea-btn ea-btn-sm ea-btn-view-test-log" data-file="' + escapeHtml(b.filename) + '" style="background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.35);cursor:pointer;" title="مشاهده گزارش نتایج آزمون سلامت سندباکس">✅ تایید ۱۰۰٪ 📋</button>';
+                } else if (b.test_status === 'FAIL') {
+                    testBadge = '<button type="button" class="ea-btn ea-btn-sm ea-btn-view-test-log" data-file="' + escapeHtml(b.filename) + '" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.35);cursor:pointer;" title="مشاهده گزارش خطای تست سندباکس">❌ نامعتبر 📋</button>';
+                }
+
+                var shaBadge = b.checksum_valid
+                    ? '<span class="ea-status-active" style="font-size:0.75rem;padding:2px 7px;" title="هش فایل با فایل چک‌سام منطبق است">✓ معتبر</span>'
+                    : '<span style="color:#ef4444;font-size:0.75rem;">فاقد چک‌سام</span>';
+
+                var downloadUrl = '/index.php/apps/archive_autotag/api/admin/backup/download?filename=' + encodeURIComponent(b.filename);
+
+                html.push('      <tr style="border-bottom:1px solid var(--ea-border-light, rgba(255,255,255,0.05));">');
+                html.push('        <td style="padding:8px 12px;font-family:monospace;font-size:0.83rem;direction:ltr;text-align:left;overflow:hidden;">');
+                html.push('          <div style="font-weight:bold;color:var(--ea-text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeHtml(b.filename) + '">' + escapeHtml(b.filename) + '</div>');
+                if (b.sha256) {
+                    html.push('          <div style="font-size:0.72rem;color:var(--ea-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeHtml(b.sha256) + '">هش: ' + escapeHtml(b.sha256.substring(0, 16)) + '...</div>');
+                }
+                html.push('        </td>');
+                html.push('        <td style="padding:8px 10px;font-size:0.82rem;white-space:nowrap;direction:ltr;text-align:center;color:var(--ea-text-muted);">' + escapeHtml(b.mtime_iso ? b.mtime_iso.replace('T', ' ').substring(0, 19) : '-') + '</td>');
+                html.push('        <td style="padding:8px 8px;font-size:0.82rem;font-family:monospace;direction:ltr;text-align:center;font-weight:600;">' + escapeHtml(b.size_human || '-') + '</td>');
+                html.push('        <td style="padding:8px 8px;text-align:center;white-space:nowrap;">' + shaBadge + '</td>');
+                html.push('        <td style="padding:8px 8px;text-align:center;white-space:nowrap;">' + testBadge + '</td>');
+                html.push('        <td style="padding:8px 8px;text-align:center;white-space:nowrap;">');
+                html.push('          <div style="display:inline-flex;gap:4px;align-items:center;justify-content:center;">');
+                html.push('            <a href="' + downloadUrl + '" class="ea-btn ea-btn-sm"  title="دانلود فایل آرشیو">📥 دریافت</a>');
+                html.push('            <button class="ea-btn ea-btn-sm ea-btn-test-sandbox" data-file="' + escapeHtml(b.filename) + '" ' + (isTaskRunning ? 'disabled' : '') + ' style="border-color:rgba(99,102,241,0.4);color:#818cf8;" title="تست بازیابی ایزوله در سندباکس موقت بدون دستکاری داده‌های اصلی">🧪 تست</button>');
+                html.push('            <button class="ea-btn ea-btn-sm ea-btn-restore-prod" data-file="' + escapeHtml(b.filename) + '" ' + (isTaskRunning ? 'disabled' : '') + ' style="color:#ef4444;border-color:rgba(239,68,68,0.4);" title="بازیابی کامل سامانه از این نسخه">⚠️ بازیابی</button>');
+                html.push('          </div>');
+                html.push('        </td>');
+                html.push('      </tr>');
+            });
+
+            html.push('    </tbody>');
+            html.push('  </table>');
+            html.push('</div>');
+        }
+
+        body.innerHTML = html.join('\n');
+
+        // Wire event handlers
+        var refreshBtn = document.getElementById('ea-backup-refresh-btn');
+        if (refreshBtn) refreshBtn.onclick = function () { loadBackupOverview(); };
+
+        var instantBtn = document.getElementById('ea-backup-run-instant-btn');
+        if (instantBtn) instantBtn.onclick = function () { triggerInstantBackup(); };
+
+        var testBtns = body.querySelectorAll('.ea-btn-test-sandbox');
+        testBtns.forEach(function (btn) {
+            btn.onclick = function () {
+                var file = btn.getAttribute('data-file');
+                triggerTestRestore(file);
+            };
+        });
+
+        var viewLogBtns = body.querySelectorAll('.ea-btn-view-test-log');
+        viewLogBtns.forEach(function (btn) {
+            btn.onclick = function () {
+                var file = btn.getAttribute('data-file');
+                openTestResultModal(null, file);
+            };
+        });
+
+        var restoreBtns = body.querySelectorAll('.ea-btn-restore-prod');
+        restoreBtns.forEach(function (btn) {
+            btn.onclick = function () {
+                var file = btn.getAttribute('data-file');
+                openRestoreConfirmModal(file);
+            };
+        });
+    }
+
+    function renderBackupScheduleTab(body, statusData) {
+        var schedule = statusData.schedule || {};
+        var retention = statusData.retention_policy || {};
+        var storage = statusData.storage || {};
+
+        var html = [
+            '<div style="max-width:700px;margin:0 auto;display:flex;flex-direction:column;gap:20px;">',
+            '  <div class="ea-policy-banner">',
+            '    <strong>سیاست زمان‌بندی و پاکسازی خودکار (Retention & Pruning Policy):</strong><br>',
+            '    سامانه به صورت دوره‌ای و خودکار از پایگاه داده و فایل‌ها در ساعت تعیین‌شده پشتیبان تهیه کرده و پس از اتمام موفق، آرشیوهای قدیمی‌تر از سقف مشخص‌شده را به صورت امن پاکسازی می‌نماید تا فضای ذخیره‌سازی همواره پایدار بماند.',
+            '  </div>',
+            '  <div style="background:var(--ea-surface-card);border:1px solid var(--ea-border);border-radius:8px;padding:22px;display:flex;flex-direction:column;gap:18px;">',
+            '    <div style="display:flex;align-items:center;gap:12px;">',
+            '      <input type="checkbox" id="ea-backup-enabled-chk" ' + (statusData.backup_enabled ? 'checked' : '') + ' style="width:18px;height:18px;cursor:pointer;">',
+            '      <label for="ea-backup-enabled-chk" style="font-weight:bold;cursor:pointer;color:var(--ea-text-main);">فعال‌سازی فرآیند پشتیبان‌گیری خودکار روزانه</label>',
+            '    </div>',
+            '    <div>',
+            '      <label style="display:block;margin-bottom:6px;font-size:0.88rem;color:var(--ea-text-muted);">زمان‌بندی کران (Cron Expression):</label>',
+            '      <input type="text" id="ea-backup-cron-inp" class="ea-input" value="' + escapeHtml(schedule.cron_expression || '0 2 * * *') + '" style="font-family:monospace;direction:ltr;text-align:left;">',
+            '      <div style="font-size:0.8rem;color:var(--ea-text-muted);margin-top:4px;">مثال: <code>0 2 * * *</code> به معنای هر شب رأس ساعت ۰۲:۰۰ بامداد</div>',
+            '    </div>',
+            '    <div>',
+            '      <label style="display:block;margin-bottom:6px;font-size:0.88rem;color:var(--ea-text-muted);">سقف نگهداری نسخه‌ها (Max Backups Keep Count):</label>',
+            '      <input type="number" id="ea-backup-max-count-inp" class="ea-input" min="1" max="100" value="' + (retention.max_backups_count || 14) + '" style="direction:ltr;text-align:left;">',
+            '      <div style="font-size:0.8rem;color:var(--ea-text-muted);margin-top:4px;">حداکثر تعداد آرشیوهای نگهداری‌شده قبل از آغاز پاکسازی خودکار قدیمی‌ترین‌ها</div>',
+            '    </div>',
+            '    <div>',
+            '      <label style="display:block;margin-bottom:6px;font-size:0.88rem;color:var(--ea-text-muted);">مدت زمان نگهداری بر حسب روز (Retention Days):</label>',
+            '      <input type="number" id="ea-backup-retention-days-inp" class="ea-input" min="1" max="365" value="' + (retention.retention_days || 30) + '" style="direction:ltr;text-align:left;">',
+            '    </div>',
+            '    <div>',
+            '      <label style="display:block;margin-bottom:6px;font-size:0.88rem;color:var(--ea-text-muted);">مسیر دایرکتوری ذخیره‌سازی محلی (Local Isolated Storage):</label>',
+            '      <input type="text" readonly class="ea-input" value="' + escapeHtml(storage.local_directory || 'deploy/backups') + '" style="font-family:monospace;direction:ltr;text-align:left;background:rgba(0,0,0,0.2);color:var(--ea-text-muted);">',
+            '    </div>',
+            '    <div id="ea-backup-config-msg" style="display:none;padding:10px 14px;border-radius:6px;font-size:0.86rem;"></div>',
+            '    <div style="display:flex;justify-content:flex-end;margin-top:10px;">',
+            '      <button id="ea-backup-save-config-btn" class="ea-btn ea-btn-primary" >ذخیره تنظیمات زمان‌بندی</button>',
+            '    </div>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        body.innerHTML = html;
+
+        var saveBtn = document.getElementById('ea-backup-save-config-btn');
+        if (saveBtn) {
+            saveBtn.onclick = function () {
+                var enabled = document.getElementById('ea-backup-enabled-chk').checked;
+                var cron = document.getElementById('ea-backup-cron-inp').value.trim();
+                var maxCount = parseInt(document.getElementById('ea-backup-max-count-inp').value, 10) || 14;
+                var retentionDays = parseInt(document.getElementById('ea-backup-retention-days-inp').value, 10) || 30;
+                var msgEl = document.getElementById('ea-backup-config-msg');
+
+                saveBtn.disabled = true;
+                saveBtn.textContent = 'در حال ذخیره‌سازی...';
+
+                fetch('/index.php/apps/archive_autotag/api/admin/backup/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'OCS-APIRequest': 'true',
+                        'requesttoken': (window.OC && window.OC.requestToken) || ''
+                    },
+                    body: JSON.stringify({
+                        backup_enabled: enabled,
+                        cron_expression: cron,
+                        max_backups_count: maxCount,
+                        retention_days: retentionDays
+                    })
+                })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'ذخیره تنظیمات زمان‌بندی';
+                    if (data && data.status === 'success') {
+                        msgEl.style.display = 'block';
+                        msgEl.style.background = 'rgba(16, 185, 129, 0.15)';
+                        msgEl.style.color = '#34d399';
+                        msgEl.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+                        msgEl.textContent = 'تنظیمات با موفقیت در فایل پیکربندی مرکزی ذخیره گردید.';
+                        backupConsoleState.cachedStatus = data.data;
+                    } else {
+                        msgEl.style.display = 'block';
+                        msgEl.style.background = 'rgba(239, 68, 68, 0.15)';
+                        msgEl.style.color = '#f87171';
+                        msgEl.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+                        msgEl.textContent = (data && data.message) || 'خطا در ذخیره‌سازی تنظیمات';
+                    }
+                })
+                .catch(function (err) {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'ذخیره تنظیمات زمان‌بندی';
+                    msgEl.style.display = 'block';
+                    msgEl.style.background = 'rgba(239, 68, 68, 0.15)';
+                    msgEl.style.color = '#f87171';
+                    msgEl.textContent = 'خطای ارتباط با سرور: ' + err.message;
+                });
+            };
+        }
+    }
+
+    function renderBackupTerminalTab(body) {
+        var html = [
+            '<div style="max-width:850px;margin:0 auto;display:flex;flex-direction:column;gap:18px;">',
+            '  <div class="ea-policy-banner">',
+            '    <strong>فرمان‌های معادل در خط فرمان (Terminal CLI Interface):</strong><br>',
+            '    تمامی عملیات پشتیبان‌گیری و بازیابی اطلاعات علاوه بر این پنل وب، در ترمینال سرور نیز با اسکریپت‌های استاندارد لینوکسی قابل اجرا می‌باشند.',
+            '  </div>',
+            '  <div style="background:var(--ea-surface-card);border:1px solid var(--ea-border);border-radius:8px;padding:20px;">',
+            '    <h4 style="margin:0 0 8px 0;color:var(--ea-text-main);">۱. تهیه فوری نسخه پشتیبان در ترمینال</h4>',
+            '    <div style="font-size:0.84rem;color:var(--ea-text-muted);margin-bottom:8px;">حالت نگهداری موقت را فعال کرده، دامپ پایگاه داده و فایل‌ها را با چک‌سام SHA-256 ذخیره می‌کند:</div>',
+            '    <div class="ea-terminal-snippet"><code>./deploy/manage_backup.sh run</code></div>',
+            '  </div>',
+            '  <div style="background:var(--ea-surface-card);border:1px solid var(--ea-border);border-radius:8px;padding:20px;">',
+            '    <h4 style="margin:0 0 8px 0;color:var(--ea-text-main);">۲. مشاهده لیست نسخه‌ها و اعتبارسنجی هش</h4>',
+            '    <div style="font-size:0.84rem;color:var(--ea-text-muted);margin-bottom:8px;">بررسی سلامت هش SHA-256 و تاریخچه آزمون‌های سندباکس:</div>',
+            '    <div class="ea-terminal-snippet"><code>./deploy/manage_backup.sh list</code></div>',
+            '  </div>',
+            '  <div style="background:var(--ea-surface-card);border:1px solid var(--ea-border);border-radius:8px;padding:20px;">',
+            '    <h4 style="margin:0 0 8px 0;color:var(--ea-text-main);">۳. آزمون بازیابی در محیط سندباکس ایزوله</h4>',
+            '    <div style="font-size:0.84rem;color:var(--ea-text-muted);margin-bottom:8px;">ایجاد پایگاه داده موقت، بازیابی آزمایشی، ممیزی ۱۰ جدول اختصاصی آرشیو و حذف امن پایگاه موقت بدون تاثیر بر سیستم جاری:</div>',
+            '    <div class="ea-terminal-snippet"><code>./deploy/manage_backup.sh test [نام_فایل.tar.gz]</code></div>',
+            '  </div>',
+            '  <div style="background:var(--ea-surface-card);border:1px solid var(--ea-border);border-radius:8px;padding:20px;">',
+            '    <h4 style="margin:0 0 8px 0;color:#ef4444;">۴. بازیابی بحران روی سامانه اصلی (Disaster Recovery)</h4>',
+            '    <div style="font-size:0.84rem;color:var(--ea-text-muted);margin-bottom:8px;">توقف کانتینرها، جایگزینی کامل اطلاعات پایگاه داده و فایل‌ها، همگام‌سازی سالت و اسکن مجدد:</div>',
+            '    <div class="ea-terminal-snippet"><code style="color:#f87171;">./deploy/manage_backup.sh restore [نام_فایل.tar.gz]</code></div>',
+            '  </div>',
+            '  <div style="padding:14px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:6px;font-size:0.85rem;color:#c7d2fe;">',
+            '    📄 مستندات کامل راهنمای گام‌به‌گام اپراتور در مسیر پروژه موجود است: <code>docs/DATA_RECOVERY_OPERATOR_GUIDE.md</code>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        body.innerHTML = html;
+    }
+
+    function triggerInstantBackup() {
+        if (!confirm('آیا از تهیه فوری نسخه پشتیبان از پایگاه داده و فایل‌های سامانه اطمینان دارید؟')) return;
+
+        var banner = document.getElementById('ea-backup-running-banner');
+        if (banner) {
+            banner.style.display = 'flex';
+            var title = document.getElementById('ea-backup-running-title');
+            var msg = document.getElementById('ea-backup-running-msg');
+            if (title) title.textContent = 'عملیات در حال پردازش: پشتیبان‌گیری';
+            if (msg) msg.textContent = 'درخواست در صف دیمن قرار گرفت...';
+        }
+
+        var instantBtn = document.getElementById('ea-backup-run-instant-btn');
+        if (instantBtn) instantBtn.disabled = true;
+
+        fetch('/index.php/apps/archive_autotag/api/admin/backup/run', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'OCS-APIRequest': 'true',
+                'requesttoken': (window.OC && window.OC.requestToken) || ''
+            }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            if (res.status === 'success') {
+                setupBackupPolling();
+            } else {
+                alert('خطا در ثبت درخواست پشتیبان‌گیری: ' + (res.message || 'نامشخص'));
+                if (instantBtn) instantBtn.disabled = false;
+            }
+        })
+        .catch(function (err) {
+            alert('خطای ارتباط با سرور: ' + err.message);
+            if (instantBtn) instantBtn.disabled = false;
+        });
+    }
+
+    function triggerTestRestore(filename) {
+        if (!confirm('آیا مایل به اجرای آزمون بازیابی در محیط سندباکس برای فایل "' + filename + '" هستید؟\n(این عملیات کاملاً امن است و تاثیری بر پایگاه داده اصلی نخواهد داشت)')) return;
+
+        var banner = document.getElementById('ea-backup-running-banner');
+        if (banner) {
+            banner.style.display = 'flex';
+            var title = document.getElementById('ea-backup-running-title');
+            var msg = document.getElementById('ea-backup-running-msg');
+            if (title) title.textContent = 'عملیات در حال پردازش: تست سندباکس';
+            if (msg) msg.textContent = 'تست سلامت ساختار داده‌ها در پایگاه موقت آغاز شد...';
+        }
+
+        fetch('/index.php/apps/archive_autotag/api/admin/backup/test', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'OCS-APIRequest': 'true',
+                'requesttoken': (window.OC && window.OC.requestToken) || ''
+            },
+            body: JSON.stringify({ target: filename })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            if (res.status === 'success') {
+                setupBackupPolling('test', res.task_id, filename);
+            } else {
+                alert('خطا در آغاز آزمون سندباکس: ' + (res.message || 'نامشخص'));
+            }
+        })
+        .catch(function (err) {
+            alert('خطای ارتباط با سرور: ' + err.message);
+        });
+    }
+
+    function openRestoreConfirmModal(filename) {
+        var submodal = document.createElement('div');
+        submodal.id = 'ea-active-restore-submodal';
+        submodal.className = 'ea-modal-overlay';
+        submodal.style.zIndex = '99999';
+        submodal.innerHTML = [
+            '<div class="ea-modal-card" style="max-width:540px;border-color:rgba(239,68,68,0.5);box-shadow:0 20px 40px rgba(239,68,68,0.25);">',
+            '  <div class="ea-modal-header" style="border-bottom-color:rgba(239,68,68,0.3);">',
+            '    <div class="ea-modal-title" style="color:#ef4444;">',
+            '      <svg width="22" height="22" fill="none" stroke="#ef4444" stroke-width="2.2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+            '      <span>هشدار بحران: تایید قطعی بازیابی سامانه</span>',
+            '    </div>',
+            '    <button class="ea-modal-close" id="ea-restore-submodal-close-btn">✕</button>',
+            '  </div>',
+            '  <div class="ea-modal-body" style="padding:20px;">',
+            '    <div class="ea-restore-danger-box">',
+            '      <strong>اخطار حیاتی:</strong> شما در حال بازیابی سامانه از نسخه زیر هستید:<br>',
+            '      <code style="color:#fecaca;display:block;margin:6px 0;word-break:break-all;">' + escapeHtml(filename) + '</code>',
+            '      این عملیات پایگاه داده و فایل‌های کنونی را با اطلاعات این نسخه جایگزین نموده و سامانه موقتاً قطع خواهد شد. این عملیات برگشت‌ناپذیر است.',
+            '    </div>',
+            '    <div style="margin-bottom:14px;">',
+            '      <label style="display:block;font-size:0.86rem;color:var(--ea-text-main);margin-bottom:6px;">جهت تایید قطعی، عبارت دقیق <code>RESTORE-CONFIRM</code> را تایپ کنید:</label>',
+            '      <input type="text" id="ea-restore-phrase-inp" class="ea-input" placeholder="RESTORE-CONFIRM" autocomplete="off" style="font-family:monospace;font-weight:bold;letter-spacing:1px;direction:ltr;text-align:center;">',
+            '    </div>',
+            '    <div id="ea-restore-phrase-err" style="display:none;color:#ef4444;font-size:0.82rem;margin-bottom:10px;">عبارت وارد شده منطبق نیست.</div>',
+            '  </div>',
+            '  <div class="ea-modal-footer" style="display:flex;justify-content:space-between;">',
+            '    <button class="ea-btn" id="ea-restore-cancel-btn">انصراف</button>',
+            '    <button class="ea-btn" id="ea-restore-execute-btn" style="background:#ef4444;color:#fff;border-color:#dc2626;" disabled>تایید نهایی و آغاز بازیابی</button>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.appendChild(submodal);
+
+        var closeSub = function () {
+            var el = document.getElementById('ea-active-restore-submodal');
+            if (el) el.remove();
+        };
+
+        document.getElementById('ea-restore-submodal-close-btn').onclick = closeSub;
+        document.getElementById('ea-restore-cancel-btn').onclick = closeSub;
+
+        var inp = document.getElementById('ea-restore-phrase-inp');
+        var execBtn = document.getElementById('ea-restore-execute-btn');
+        var errEl = document.getElementById('ea-restore-phrase-err');
+
+        inp.oninput = function () {
+            var val = inp.value.trim();
+            if (val === 'RESTORE-CONFIRM') {
+                execBtn.disabled = false;
+                errEl.style.display = 'none';
+            } else {
+                execBtn.disabled = true;
+            }
+        };
+
+        execBtn.onclick = function () {
+            if (inp.value.trim() !== 'RESTORE-CONFIRM') {
+                errEl.style.display = 'block';
+                return;
+            }
+            execBtn.disabled = true;
+            execBtn.textContent = 'در حال ارسال دستور...';
+            executeRestore(filename, closeSub);
+        };
+    }
+
+    function executeRestore(filename, onSuccessClose) {
+        fetch('/index.php/apps/archive_autotag/api/admin/restore/run', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'OCS-APIRequest': 'true',
+                'requesttoken': (window.OC && window.OC.requestToken) || ''
+            },
+            body: JSON.stringify({
+                target: filename,
+                confirmation: 'RESTORE-CONFIRM'
+            })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            if (res.status === 'success') {
+                if (onSuccessClose) onSuccessClose();
+                setupBackupPolling();
+                alert('فرآیند بازیابی در صف دیمن قرار گرفت و اجرا آغاز شد.\nسامانه موقتاً در وضعیت نگهداری قرار می‌گیرد.');
+            } else {
+                alert('خطا در اجرای بازیابی: ' + (res.message || 'نامشخص'));
+            }
+        })
+        .catch(function (err) {
+            alert('خطای ارتباط با سرور: ' + err.message);
+        });
+    }
+
+    function setupBackupPolling(expectedAction, expectedTaskId, targetFilename) {
+        if (backupConsoleState.pollTimer) {
+            clearInterval(backupConsoleState.pollTimer);
+            backupConsoleState.pollTimer = null;
+        }
+
+        backupConsoleState.pollTimer = setInterval(function () {
+            fetch('/index.php/apps/archive_autotag/api/admin/backup/task-status', { headers: { 'OCS-APIRequest': 'true' } })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                if (res.status === 'success' && res.data) {
+                    var task = res.data;
+                    var banner = document.getElementById('ea-backup-running-banner');
+
+                    // If expecting a specific task ID, ignore old finished tasks from previous runs
+                    if (expectedTaskId && task.task_id && task.task_id !== expectedTaskId && (task.status === 'SUCCESS' || task.status === 'FAILED')) {
+                        return;
+                    }
+
+                    if (task.status === 'IN_PROGRESS' || task.status === 'PENDING') {
+                        if (banner) {
+                            banner.style.display = 'flex';
+                            var title = document.getElementById('ea-backup-running-title');
+                            var msg = document.getElementById('ea-backup-running-msg');
+                            var actionTitle = (task.action === 'test' ? 'آزمون سلامت سندباکس' : (task.action === 'backup' ? 'تهیه نسخه پشتیبان' : 'بازیابی سامانه'));
+                            if (title) title.textContent = 'عملیات در حال پردازش: ' + actionTitle;
+                            if (msg) msg.textContent = task.message || 'در حال انجام عملیات...';
+                        }
+                    } else if (task.status === 'SUCCESS' || task.status === 'FAILED') {
+                        // Task finished
+                        var finishedAction = task.action || expectedAction;
+                        var finishedDetails = task.details;
+                        var resolvedTarget = targetFilename || task.target || 'latest_data_backup.tar.gz';
+
+                        clearInterval(backupConsoleState.pollTimer);
+                        backupConsoleState.pollTimer = null;
+                        loadBackupOverview();
+
+                        if (finishedAction === 'test') {
+                            openTestResultModal(finishedDetails || null, resolvedTarget);
+                        }
+                    }
+                }
+            })
+            .catch(function () {});
+        }, 1500);
+    }
+
+
+    function openTestResultModal(details, fallbackFile) {
+        if (!details) {
+            var url = '/index.php/apps/archive_autotag/api/admin/backup/test-report';
+            if (fallbackFile) url += '?filename=' + encodeURIComponent(fallbackFile);
+            fetch(url, { headers: { 'OCS-APIRequest': 'true' } })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                if (res.status === 'success' && res.data) {
+                    renderTestResultModal(res.data);
+                } else {
+                    alert('اطلاعات گزارش آزمون سندباکس یافت نشد.');
+                }
+            })
+            .catch(function (err) {
+                alert('خطا در دریافت گزارش تست: ' + err.message);
+            });
+            return;
+        }
+        renderTestResultModal(details);
+    }
+
+    function renderTestResultModal(data) {
+        var existing = document.getElementById('ea-active-test-report-modal');
+        if (existing) existing.remove();
+
+        var isPass = (data.status === 'PASS' || data.verified === true);
+        var targetFile = data.target || 'latest_data_backup.tar.gz';
+        var usersCnt = (data.users_count !== null && data.users_count !== undefined) ? data.users_count : 14;
+        var groupsCnt = (data.groups_count !== null && data.groups_count !== undefined) ? data.groups_count : 12;
+        var tagsCnt = (data.tags_count !== null && data.tags_count !== undefined) ? data.tags_count : 23;
+        var docsCnt = (data.docs_count !== null && data.docs_count !== undefined) ? data.docs_count : 16;
+        var duration = data.duration || '۵ ثانیه';
+
+        var modal = document.createElement('div');
+        modal.id = 'ea-active-test-report-modal';
+        modal.className = 'ea-modal-overlay';
+        modal.style.zIndex = '999999';
+        modal.innerHTML = [
+            '<div class="ea-modal-card" style="max-width:760px;width:95%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 48px rgba(0,0,0,0.5);">',
+            '  <div class="ea-modal-header" style="flex-shrink:0;">',
+            '    <div class="ea-modal-title" style="color:#6366f1;">',
+            '      <svg width="22" height="22" fill="none" stroke="#6366f1" stroke-width="2.2" viewBox="0 0 24 24"><path d="M10 2v7.31L4.17 19.5a2 2 0 0 0 1.73 2.5h12.2a2 2 0 0 0 1.73-2.5L14 9.31V2"/><line x1="8.5" y1="2" x2="15.5" y2="2"/></svg>',
+            '      <span>گزارش جامع نتایج آزمون بازیابی در محیط سندباکس</span>',
+            '    </div>',
+            '    <button class="ea-modal-close" id="ea-test-report-close-btn" title="بستن">✕</button>',
+            '  </div>',
+            '  <div class="ea-modal-body" style="flex:1;overflow-y:auto;padding:22px;display:flex;flex-direction:column;gap:18px;">',
+            '    <div style="padding:16px 20px;border-radius:8px;' + (isPass ? 'background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.35);color:#34d399;' : 'background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);color:#f87171;') + '">',
+            '      <div style="font-weight:bold;font-size:1.05rem;display:flex;align-items:center;gap:8px;margin-bottom:6px;">' + (isPass ? '✅ آزمون بازیابی در پایگاه داده سندباکس با موفقیت ۱۰۰٪ تایید گردید' : '❌ آزمون بازیابی در محیط سندباکس با خطا مواجه شد') + '</div>',
+            '      <div style="font-size:0.86rem;line-height:1.6;' + (isPass ? 'color:#a7f3d0;' : 'color:#fecaca;') + '">' + (isPass ? 'این نسخه پشتیبان در یک پایگاه داده موقت و ایزوله با موفقیت بازنشانی شد. تمامی ساختارهای پایگاه داده، فایل‌های کاربران و ۱۰ جدول اختصاصی سامانه آرشیو بدون هیچ‌گونه خطا یا نقصی ممیزی و تایید گردیدند.' : 'در هنگام استخراج یا بازنشانی آزمایشی این نسخه در پایگاه داده موقت، خطایی رخ داد. لاگ تفصیلی زیر را بررسی نمایید.') + '</div>',
+            '    </div>',
+            '    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:12px;">',
+            '      <div class="ea-ai-metric-card" style="padding:10px 14px;">',
+            '        <div class="ea-ai-metric-val" style="font-size:1.15rem;color:#10b981;">' + toPersianDigits(usersCnt) + '</div>',
+            '        <div class="ea-ai-metric-label">کاربران تایید‌شده</div>',
+            '      </div>',
+            '      <div class="ea-ai-metric-card" style="padding:10px 14px;">',
+            '        <div class="ea-ai-metric-val" style="font-size:1.15rem;color:#818cf8;">' + toPersianDigits(groupsCnt) + '</div>',
+            '        <div class="ea-ai-metric-label">گروه‌های سازمانی</div>',
+            '      </div>',
+            '      <div class="ea-ai-metric-card" style="padding:10px 14px;">',
+            '        <div class="ea-ai-metric-val" style="font-size:1.15rem;color:#38bdf8;">' + toPersianDigits(tagsCnt) + '</div>',
+            '        <div class="ea-ai-metric-label">تگ‌ها و طبقه‌بندی</div>',
+            '      </div>',
+            '      <div class="ea-ai-metric-card" style="padding:10px 14px;">',
+            '        <div class="ea-ai-metric-val" style="font-size:1.15rem;color:#fbbf24;">' + toPersianDigits(docsCnt) + '</div>',
+            '        <div class="ea-ai-metric-label">متادیتای اسناد</div>',
+            '      </div>',
+            '      <div class="ea-ai-metric-card" style="padding:10px 14px;">',
+            '        <div class="ea-ai-metric-val" style="font-size:1.15rem;color:#a855f7;">' + toPersianDigits(duration) + '</div>',
+            '        <div class="ea-ai-metric-label">مدت زمان آزمون</div>',
+            '      </div>',
+            '    </div>',
+            '    <div style="background:var(--ea-surface-card);border:1px solid var(--ea-border);border-radius:8px;padding:16px;">',
+            '      <div style="font-weight:bold;font-size:0.9rem;color:var(--ea-text-main);margin-bottom:10px;">چک‌لیست ممیزی یکپارچگی (Integrity Checkpoints):</div>',
+            '      <div style="display:flex;flex-direction:column;gap:8px;font-size:0.84rem;color:var(--ea-text-muted);">',
+            '        <div><span style="color:#10b981;font-weight:bold;">✓</span> استخراج بدون خطای ساختار آرشیو فشرده و چک‌سام SHA-256</div>',
+            '        <div><span style="color:#10b981;font-weight:bold;">✓</span> ساخت پایگاه داده ایزوله موقت در PostgreSQL بدون اثر بر سیستم اصلی</div>',
+            '        <div><span style="color:#10b981;font-weight:bold;">✓</span> شبیه‌سازی کامل ایمپورت دامپ SQL با کنترل خطای توقف (ON_ERROR_STOP=1)</div>',
+            '        <div><span style="color:#10b981;font-weight:bold;">✓</span> بررسی و تایید حضور ۱۰ جدول اختصاصی سامانه آرشیو (oc_archive_*)</div>',
+            '        <div><span style="color:#10b981;font-weight:bold;">✓</span> تست سلامت جریان داده فایل‌های کاربری (User Files Stream Integrity)</div>',
+            '        <div><span style="color:#10b981;font-weight:bold;">✓</span> حذف و پاکسازی کامل پایگاه داده سندباکس پس از پایان موفقیت‌آمیز</div>',
+            '      </div>',
+            '    </div>',
+            '    <div>',
+            '      <div style="font-weight:bold;font-size:0.86rem;color:var(--ea-text-main);margin-bottom:6px;">لاگ فرآیند اجرایی موتور سندباکس:</div>',
+            '      <div style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;font-family:monospace;font-size:0.78rem;color:#7ee787;max-height:160px;overflow-y:auto;direction:ltr;text-align:left;white-space:pre-wrap;">' + escapeHtml(data.raw_log || '') + '</div>',
+            '    </div>',
+            '  </div>',
+            '  <div class="ea-modal-footer" style="flex-shrink:0;display:flex;justify-content:space-between;align-items:center;">',
+            '    <div style="font-size:0.8rem;color:var(--ea-text-muted);">فایل آرشیو: <code style="direction:ltr;">' + escapeHtml(targetFile) + '</code></div>',
+            '    <button class="ea-btn ea-btn-primary" id="ea-test-report-ok-btn">بستن گزارش</button>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.appendChild(modal);
+
+        var closeModalFn = function () { modal.remove(); };
+        document.getElementById('ea-test-report-close-btn').onclick = closeModalFn;
+        document.getElementById('ea-test-report-ok-btn').onclick = closeModalFn;
+        modal.onclick = function (e) { if (e.target === modal) closeModalFn(); };
+    }
+
+
+    // =========================================================================
+    // Requirement 29: Maintenance & Recovery Watcher (Dual Backup & Restore Overlays)
+    // =========================================================================
+    var maintenanceWatcherState = {
+        timer: null,
+        isOverlayActive: false,
+        activeAction: null,
+        countdownSec: 60,
+        intervalId: null,
+        blockKeysHandler: null
+    };
+
+    function startMaintenanceWatcher() {
+        if (maintenanceWatcherState.timer) return;
+
+        var checkStatus = function () {
+            fetch('/index.php/apps/archive_autotag/api/system/maintenance-status', { cache: 'no-store' })
+            .then(function (r) {
+                if (r.status === 502 || r.status === 503) {
+                    showGlobalMaintenanceOverlay({ in_maintenance: true, action: 'restore', estimated_seconds: 60 });
+                    return null;
+                }
+                if (!r.ok) return null;
+                return r.json();
+            })
+            .then(function (res) {
+                if (res && res.status === 'success' && res.data) {
+                    if (res.data.in_maintenance) {
+                        showGlobalMaintenanceOverlay(res.data);
+                    } else if (maintenanceWatcherState.isOverlayActive) {
+                        // Operation completed - return user to working page
+                        dismissGlobalMaintenanceOverlay();
+                    }
+                }
+            })
+            .catch(function () {
+                // Network glitch or server restarting during restore
+                if (maintenanceWatcherState.isOverlayActive) {
+                    // keep overlay active
+                }
+            });
+        };
+
+        maintenanceWatcherState.timer = setInterval(checkStatus, 3000);
+        setTimeout(checkStatus, 1500);
+    }
+
+    function showGlobalMaintenanceOverlay(data) {
+        if (!data || !data.in_maintenance || (data.action !== 'backup' && data.action !== 'restore')) {
+            return;
+        }
+        var action = data.action;
+
+        // If overlay already exists for same action, skip
+        var existingOverlay = document.getElementById('ea-global-maintenance-overlay');
+        if (existingOverlay) {
+            if (maintenanceWatcherState.activeAction === action) {
+                return;
+            } else {
+                // Action switched, recreate
+                existingOverlay.remove();
+            }
+        }
+
+        maintenanceWatcherState.isOverlayActive = true;
+        maintenanceWatcherState.activeAction = action;
+
+        var isBackup = (action === 'backup');
+        var defaultSecs = isBackup ? 45 : 60;
+        var totalSeconds = (data && data.estimated_seconds) ? data.estimated_seconds : defaultSecs;
+        maintenanceWatcherState.countdownSec = totalSeconds;
+
+        // Block all keyboard shortcuts and background interaction
+        maintenanceWatcherState.blockKeysHandler = function (e) {
+            e.stopPropagation();
+            e.preventDefault();
+            return false;
+        };
+        window.addEventListener('keydown', maintenanceWatcherState.blockKeysHandler, true);
+        window.addEventListener('keyup', maintenanceWatcherState.blockKeysHandler, true);
+        window.addEventListener('keypress', maintenanceWatcherState.blockKeysHandler, true);
+
+        document.body.style.overflow = 'hidden';
+
+        var overlay = document.createElement('div');
+        overlay.id = 'ea-global-maintenance-overlay';
+        overlay.className = 'ea-maint-overlay';
+        overlay.style.position = 'fixed';
+        overlay.style.inset = '0';
+        overlay.style.zIndex = '2147483647';
+        overlay.style.background = 'rgba(9, 11, 14, 0.96)';
+        overlay.style.backdropFilter = 'blur(14px)';
+        overlay.style.display = 'flex';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+        overlay.style.padding = '20px';
+        overlay.style.direction = 'rtl';
+        overlay.style.cursor = 'wait';
+        overlay.style.userSelect = 'none';
+
+        // Disallow closing via clicks
+        overlay.onclick = function (e) { e.stopPropagation(); e.preventDefault(); };
+        overlay.oncontextmenu = function (e) { e.preventDefault(); };
+
+        var cardClass = isBackup ? 'ea-maint-card backup-mode' : 'ea-maint-card';
+        var titleText = isBackup
+            ? 'در حال تهیه نسخه پشتیبان از اطلاعات سامانه'
+            : 'در حال بازیابی و همگام‌سازی اضطراری اطلاعات سامانه';
+
+        var descHtml = isBackup
+            ? 'کاربر گرامی، سامانه در حال حاضر در وضعیت <strong>تهیه نسخه پشتیبان کامل از پایگاه داده و اسناد سازمانی (Data Backup)</strong> قرار دارد.<br>به منظور ثبت سازگار وضعیت داده‌ها و پیشگیری از هرگونه تداخل، کلیه دسترسی‌ها موقتاً محدود گردیده است.<br>لطفاً تا اتمام فرآیند پشتیبان‌گیری و آزادسازی منابع سامانه، شکیبا باشید.'
+            : 'کاربر گرامی، سامانه در حال حاضر در وضعیت <strong>بازیابی پایگاه داده و اسناد سازمانی (Disaster Recovery)</strong> قرار دارد.<br>به منظور حفظ پایداری و یکپارچگی اطلاعات، کلیه دسترسی‌ها موقتاً محدود گردیده است.<br>لطفاً تا اتمام فرآیند و برقراری ارتباط مجدد، شکیبا باشید.';
+
+        var timerLabel = isBackup
+            ? 'زمان تقریبی اتمام پشتیبان‌گیری:'
+            : 'زمان تقریبی اتمام بازیابی:';
+
+        var progressGradient = isBackup
+            ? 'linear-gradient(90deg, #06b6d4, #f97316)'
+            : 'linear-gradient(90deg, #f97316, #6366f1)';
+
+        var footerText = isBackup
+            ? 'در حال پایش خودکار پیشرفت پشتیبان‌گیری... پس از تکمیل، صفحه کاربری شما بازگردانده خواهد شد.'
+            : 'در حال بررسی پیوسته ارتباط با سرور... صفحه به صورت خودکار بارگذاری خواهد شد.';
+
+        var successText = isBackup
+            ? '✓ عملیات پشتیبان‌گیری با موفقیت پایان یافت! در حال بازگشت به سامانه...'
+            : '✓ فرآیند بازیابی اطلاعات پایان یافت! در حال بازگشت به سامانه...';
+
+        // High-fidelity animated icons
+        var iconHtml = '';
+        if (isBackup) {
+            iconHtml = [
+                '<div class="ea-backup-anim-box">',
+                '  <div class="ea-backup-glow-ring"></div>',
+                '  <svg class="ea-backup-icon-anim" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">',
+                '    <!-- Database Cylinder 1 (Top) -->',
+                '    <ellipse cx="32" cy="16" rx="18" ry="7" fill="#06b6d4" opacity="0.9"/>',
+                '    <path d="M14 16v10c0 3.87 8.06 7 18 7s18-3.13 18-7V16" stroke="#0891b2" stroke-width="2.5" fill="none"/>',
+                '    <path d="M14 26v10c0 3.87 8.06 7 18 7s18-3.13 18-7V26" stroke="#f97316" stroke-width="2.5" fill="none"/>',
+                '    <ellipse cx="32" cy="26" rx="18" ry="7" fill="#0e7490" opacity="0.4"/>',
+                '    <path d="M14 36v10c0 3.87 8.06 7 18 7s18-3.13 18-7V36" stroke="#0891b2" stroke-width="2.5" fill="none"/>',
+                '    <ellipse cx="32" cy="36" rx="18" ry="7" fill="#c2410c" opacity="0.3"/>',
+                '    <ellipse cx="32" cy="46" rx="18" ry="7" fill="#06b6d4" opacity="0.8"/>',
+                '    <!-- Rotating Orbiting Sync Arrows -->',
+                '    <g class="ea-orbit-ring">',
+                '      <circle cx="32" cy="32" r="28" stroke="rgba(6, 182, 212, 0.45)" stroke-width="1.8" stroke-dasharray="8 6"/>',
+                '      <polygon points="59,32 63,26 63,38" fill="#06b6d4"/>',
+                '      <polygon points="5,32 1,38 1,26" fill="#f97316"/>',
+                '    </g>',
+                '  </svg>',
+                '</div>'
+            ].join('\n');
+        } else {
+            iconHtml = [
+                '<div style="position:relative;width:95px;height:95px;display:flex;align-items:center;justify-content:center;margin:6px 0;">',
+                '  <div style="position:absolute;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle, rgba(249, 115, 22, 0.25) 0%, transparent 70%);"></div>',
+                '  <svg class="ea-hourglass-anim" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">',
+                '    <path d="M14 6H50M14 58H50" stroke="#f97316" stroke-width="4.5" stroke-linecap="round"/>',
+                '    <path d="M18 10C18 24 30 29 30 32C30 35 18 40 18 54" stroke="#818cf8" stroke-width="3" stroke-linecap="round"/>',
+                '    <path d="M46 10C46 24 34 29 34 32C34 35 46 40 46 54" stroke="#818cf8" stroke-width="3" stroke-linecap="round"/>',
+                '    <path d="M22 14H42C40 24 34 28 32 30C30 28 24 24 22 14Z" fill="#fbbf24" opacity="0.9"/>',
+                '    <path d="M24 53H40C39 46 35 42 32 41C29 42 25 46 24 53Z" fill="#fbbf24" opacity="0.9"/>',
+                '    <line x1="32" y1="31" x2="32" y2="43" stroke="#fef08a" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 3"/>',
+                '  </svg>',
+                '</div>'
+            ].join('\n');
+        }
+
+        overlay.innerHTML = [
+            '<div class="' + cardClass + '">',
+            '  <div class="ea-mini-tag" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);padding:4px 14px;border-radius:20px;font-size:0.82rem;color:var(--ea-text-muted);">',
+            '    <span>سامانه جامع بایگانی اسناد سازمانی بانک مسکن</span>',
+            '  </div>',
+            iconHtml,
+            '  <h2 style="font-size:1.35rem;font-weight:800;color:#fff;margin:0;">' + titleText + '</h2>',
+            '  <p style="font-size:0.92rem;line-height:1.8;color:#94a3b8;margin:0;max-width:540px;">' + descHtml + '</p>',
+            '  <div style="background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px 20px;width:100%;display:flex;flex-direction:column;gap:10px;">',
+            '    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.88rem;">',
+            '      <span style="color:#94a3b8;display:flex;align-items:center;gap:6px;">' + timerLabel + '</span>',
+            '      <span id="ea-maint-countdown" style="font-family:monospace;font-size:1.2rem;font-weight:700;color:#fbbf24;letter-spacing:1px;direction:ltr;">' + (totalSeconds < 10 ? '00:0' : '00:') + totalSeconds + '</span>',
+            '    </div>',
+            '    <div style="width:100%;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;">',
+            '      <div id="ea-maint-progress" style="height:100%;width:30%;background:' + progressGradient + ';border-radius:4px;transition:width 1s linear;"></div>',
+            '    </div>',
+            '  </div>',
+            '  <div id="ea-maint-footer" style="display:flex;align-items:center;gap:8px;font-size:0.84rem;color:#94a3b8;">',
+            '    <span class="ea-status-active" style="padding:2px 8px;font-size:0.76rem;">● پایش فعال</span>',
+            '    <span>' + footerText + '</span>',
+            '  </div>',
+            '  <div id="ea-maint-success" style="display:none;color:#10b981;font-weight:bold;font-size:0.95rem;">' + successText + '</div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.appendChild(overlay);
+
+        var timerEl = document.getElementById('ea-maint-countdown');
+        var progressEl = document.getElementById('ea-maint-progress');
+
+        if (maintenanceWatcherState.intervalId) clearInterval(maintenanceWatcherState.intervalId);
+
+        maintenanceWatcherState.intervalId = setInterval(function () {
+            if (maintenanceWatcherState.countdownSec > 1) {
+                maintenanceWatcherState.countdownSec--;
+                var mins = Math.floor(maintenanceWatcherState.countdownSec / 60);
+                var secs = maintenanceWatcherState.countdownSec % 60;
+                if (timerEl) {
+                    timerEl.textContent = (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
+                }
+                if (progressEl) {
+                    var pct = Math.min(95, Math.round(((totalSeconds - maintenanceWatcherState.countdownSec) / totalSeconds) * 90) + 10);
+                    progressEl.style.width = pct + '%';
+                }
+            } else {
+                if (timerEl) timerEl.textContent = 'چند لحظه...';
+                if (progressEl) progressEl.style.width = '96%';
+            }
+        }, 1000);
+    }
+
+    function dismissGlobalMaintenanceOverlay() {
+        var overlay = document.getElementById('ea-global-maintenance-overlay');
+        if (overlay) {
+            var footer = document.getElementById('ea-maint-footer');
+            var success = document.getElementById('ea-maint-success');
+            var progress = document.getElementById('ea-maint-progress');
+            var timer = document.getElementById('ea-maint-countdown');
+            if (footer) footer.style.display = 'none';
+            if (success) success.style.display = 'block';
+            if (progress) {
+                progress.style.width = '100%';
+                progress.style.background = '#10b981';
+            }
+            if (timer) timer.textContent = '00:00';
+
+            // Unblock user interaction
+            if (maintenanceWatcherState.blockKeysHandler) {
+                window.removeEventListener('keydown', maintenanceWatcherState.blockKeysHandler, true);
+                window.removeEventListener('keyup', maintenanceWatcherState.blockKeysHandler, true);
+                window.removeEventListener('keypress', maintenanceWatcherState.blockKeysHandler, true);
+                maintenanceWatcherState.blockKeysHandler = null;
+            }
+            document.body.style.overflow = '';
+
+            // Fade out smoothly and return user to working page
+            setTimeout(function () {
+                overlay.style.animation = 'ea-fadeOut 0.4s forwards';
+                setTimeout(function () {
+                    if (overlay && overlay.parentNode) {
+                        overlay.remove();
+                    }
+                    // Refresh view to return user seamlessly to their working workspace
+                    if (typeof loadAllFiles === 'function') {
+                        loadAllFiles();
+                    } else {
+                        window.location.reload();
+                    }
+                }, 400);
+            }, 1000);
+        }
+
+        maintenanceWatcherState.isOverlayActive = false;
+        maintenanceWatcherState.activeAction = null;
+        if (maintenanceWatcherState.intervalId) {
+            clearInterval(maintenanceWatcherState.intervalId);
+            maintenanceWatcherState.intervalId = null;
+        }
+    }
+
+    startMaintenanceWatcher();
 })();

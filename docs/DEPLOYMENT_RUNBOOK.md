@@ -1,368 +1,383 @@
-# Enterprise Archive System - Deployment Runbook & Bare-Metal Setup Guide
+# راهنمای جامع اپراتوری استقرار و بازیابی سامانه در محیط جدید
+# System Deployment & Recovery Operator Runbook
 
-این سند راهنمای جامع و مرجع عملیاتی نصب، پیکربندی، استقرار از صفر (روی سرور خام) و نگهداری سامانه آرشیو اسناد سازمانی است. تمامی گام‌ها بر اساس آخرین وضعیت مخزن گیت (`main`)، ماژول بومی `archive_autotag v1.9.0`، فیلتر پیشرفته چندتگی و مکانیزم‌های حاکمیت داده تدوین شده‌اند.
+> **وضعیت سند:** سند زنده و عملیاتی (Living Document)  
+> **نگارش سامانه:** v2.9.0  
+> **مرجع نیازمندی مرتبط:** [Requirement 30 — System Deployment & Recovery Runbook](requirements/30_system_deployment_and_recovery_runbook.md)  
+> **مخاطب:** مدیران سیستم (SysAdmins)، کارشناسان DevOps، و اپراتورهای ارشد فناوری اطلاعات  
 
 ---
 
-## ۱. معماری کلی سیستم
-
-```text
-[ External Clients / AI Agents / WebDAV API / Web Browser ]
-                            │
-                        HTTP :80 (یا 443 SSL)
-                            ▼
-                   ┌──────────────────┐
-                   │  archive_proxy   │  Nginx Alpine (Reverse Proxy)
-                   │    Port 80:80    │  - client_max_body_size 10G
-                   └────────┬─────────┘  - request_buffering off
-                            │ (archive_net bridge)
-                            ▼
-                   ┌──────────────────┐
-                   │   archive_app    │  Nextcloud 34 Apache
-                   │   Internal :80   │  - WebDAV Endpoint: /remote.php/dav/files/
-                   └────────┬─────────┘  - Custom App: archive_autotag v1.9.0
-                            │            - Dynamic Hierarchical Auto-Tagging
-                            │            - Multi-Tag Intersection Filter (AND)
-                            │            - Granular Per-User Upload Limit
-                            │            - Admin-Only Folder Creation Policy
-                            │            - Strict Account Governance (Admin-only deletion)
-                            ▼
-                   ┌──────────────────┐
-                   │    archive_db    │  PostgreSQL 15 Alpine
-                   │   Internal :5432 │  - Database: nextcloud
-                   └──────────────────┘
-```
+## ۱. بیانیه حاکمیت مستندات زنده (Living Documentation Policy)
 
 > [!IMPORTANT]
-> **جداسازی کامل شبکه (Network Isolation):**
-> دسترسی خارجی به سامانه منحصراً از طریق Nginx انجام می‌شود. پورت پایگاه‌داده PostgreSQL (5432) و پورت داخلی Nextcloud به هیچ وجه نباید مستقیماً در شبکه عمومی منتشر شوند.
+> **قانون دائمی به‌روزرسانی همگام:**  
+> این سند راهنمای رسمی و زنده اپراتوری سامانه آرشیو اسناد سازمانی (`enterprise-archive-system`) است.  
+> بر اساس سیاست حاکمیت مستندات پروژه، **به‌ازای هرگونه تغییر در معماری سرویس‌ها، ایمیج‌های داکر، ساختار متغیرهای محیطی (`.env`)، پورت‌ها، اسکریپت‌های پوشه `deploy/` یا کامپوننت‌های سفارشی، این سند باید بلافاصله و در همان کامیت به‌روزرسانی شود.**  
+> هیچ تغییری در زیرساخت بدون بازتاب در این Runbook معتبر تلقی نخواهد شد.
 
 ---
 
-## ۲. استقرار از صفر روی یک سرور خام (Bare Server Deployment)
+## ۲. خلاصه معماری و دو درگاه عملیاتی استقرار
 
-این بخش برای کارشناس زیرساخت یا DevOps طراحی شده است که یک سرور خام (مثلاً Ubuntu Server 22.04 یا 24.04 LTS تازه نصب شده) در اختیار دارد.
+این راهنما دو سناریوی کاملاً مستقل را برای استقرار سامانه روی **سرور جدید، ماشین مجازی (VM) خام، یا محیط کلاود تازه** پوشش می‌دهد:
 
-### گام ۰: آماده‌سازی اولیه سیستم‌عامل خام
-با کاربر دارای دسترسی `sudo` به سرور SSH بزنید:
+```text
+                               ┌────────────────────────────────────────┐
+                               │   سرور یا محیط اجرایی جدید (Clean OS)   │
+                               └───────────────────┬────────────────────┘
+                                                   │
+                        ┌──────────────────────────┴──────────────────────────┐
+                        ▼                                                     ▼
+        ┌───────────────────────────────┐                     ┌───────────────────────────────┐
+        │   سناریوی الف: بازسازی و بازیابی   │                     │    سناریوی ب: استقرار تمیز     │
+        │   (Scenario A: Rebuild + Restore)  │                     │ (Scenario B: Fresh Deployment) │
+        ├───────────────────────────────┤                     ├───────────────────────────────┤
+        │ • سرور قبلی نابود شده/تعویض شده│                     │ • راه‌اندازی اولیه سامانه     │
+        │ • بکاپ معتبر قبلی وجود دارد   │                     │ • بدون اطلاعات قبلی (صفر)     │
+        │ • بازگردانی کامل دیتابیس و سند │                     │ • نصب هدلس و ساختار پیش‌فرض    │
+        │ • همگام‌سازی کلیدها و Saltها   │                     │ • پیکربندی سازمانی و نقش‌ها   │
+        └───────────────┬───────────────┘                     └───────────────┬───────────────┘
+                        │                                                     │
+                        └──────────────────────────┬──────────────────────────┘
+                                                   ▼
+                                ┌─────────────────────────────────────┐
+                                │ ارزیابی جامع سلامت و آزمون‌های خودکار│
+                                │  - اجرای deploy/check_health.sh     │
+                                │  - آزمون‌های پایتون و ممیزی دسترسی  │
+                                └─────────────────────────────────────┘
+```
+
+---
+
+## ۳. پیش‌نیازهای زیرساختی و سخت‌افزاری (Prerequisites)
+
+پیش از آغاز استقرار، اطمینان حاصل کنید که سرور مقصد مشخصات زیر را دارا باشد:
+
+### ۳.۱. مشخصات سخت‌افزاری پیشنهادی
+- **پردازنده (CPU):** حداقل ۴ هسته (توصیه: ۸ هسته برای بیش از ۱۰۰ کاربر همزمان).
+- **حافظه رم (RAM):** حداقل ۸ گیگابایت (توصیه: ۱۶ گیگابایت).
+- **فضای دیسک (Storage):** حداقل ۵۰ گیگابایت SSD/NVMe برای سیستم‌عامل و دیتابیس + فضای متناسب با حجم اسناد سازمانی (حداقل دو برابر حجم تخمینی آرشیو).
+- **شبکه:** کارت شبکه ۱ گیگابیت بر ثانیه یا بالاتر با IP استاتیک اختصاصی.
+
+### ۳.۲. نیازمندی‌های نرم‌افزاری سیستم‌عامل
+- **سیستم‌عامل تاییدشده:** Ubuntu Server 22.04 LTS یا 24.04 LTS (یا Debian 12 / RHEL 9).
+- **موتور کانتینری:** Docker Engine نسخه ۲۴.۰ یا بالاتر.
+- **ارکستراسیون:** Docker Compose Plugin نسخه ۲.۲۰ یا بالاتر (`docker compose`).
+- **پکیج‌های سیستمی مورد نیاز:** `curl`, `git`, `jq`, `tar`, `gzip`, `sha256sum`, `postgresql-client`.
+
+### ۳.۳. ماتریس دسترسی و پورت‌های شبکه
+| پورت | پروتکل | سرویس | جهت ترافیک | دسترسی عمومی / شبکه داخلی |
+|---|---|---|---|---|
+| **80** | TCP | Nginx Reverse Proxy (HTTP) | ورودی (Inbound) | مجاز برای کاربران شبکه سازمانی |
+| **443** | TCP | Nginx Reverse Proxy (HTTPS) | ورودی (Inbound) | مجاز برای کاربران شبکه سازمانی |
+| **5432** | TCP | PostgreSQL (archive_db) | داخلی داکر | **اکیداً مسدود برای خارج** (فقط درون داکر) |
+| **80** (داخلی) | TCP | Nextcloud (archive_app) | داخلی داکر | **اکیداً مسدود برای خارج** (فقط از طریق Nginx) |
+
+---
+
+## ۴. ساختار مخزن، داده‌ها و محرمانگی (Repository & Storage Layout)
+
+تمامی داده‌های پایدار سامانه بر روی دیسک هاست به صورت Bind-Mount نگهداری می‌شوند:
+
+```text
+/home/alborz/enterprise-archive-system/
+├── .env                              # مقادیر و کلمات عبور فعال (Permissions: 600)
+├── .env.example                      # قالب استاندارد متغیرها
+├── docker-compose.yml                # مانیفست اصلی سرویس‌های داکر
+├── db/                               # مخزن فیزیکی پایگاه داده PostgreSQL (uid: 70)
+├── nextcloud/
+│   ├── config/config.php             # پیکربندی هسته و کلیدهای نمک (passwordsalt, secret)
+│   ├── data/                         # مخزن اسناد و فایل‌های کاربران (uid: 33 / www-data)
+│   └── custom_apps/                  # اپلیکیشن‌های مارکت نکست‌کلاد
+├── apps/
+│   └── archive_autotag/              # سورس‌کد اپلیکیشن اختصاصی آرشیو (۵۳ ماژول)
+├── nginx/
+│   ├── default.conf                  # پیکربندی پروکسی و قوانین کش لبه
+│   └── maintenance.html              # صفحه اختصاصی حالت تعمیرات در زمان بحران
+└── deploy/
+    ├── backup_daemon.sh              # دیمن مانیتورینگ و عملیات پس‌زمینه
+    ├── backup_db.sh                  # اسکریپت تهیه پشتیبان استاندارد
+    ├── restore_db.sh                 # اسکریپت بازیابی اتمیک (موتور سناریوی A)
+    ├── deploy_from_scratch.sh        # اسکریپت استقرار خودکار (موتور سناریوی B)
+    ├── manage_backup.sh              # کنسول یکپارچه خط فرمان برای اپراتور
+    └── check_health.sh               # ابزار اعتبارسنجی جامع سلامت سیستم
+```
+
+> [!CAUTION]
+> **حفاظت از فایل محرمانه `.env`:**  
+> فایل `.env` حاوی کلمات عبور دیتابیس و کلیدهای مدیریتی است. هرگز این فایل را به گیت کامیت نکنید. مجوز این فایل باید همیشه `chmod 600 .env` باشد تا فقط کاربر مالک سرور به آن دسترسی داشته باشد.
+
+---
+
+## ۵. دستورالعمل اجرایی سناریوی الف (Scenario A: Rebuild + Restore)
+
+**مورد کاربرد:** زمانی که سرور قبلی از بین رفته، سیستم‌عامل مجدداً نصب شده، یا سخت‌افزار ارتقا یافته است، اما یک **نسخه پشتیبان سالم (`*.tar.gz` به همراه `*.sha256`)** در اختیار داریم.
+
+### گام ۱: آماده‌سازی سرور خام و بسته‌ها
+با دسترسی `sudo` وارد سرور جدید شوید:
 
 ```bash
-# به‌روزرسانی مخازن لینوکس و نصب ابزارهای پایه
+# ۱. به‌روزرسانی پکیج‌های سیستم‌عامل
 sudo apt-get update && sudo apt-get upgrade -y
-sudo apt-get install -y curl git jq ca-certificates gnupg ufw
+sudo apt-get install -y curl git jq ca-certificates gnupg ufw tar gzip
 
-# نصب رسمی Docker Engine و Docker Compose Plugin
+# ۲. نصب رسمی داکر و داکر کامپوز
 curl -fsSL https://get.docker.com | sh
 sudo usermod -aG docker $USER
-
-# فعال‌سازی سرویس داکر
 sudo systemctl enable --now docker
 
-# اعمال عضویت در گروه داکر (یا خروج و ورود مجدد به SSH)
+# اعمال عضویت گروه داکر در سشن جاری
 newgrp docker
 ```
 
-بررسی صحت نصب:
+### گام ۲: کلون مخزن پروژه و تنظیم متغیرهای محیطی
 ```bash
-docker --version
-docker compose version
-```
+# ۳. کلون مخزن پروژه
+cd /home/$USER
+git clone <REPOSITORY_URL> enterprise-archive-system
+cd enterprise-archive-system
 
-### گام ۱: دریافت پروژه از مخزن گیت
-```bash
-cd ~
-git clone https://github.com/maherani/enterprise-archive-system.git
-cd ~/enterprise-archive-system
-git status
-```
-
-### گام ۲: ساخت فایل متغیرهای محیطی (`.env`)
-پروژه شامل فایل الگوی استاندارد `.env.example` است:
-
-```bash
+# ۴. ایجاد فایل .env از روی الگو و اعمال مجوز امن
 cp .env.example .env
+chmod 600 .env
+
+# ۵. ویرایش مقادیر دیتابیس بر اساس تنظیمات سرور جدید
 nano .env
+# اطمینان حاصل کنید متغیرهای POSTGRES_DB، POSTGRES_USER و POSTGRES_PASSWORD تنظیم شده‌اند.
 ```
 
-مقادیر امنیتی زیر را با رمزهای عبور قوی تنظیم فرمایید:
+### گام ۳: انتقال فایل پشتیبان و اعتبارسنجی اولیه
+فایل بکاپ سالم و فایل هش آن را به پوشه `deploy/backups/` انتقال دهید:
 
-```env
-# Database Configuration
-POSTGRES_DB=nextcloud
-POSTGRES_USER=nextcloud_user
-POSTGRES_PASSWORD=YourStrongDatabasePassword_Secure123!
+```bash
+mkdir -p deploy/backups
+# فرض کنید نام فایل nextcloud_full_backup_20260925_212005.tar.gz است
+cp /path/to/backup/nextcloud_full_backup_*.tar.gz deploy/backups/latest_nextcloud_backup.tar.gz
+cp /path/to/backup/nextcloud_full_backup_*.tar.gz.sha256 deploy/backups/latest_nextcloud_backup.tar.gz.sha256
 
-# Nextcloud Primary Administrator Configuration
-NEXTCLOUD_ADMIN_USER=admin
-NEXTCLOUD_ADMIN_PASSWORD=YourStrongAdminPassword_Secure123!
-
-# Nextcloud Trusted Domains (آدرس IP سرور یا دامنه سازمانی را اضافه فرمایید)
-NEXTCLOUD_TRUSTED_DOMAINS=localhost 127.0.0.1 192.168.1.100 archive.organization.local
+# بررسی دستی هش SHA-256 قبل از اجرا
+cd deploy/backups
+sha256sum -c latest_nextcloud_backup.tar.gz.sha256
+cd ../..
 ```
 
-> [!CAUTION]
-> فایل `.env` حاوی کلمات عبور حیاتی است. این فایل به صورت پیش‌فرض در `.gitignore` قرار دارد و هرگز نباید در گیت کامیت شود.
+### گام ۴: راه‌اندازی مقدماتی سرویس پایگاه‌داده
+کانتینر دیتابیس را روشن کنید تا آماده دریافت اطلاعات شود:
+
+```bash
+docker compose up -d db
+# صبر کنید تا دیتابیس در حالت Healthy قرار گیرد:
+docker compose ps
+```
+
+### گام ۵: اجرای اسکریپت خودکار بازیابی اطلاعات (`restore_db.sh`)
+دستور بازیابی را به عنوان اپراتور اجرا نمایید:
+
+```bash
+./deploy/restore_db.sh deploy/backups/latest_nextcloud_backup.tar.gz
+```
+
+#### اسکریپت به صورت خودکار مراحل زیر را انجام می‌دهد:
+1. **تست یکپارچگی هش SHA-256:** در صورت دستکاری یا خرابی بایت‌ها، فوراً متوقف می‌شود.
+2. **ایزولاسیون سامانه:** کانتینرهای `archive_app` و `archive_proxy` را خاموش می‌کند تا هیچ ترافیکی وارد نشود.
+3. **ریست و درون‌ریزی دیتابیس:** ساختار قبلی دیتابیس را پاک و فایل `database.sql` بکاپ را تزریق می‌کند.
+4. **همگام‌سازی نقش دیتابیس:** کلمه عبور نقش دیتابیس در PostgreSQL را با متغیر `POSTGRES_PASSWORD` در `.env` هماهنگ می‌سازد.
+5. **استخراج فایل‌ها و کانفیگ:** پوشه‌های `data/`، `config/` و `custom_apps/` را در هاست استخراج می‌کند.
+6. **همگام‌سازی کلیدها در `config.php`:** کلیدهای `passwordsalt` و `secret` قبلی را حفظ کرده و رشته‌های اتصال به دیتابیس جدید را با `.env` منطبق می‌سازد.
+7. **تصحیح مجوزها:** مالکیت تمام فایل‌ها را به `www-data:www-data` (`uid: 33`) تغییر می‌دهد.
+8. **رفع قفل‌ها و بازسازی کش:** قفل‌های موقت دیتابیس را تخلیه کرده و دستور `occ files:scan --all` را برای شاخص‌گذاری کامل اسناد اجرا می‌کند.
+9. **روشن‌سازی مجدد کانتینرها:** کانتینر اپلیکیشن و پروکسی را روشن کرده و سامانه را به مدار بازمی‌گرداند.
+
+### گام ۶: ارزیابی و اعتبارسنجی پس از بازیابی
+```bash
+./deploy/check_health.sh
+python3 tests/test_backup_and_recovery.py
+```
 
 ---
 
-### گام ۳: روش‌های استقرار
+## ۶. دستورالعمل اجرایی سناریوی ب (Scenario B: Fresh Deployment)
 
-#### 🚀 روش اول (توصیه‌شده): استقرار تمام‌خودکار با یک دستور
-اسکریپت `deploy/deploy_from_scratch.sh` تمامی مراحل راه‌اندازی، انتظار برای سلامت پایگاه‌داده، نصب بدون نیاز به مداخله (Headless) نکست‌کلود، کپی و فعال‌سازی ماژول بومی `archive_autotag v1.9.0`، تنظیم پراکسی معتمد و بررسی سلامت را خودکار انجام می‌دهد:
+**مورد کاربرد:** زمانی که سامانه قرار است **برای اولین بار در یک سازمان یا محیط جدید** بدون هیچ اطلاعات یا پیشینه‌ای نصب و راه‌اندازی شود.
+
+### گام ۱: آماده‌سازی اولیه سرور خام
+همانند گام ۱ سناریوی الف، پکیج‌های سیستم‌عامل، داکر و داکر کامپوز را نصب نمایید.
+
+### گام ۲: کلون مخزن و ایجاد پیکربندی سازمانی
+```bash
+cd /home/$USER
+git clone <REPOSITORY_URL> enterprise-archive-system
+cd enterprise-archive-system
+
+# ایجاد فایل متغیرها
+cp .env.example .env
+chmod 600 .env
+
+# ویرایش و تعیین نام کاربری و پسوردهای قوی برای ادمین و دیتابیس
+nano .env
+```
+نمونه تنظیمات الزامی در `.env`:
+```env
+POSTGRES_DB=nextcloud
+POSTGRES_USER=nextcloud_user
+POSTGRES_PASSWORD=VeryStrongDatabasePassword_2026!
+NEXTCLOUD_ADMIN_USER=admin
+NEXTCLOUD_ADMIN_PASSWORD=VeryStrongAdminPassword_2026!
+NEXTCLOUD_TRUSTED_DOMAINS="localhost archive.corp.internal 192.168.1.100"
+OVERWRITEPROTOCOL=http
+```
+
+### گام ۳: اجرای استقرار کاملاً خودکار (`deploy_from_scratch.sh`)
+اسکریپت نصب تمیز را اجرا کنید:
 
 ```bash
+chmod +x deploy/*.sh
 ./deploy/deploy_from_scratch.sh
 ```
 
-خروجی نهایی اسکریپت تاییدیه اجرای موفق و سلامت ۱۰۰٪ سیستم به همراه اطلاعات دسترسی را نمایش می‌دهد.
+#### اسکریپت به صورت ۱۰۰٪ خودکار مراحل زیر را انجام می‌دهد:
+1. پوشه‌های فیزیکی ماندگار (`./db`, `./nextcloud/data`, `./nextcloud/config`, `./nextcloud/custom_apps`) را با مجوزهای لازم ایجاد می‌کند.
+2. کانتینرهای `archive_db`, `archive_app` و `archive_proxy` را بالا می‌آورد.
+3. با ابزار `pg_isready` منتظر بالا آمدن قطعی پایگاه داده می‌ماند.
+4. فرآیند نصب Headless را بدون نیاز به ویزارد مرورگر با دستور زیر اجرا می‌کند:
+   ```bash
+   occ maintenance:install --database "pgsql" ...
+   ```
+5. تنظیمات بومی‌سازی شامل زبان فارسی (`fa`)، منطقه زمانی (`Asia/Tehran`) و تلفن پیش‌فرض ایران (`IR`) را اعمال می‌کند.
+6. اپلیکیشن اختصاصی `archive_autotag` را فعال کرده و مایگریشن‌های پایگاه داده را پیاده‌سازی می‌نماید.
+7. پوسته مات Obsidian، استایل‌های برندینگ و فونت وزیرمتن را تزریق می‌کند.
+8. پوشه ریشه بایگانی (`/admin/files/Enterprise_Archive`) را به همراه متادیتا می‌سازد.
+9. گروه‌ها و کاربران پیش‌فرض سازمانی را با سهمیه‌های استاندارد ایجاد می‌کند.
+10. سرویس پس‌زمینه پشتیبان‌گیری را فعال کرده و وضعیت سلامت نهایی را چاپ می‌نماید.
 
 ---
 
-#### 🛠️ روش دوم: استقرار دستی گام‌به‌گام (Manual Step-by-Step)
-در صورت نیاز به اجرای دستی فرآیند توسط ادمین سیستم:
+## ۷. راه‌اندازی و مدیریت دیمن پس‌زمینه (Background Daemon Management)
 
-1. **اجرای کانتینرها:**
-   ```bash
-   docker compose up -d
-   docker compose ps
-   ```
+سامانه دارای یک دیمن پس‌زمینه سبک به نام `deploy/backup_daemon.sh` است که وظیفه اجرای وظایف زمان‌بندی‌شده، مانیتورینگ وضعیت و اجرای آزمون‌های دوره‌ای سندباکس را بر عهده دارد.
 
-2. **بررسی آمادگی پایگاه‌داده:**
-   ```bash
-   docker exec archive_db pg_isready -U nextcloud_user -d nextcloud
-   ```
-
-3. **نصب هسته Nextcloud (در صورت عدم نصب خودکار):**
-   ```bash
-   docker exec -u www-data archive_app php occ maintenance:install \
-       --database "pgsql" \
-       --database-name "nextcloud" \
-       --database-user "nextcloud_user" \
-       --database-pass "<POSTGRES_PASSWORD>" \
-       --database-host "db" \
-       --admin-user "admin" \
-       --admin-pass "<NEXTCLOUD_ADMIN_PASSWORD>"
-   ```
-
-4. **تنظیم دامنه‌ها، DNS سازمانی و پراکسی معتمد:**
-   ```bash
-   docker exec -u www-data archive_app php occ config:system:set trusted_domains 1 --value="localhost"
-   docker exec -u www-data archive_app php occ config:system:set trusted_domains 2 --value="127.0.0.1"
-   docker exec -u www-data archive_app php occ config:system:set trusted_domains 3 --value="<SERVER_IP>"
-   docker exec -u www-data archive_app php occ config:system:set trusted_domains 4 --value="docs.maskan"
-   docker exec -u www-data archive_app php occ config:system:set trusted_proxies 0 --value="172.16.0.0/12"
-   docker exec -u www-data archive_app php occ config:system:set default_phone_region --value="IR"
-   ```
-   > [!NOTE]
-   > برای ثبات دائمی نشانی در نوار آدرس مرورگر (Stealth URL Masking)، سامانه مجهز به ماژول بومی `url_mask.js` است که با استفاده از HTML5 History API آدرس را به طور دائم روی `http://localhost` یا DNS تعریف‌شده نظیر `http://docs.maskan` بدون رفرش یا اختلال در روتینگ ثابت نگاه می‌دارد.
-
-5. **استقرار ماژول بومی `archive_autotag`:**
-   ```bash
-   docker exec archive_app mkdir -p /var/www/html/custom_apps/archive_autotag
-   docker cp apps/archive_autotag/. archive_app:/var/www/html/custom_apps/archive_autotag/
-   docker exec archive_app chown -R www-data:www-data /var/www/html/custom_apps/archive_autotag
-   docker exec -u www-data archive_app php occ app:enable archive_autotag
-   docker exec -u www-data archive_app php occ upgrade
-   ```
-
-6. **فعال‌سازی سیاست حاکمیت ساختار پوشه‌ها:**
-   ```bash
-   docker exec -u www-data archive_app php occ archive:folder:policy enable
-   ```
-
-7. **بررسی سلامت نهایی سامانه:**
-   ```bash
-   ./deploy/check_health.sh
-   ```
-
----
-
-## ۳. حاکمیت پوشه‌ها و محدودسازی دسترسی کاربران (Folder Governance)
-
-بر اساس سیاست‌های امنیتی آرشیو سازمانی:
-1. **سهمیه فضای شخصی صفر (`0 B`):**
-   کاربران عادی مجاز به آپلود پراکنده در ریشه شخصی نیستند:
-   ```bash
-   docker exec -u www-data archive_app php occ user:setting <username> files quota 0
-   ```
-2. **ساخت دایرکتوری‌های سازمانی توسط ادمین:**
-   ساختار بایگانی منحصراً در ریشه `/Enterprise_Archive` توسط ادمین مدیریت می‌شود:
-   ```bash
-   docker exec -u www-data archive_app php occ files:mkdir "/admin/files/Enterprise_Archive"
-   ```
-3. **تنظیم دسته‌ای سهمیه اعضای گروه (`deploy/set-group-quota.sh`):**
-   ```bash
-   # صفر کردن سهمیه دیسک برای تمام کاربران گروه SOC
-   ./deploy/set-group-quota.sh SOC "0 B"
-
-   # اعمال سهمیه برای گروه Compliance_Unit
-   ./deploy/set-group-quota.sh Compliance_Unit "0 B"
-   ```
-
----
-
-## ۴. مدیریت حاکمیت حساب‌های کاربری و مرزبندی نقش‌ها (User Governance)
-
-| سطح کاربری | ایجاد حساب | ویرایش اعضای گروه خود | ویرایش اعضای سایر گروه‌ها | حذف حساب کاربری |
-| :--- | :---: | :---: | :---: | :---: |
-| **ادمین ارشد سامانه (`admin`)** | ✔️ مجاز | ✔️ مجاز | ✔️ مجاز | ✔️ **منحصراً مجاز** |
-| **مدیر گروه (`Subadmin`)** | ✔️ در گروه خود | ✔️ در گروه خود | ❌ مسدود (۴۰۳) | ❌ **مسدود قطعی (۴۰۳ Forbidden)** |
-| **کاربر عادی** | ❌ مسدود | ❌ مسدود | ❌ مسدود | ❌ مسدود |
-
-### ممیزی فوری نقش‌ها با اسکریپت (`deploy/audit_user_roles.sh`):
+### ۷.۱. راه‌اندازی دستی دیمن در پس‌زمینه
 ```bash
-./deploy/audit_user_roles.sh
+nohup /home/$USER/enterprise-archive-system/deploy/backup_daemon.sh > /home/$USER/enterprise-archive-system/deploy/backup_daemon.log 2>&1 &
 ```
 
-- سلب دسترسی ادمین از یک کاربر عادی:
-  ```bash
-  docker exec -u www-data archive_app php occ group:removeuser admin <username>
-  ```
-- تعیین یک کاربر به عنوان مدیر گروه (Group Admin):
-  ```bash
-  docker exec archive_db psql -U nextcloud_user -d nextcloud -c \
-    "INSERT INTO oc_group_admin (gid, uid) VALUES ('<group_name>', '<username>') ON CONFLICT DO NOTHING;"
-  ```
+### ۷.۲. ثبت به عنوان سرویس خودکار سیستم‌عامل (`systemd`) — روش پیشنهادی
+برای اطمینان از بالا آمدن دیمن پس از ریبوت سرور، یک فایل سرویس بسازید:
 
----
-
-## ۵. تگ‌گذاری خودکار داینامیک و فیلتر همپوشانی چندتگی (`archive_autotag v1.9.0`)
-
-### ۱. الصاق خودکار تگ‌های سیستمی:
-هنگام آپلود هر سند، تمامی پوشه‌های والد به صورت تگ‌های سیستمیِ محافظت‌شده (`restricted`) استخراج و الصاق می‌شوند.
-
-### ۲. فیلتر همپوشانی چند برچسب (Multi-Tag Intersection):
-- در وب‌پنل فایل‌ها، نوار **🏷️ فیلتر پیشرفته برچسب‌های اسناد** تعبیه شده است.
-- کاربران با انتخاب همزمان چندین تگ (مثلاً `افتا` + `الزامات امنیتی`)، اسناد را با منطق اشتراک ریاضی (`AND`) فیلتر می‌کنند.
-- نمایش اطلاعات مسیر، حجم، تگ‌های مرتبط، دکمه «📂 مشاهده در پوشه» و دکمه «⬇️ دانلود».
-- کنترل دقیق سطح دسترسی (کاربر فقط اسناد مجاز را می‌بیند).
-
-### ۳. مدیریت برچسب‌ها و تگ‌گذاری مجدد از طریق CLI:
 ```bash
-# اسکن و تگ‌گذاری مجدد تمامی فایل‌ها
-docker exec -u www-data archive_app php occ archive:retag
+sudo bash -c 'cat > /etc/systemd/system/enterprise-archive-daemon.service <<EOF
+[Unit]
+Description=Enterprise Archive System Operational Daemon
+After=docker.service
+Requires=docker.service
 
-# مدیریت وضعیت خط‌مشی پوشه‌سازی
-docker exec -u www-data archive_app php occ archive:folder:policy status
+[Service]
+Type=simple
+User=alborz
+WorkingDirectory=/home/alborz/enterprise-archive-system
+ExecStart=/home/alborz/enterprise-archive-system/deploy/backup_daemon.sh
+Restart=always
+RestartSec=10
 
-# تنظیم سقف حجم فایل آپلودی برای هر کاربر (مثلاً حداکثر 20MB)
-docker exec -u www-data archive_app php occ archive:user:limit archive_user1 20M
+[Install]
+WantedBy=multi-user.target
+EOF'
+
+# فعال‌سازی و استارت سرویس
+sudo systemctl daemon-reload
+sudo systemctl enable --now enterprise-archive-daemon.service
+sudo systemctl status enterprise-archive-daemon.service
+```
+
+### ۷.۳. پایش لاگ‌های دیمن
+```bash
+tail -f deploy/backup_daemon.log
 ```
 
 ---
 
-## ۶. پایداری داده‌ها، پشتیبان‌گیری کامل و بازیابی بحران (`deploy/`)
+## ۸. دستورات سریع کنسول خط فرمان اپراتور (`manage_backup.sh`)
 
-سامانه مجهز به موتور اختصاصی، کاملاً خودکار و فوق‌العاده امن برای **پشتیبان‌گیری کامل (Full Nextcloud & Database Backup)** و **بازیابی جامع در شرایط بحران (Disaster Recovery)** است:
-
-### ۶.۱. پشتیبان‌گیری جامع و کامل سامانه (`deploy/backup_db.sh`):
-این اسکریپت با بارگذاری مقادیر پیکربندی از `.env` و بررسی سلامت کانتینرهای `archive_db` و `archive_app`، یک پکیج فشرده یکپارچه و پرتابل ایجاد می‌کند که شامل تمامی لایه‌های زیر است:
-- **دامپ دیتابیس PostgreSQL (`database.sql`)**: استخراج کامل و ساختاریافته کلیه جداول و ارتباطات پایگاه داده.
-- **مخزن اسناد و فایل‌ها (`data.tar.gz`)**: بایگانی فشرده دایرکتوری داده‌های کاربران نکست‌کلود بدون دستکاری مجوزهای روی دیسک.
-- **پیکربندی سامانه (`config.tar.gz`)**: ذخیره کامل فایل‌های تنظیمات از جمله `config.php`.
-- **افزونه‌های اختصاصی (`custom_apps.tar.gz`)**: بایگانی افزونه اختصاصی `archive_autotag` و ساختار سفارشی آن.
-- **مانیفست متاداده (`manifest.txt`)**: ثبت مشخصات پشتیبان، زمان دقیق تولید و نام دیتابیس.
-- **چکسام امنیتی SHA256 (`.sha256`)**: محاسبه و ثبت هش هشداردهنده برای اطمینان از سلامت و عدم تغییر فایل.
+اپراتور سیستم می‌تواند تمامی فرآیندهای روزمره را از طریق شل‌اسکریپت متمرکز زیر مدیریت کند:
 
 ```bash
-./deploy/backup_db.sh
-```
-- خروجی به صورت خودکار در مسیر `deploy/backups/nextcloud_full_backup_YYYYMMDD_HHMMSS.tar.gz` ذخیره شده و همواره آخرین نسخه به عنوان `latest_nextcloud_backup.tar.gz` پیوند می‌خورد.
+# مشاهده وضعیت سلامت، آخرین نسخه بکاپ و وضعیت دیمن
+./deploy/manage_backup.sh status
 
-### ۶.۲. بازیابی جامع در شرایط بحران (`deploy/restore_db.sh`):
-در صورت بروز هرگونه بحران سخت‌افزاری، تخریب تصادفی، خرابی دیسک یا انتقال سامانه به سرور جدید، اسکریپت بازیابی فرآیند بازیابی کامل را طی ۸ گام اتمیک انجام می‌دهد:
-1. **اعتبارسنجی چکسام و اصالت فایل**: بررسی یکپارچگی فایل با `tar -tzf` و تطابق هش با `sha256sum`.
-2. **توقف امن اپلیکیشن و پروکسی**: متوقف کردن سرویس‌های `app` و `proxy` جهت پیشگیری از هرگونه نوشتن داده حین بازیابی.
-3. **بازسازی پایگاه‌داده و همگام‌سازی رمز عبور**: قطع کلیه نشست‌های فعال (`pg_terminate_backend`)، حذف و ساخت مجدد دیتابیس، و همگام‌سازی کلمه عبور نقش PostgreSQL با `.env`.
-4. **ایمپورت داده‌ها با توقف در صورت خطا**: ورود پایگاه داده با سوییچ قطعی `ON_ERROR_STOP=1`.
-5. **جایگزینی اتمیک فایل‌ها از طریق کانتینر موقت**: اکسترکت امن آرشیوهای `data`، `config` و `custom_apps` با مجوزهای استاندارد.
-6. **انطباق هوشمند و دترمینیستیک `config.php`**: به‌روزرسانی مقادیر `dbuser` و `dbpassword` قبل از اجرای اولین دستور `occ`، جهت اتصال بدون تناقض با `.env`.
-7. **بازسازی کش و پاکسازی قفل‌ها**: پاکسازی قفل‌های معلق (`oc_file_locks`) و اجرای کامل `occ files:scan --all`.
-8. **راه‌اندازی مجدد پروکسی**: راه‌اندازی و بازگردانی ترافیک وب پس از اطمینان کامل از صحت کارکرد اپلیکیشن.
+# مشاهده لیست کامل فایل‌های پشتیبان، حجم و هش‌ها
+./deploy/manage_backup.sh list
 
-```bash
-# بازیابی از آخرین نسخه پشتیبان کامل
-./deploy/restore_db.sh
+# اجرای فوری یک نسخه پشتیبان کامل
+./deploy/manage_backup.sh run
 
-# بازیابی از فایل پشتیبان مشخص به همراه اعتبارسنجی چکسام
-./deploy/restore_db.sh deploy/backups/nextcloud_full_backup_20260914_143907.tar.gz
-```
+# اجرای آزمون ارزیابی سلامت بکاپ در محیط سندباکس ایزوله
+./deploy/manage_backup.sh test deploy/backups/latest_nextcloud_backup.tar.gz
 
-### ۶.۳. پایش جامع سلامت سامانه (`deploy/check_health.sh`):
-```bash
-./deploy/check_health.sh
-```
+# اجرای بازیابی تعاملی در ترمینال
+./deploy/manage_backup.sh restore deploy/backups/latest_nextcloud_backup.tar.gz
 
-> [!CAUTION]
-> هرگز از دستور `docker compose down -v` استفاده نکنید. سوییچ `-v` باعث حذف کامل والیوم‌ها و دیتای پایگاه‌داده می‌گردد.
-
----
-
-## ۷. آزمون‌های خودکار جامع (Automated Test Suites)
-
-مخزن پروژه شامل ۳ سوئیت آزمون جامع پایتون برای صحه‌گذاری فنی تمامی قابلیت‌ها است:
-
-```bash
-# فعال‌سازی محیط تست
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# ۱. آزمون جامع تگ‌گذاری سلسله‌مراتبی، سقف حجم و سیاست پوشه‌ها
-python3 tests/test_dynamic_archive_system.py
-
-# ۲. آزمون مرزبندی حاکمیت حساب‌های کاربری و ایزولاسیون مدیر گروه
-python3 tests/test_user_governance.py
-
-# ۳. آزمون فیلتر همپوشانی چندتگی اسناد (Multi-Tag Intersection) و ACL
-python3 tests/test_multi_tag_filter.py
-
-# ۴. آزمون ثبات نشانی مرورگر (Stealth URL Masking) و چند دامنه‌ای (docs.maskan)
-python3 tests/test_url_masking.py
-
-# ۵. آزمون یکپارچگی پورتال مدرن بایگانی اسناد (Enterprise Archive Portal UI/UX)
-python3 tests/test_archive_portal.py
-
-# ۶. آزمون ایزوله‌سازی برچسب‌ها در سطح گروه کاربری (Group-Level Tag Isolation)
-python3 tests/test_group_tag_isolation.py
-
-# ۷. آزمون محدودسازی منوی ناوبری و اپ‌لانچر (App Menu & Launcher Restriction)
-python3 tests/test_app_menu_isolation.py
-
-# ۸. آزمون حذف کامل App store و تفکیک وافل‌منو (App Store & Waffle Menu Isolation)
-python3 tests/test_app_store_isolation.py
-
-# ۹. آزمون گردش‌کار تفویضی درخواست پوشه و تأیید اتمیک (Folder Request Workflow & Governance)
-python3 tests/test_folder_request_workflow.py
-
-# ۱۰. آزمون حاکمیت پیشرفته، جلوگیری از تکرار، رهگیری Audit و نوتیفیکیشن (Governance v2)
-python3 tests/test_folder_request_governance_v2.py
+# پاکسازی فایل‌های پشتیبان منقضی بر اساس سیاست نگهداری (Retention)
+./deploy/manage_backup.sh prune
 ```
 
 ---
 
-## ۸. تفکیک و انحصار منوی ناوبری و حذف کامل App Store (App Menu & Launcher Isolation)
+## ۹. حفظ و تداوم سفارشی‌سازی‌ها (Customization Preservation)
 
-جهت تمرکز کامل کاربران نهایی بر سامانه بایگانی اسناد و سادگی محیط کاربری، منوی ناوبری بالا و انتخاب‌گر اپلیکیشن‌ها (وافل‌منو / Waffle 9-dots) محدودسازی شده است:
-- **کاربران کلیه گروه‌های سازمانی (SOC، CERT، Compliance و...)**: صرفاً آیکون و گزینه «بایگانی اسناد» (`archive_autotag`) را در هدر و منوی اپ‌ها مشاهده می‌کنند. سایر اپ‌ها نظیر Files، Dashboard، Photos، Activity و Office از دید این کاربران در منو پنهان گردیده و صفحه اصلی سامانه مستقیماً به پورتال بایگانی اسناد هدایت می‌شود.
-- **کاربران گروه مدیران (`admin`)**: به عنوان استثنای حاکمیتی، به کلیه اپلیکیشن‌های نصب‌شده در سیستم دسترسی کامل دارند.
+اپراتور باید بداند که چرا و چگونه سفارشیسازی‌های سیستم در زمان استقرار مجدد از بین نمی‌روند:
 
-
+1. **کدهای اختصاصی (`apps/archive_autotag`):** این پوشه حاوی کلیه ۵۳ کلاس PHP، کنترلرها، سرویس ممیزی پایدار، رزولور دسترسی و رابط کاربری پورتال است. از آنجا که این پوشه مستقیماً از هاست به داخل کانتینر متصل (Bind-Mount) شده است، هرگز وابسته به چرخه کانتینر داکر نیست و با خاموش یا تعویض شدن ایمیج دست‌نخورده باقی می‌ماند.
+2. **پوسته مات Obsidian و فونت وزیرمتن:** کدهای CSS در مسیر `apps/archive_autotag/css/` نسخه شده‌اند و با فعال بودن اپ، به طور خودکار به سربرگ صفحات تزریق می‌شوند.
+3. **ماسک برندینگ:** استایل‌های مخفی‌سازی Nextcloud درون `branding_mask.css` قرار داشته و در تمام صفحات عمومی و خصوصی بدون وقفه اعمال می‌گردند.
+4. **تگ‌های سیستمی و متادیتای اسناد:** شِما و رکوردهای جداول اختصاصی (`oc_archive_tags`, `oc_archive_document_metadata`, `oc_archive_permission_audit`) در سناریوی A از طریق فایل `database.sql` بازیابی شده و در سناریوی B از طریق مایگریشن‌های اپلیکیشن از نو ساخته می‌شوند.
 
 ---
 
-## ۹. گردش‌کار درخواست ایجاد پوشه توسط ادمین گروه و تأیید ادمین کل (Delegated Folder Creation Workflow v1.9.0)
+## ۱۰. ماتریس عیب‌یابی و سناریوهای اضطراری (Troubleshooting Matrix)
 
-این قابلیت امکان مدیریت سلسله‌مراتبی و تفویض درخواست ایجاد پوشه را با رعایت کامل اصول امنیتی و حاکمیت داده فراهم می‌کند:
-1. **نقش کاربر عادی**: دکمه یا فرم درخواست پوشه به هیچ عنوان نمایش داده نشده و دسترسی مستقیم به API با خطای HTTP 403 مسدود است.
-2. **نقش ادمین گروه (Group Admin)**:
-   - در هدر پورتال دکمه‌های `[ + درخواست پوشه جدید ]` و `[ درخواست‌های گروه ]` نمایش داده می‌شود.
-   - نام و گروه سازمانی مستقیماً از سشن سمت سرور استخراج شده و امکان جعل یا ثبت درخواست برای سایر گروه‌ها وجود ندارد.
-   - وضعیت درخواست به صورت خودکار در وضعیت اولیه `pending` (در انتظار بررسی) قرار می‌گیرد.
-3. **نقش ادمین کل (System Admin)**:
-   - در هدر پورتال دکمه `[ مدیریت درخواست‌های پوشه ]` همراه با بج شمارنده درخواست‌های در انتظار فعال است.
-   - پنل بررسی شامل فیلتر بر اساس گروه و وضعیت، مشاهده جزئیات و دکمه‌های تأیید یا رد است.
-   - **تأیید اتمیک**: پوشه به صورت فیزیکی تحت شاخه گروه ایجاد شده، دسترسی‌های گروه (Read + Create) روی آن اعمال، و تگ سیستمی متناظر تولید و به گروه مقید می‌گردد.
-   - **رد با دلیل**: ثبت دلیل رد الزامی بوده و دلیل برای ادمین گروه درخواست‌دهنده قابل مشاهده است.
+| خطای مشاهده‌شده | علت ریشه‌ای احتمالی | دستورات سریع رفع مشکل توسط اپراتور |
+|---|---|---|
+| **خطای خط فرمان: Port 80 is already in use** | سرویس وب محلی (مانند آپاچی یا Nginx خود سرور) روشن است | `sudo systemctl stop nginx apache2`<br>`sudo systemctl disable nginx apache2` |
+| **خطای خط فرمان: Checksum verification failed** | فایل بکاپ ناقص کپی شده یا دستکاری شده است | فایل را دوباره دانلود/انتقال دهید و با `sha256sum <file>` بررسی کنید. |
+| **خطای وب: 502 Bad Gateway** | کانتینر `archive_app` هنوز در حال بالا آمدن است یا متوقف شده | `docker compose logs -f app`<br>بررسی وضعیت با `docker compose ps` |
+| **خطای وب: Data directory is not writable** | مجوز مالکیت پوشه دیتای نکست‌کلاد تغییر یافته است | `docker exec archive_app chown -R www-data:www-data /var/www/html/data` |
+| **خطای وب: Access through untrusted domain** | دامنه یا IP سرور در لیست دامنه‌های مجاز نیست | `docker exec -u www-data archive_app php occ config:system:set trusted_domains 3 --value="YOUR_DOMAIN_OR_IP"` |
+| **خطای دیتابیس: Password authentication failed** | کلمه عبور در `config.php` با رمز نقش دیتابیس ناهمخوان است | `docker exec -u www-data archive_app php occ config:system:set dbpassword --value="VALUE_FROM_ENV"` |
+| **خطای دیتابیس: Database is locked / File lock** | قفل‌های جدول `oc_file_locks` پس از قطعی سرور باقی مانده است | `docker exec archive_db psql -U nextcloud_user -d nextcloud -c "TRUNCATE TABLE oc_file_locks;"` |
+| **عدم به‌روزرسانی لیست فایل‌ها در پورتال** | کش ایندکس فایل‌ها نیاز به همگام‌سازی با دیسک دارد | `docker exec -u www-data archive_app php occ files:scan --all` |
 
-تمامی آزمون‌ها باید با موفقیت ۱۰۰٪ پاس شوند.
+---
+
+## ۱۱. دستورالعمل بازگشت به عقب در صورت شکست (Rollback SOP)
+
+اگر در هر مرحله‌ای از اجرای سناریوی الف یا ب فرآیند با شکست غیرقابل ترمیم مواجه شد:
+
+```bash
+# ۱. توقف فوری کلیه کانتینرهای فعال
+docker compose down
+
+# ۲. استخراج لاگ‌های خطا جهت ارزیابی کارشناسی
+docker compose logs > deploy/deployment_failure_$(date +%Y%m%d_%H%M%S).log
+
+# ۳. پاکسازی وضعیت ناقص دیتابیس در صورت نیاز به تکرار از صفر
+# هشدار: این دستور دایرکتوری پایگاه داده را بازنشانی می‌کند
+rm -rf db/* nextcloud/data/* nextcloud/config/*
+
+# ۴. بررسی و تصحیح مقادیر فایل .env و تلاش مجدد
+nano .env
+```
+
+---
+
+## ۱۲. چک‌لیست نهایی تحویل سامانه به بهره‌بردار (Production Handover Checklist)
+
+قبل از اعلام آمادگی سامانه به کارفرما یا بهره‌برداران نهایی، تمامی موارد زیر باید تایید شوند:
+
+- [ ] اجرای کامل `./deploy/check_health.sh` و دریافت پیام `Health check completed successfully`.
+- [ ] بررسی ورود موفقیت‌آمیز کاربر مدیر ارشد (`admin`) از طریق مرورگر به آدرس سرور.
+- [ ] بررسی اعمال ظاهر پوسته مشکی مات Obsidian و فونت یکپارچه وزیرمتن در تمامی دکمه‌ها.
+- [ ] آزمایش موفقیت‌آمیز بارگذاری یک فایل جدید در پوشه `/Enterprise_Archive`.
+- [ ] آزمایش اختصاص متادیتای الزامی به سند و جستجوی آن با تگ در پورتال آرشیو.
+- [ ] بررسی فعال بودن سرویس دیمن در پس‌زمینه (`systemctl status enterprise-archive-daemon.service` یا `ps aux | grep backup_daemon.sh`).
+- [ ] اجرای موفقیت‌آمیز آزمون‌های رگرسیون پایتون با `python3 run_all_tests.py` یا `python3 tests/test_backup_and_recovery.py`.

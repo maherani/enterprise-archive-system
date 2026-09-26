@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سامانه در حال بازیابی اطلاعات - بانک مسکن</title>
+    <style>
+        :root {
+            --bg-color: #090b0e;
+            --surface-card: #11141b;
+            --primary: #f97316;
+            --primary-glow: rgba(249, 115, 22, 0.35);
+            --accent: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.35);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(99, 102, 241, 0.4);
+            --success: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 50% 20%, rgba(99, 102, 241, 0.12), transparent 45%),
+                radial-gradient(circle at 80% 80%, rgba(249, 115, 22, 0.08), transparent 40%);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Vazirmatn", "Tahoma", sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            direction: rtl;
+        }
+
+        .maint-container {
+            width: 100%;
+            max-width: 640px;
+            background: var(--surface-card);
+            border: 1px solid var(--border-glow);
+            border-radius: 16px;
+            padding: 40px 32px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(99, 102, 241, 0.15);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            animation: fadeIn 0.8s ease-out;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .maint-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #f97316, #6366f1, #38bdf8);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .logo-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            padding: 6px 16px;
+            border-radius: 30px;
+            font-size: 0.84rem;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+        }
+
+        /* Animated Hourglass Container */
+        .hourglass-wrapper {
+            position: relative;
+            width: 110px;
+            height: 110px;
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .hourglass-svg {
+            width: 84px;
+            height: 84px;
+            filter: drop-shadow(0 0 16px var(--primary-glow));
+            animation: hourglassRotate 4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+            transform-origin: center center;
+        }
+
+        @keyframes hourglassRotate {
+            0%, 20% { transform: rotate(0deg); }
+            45%, 70% { transform: rotate(180deg); }
+            95%, 100% { transform: rotate(360deg); }
+        }
+
+        /* Pulsing Glow behind Hourglass */
+        .glow-circle {
+            position: absolute;
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(249, 115, 22, 0.25) 0%, transparent 70%);
+            animation: pulseGlow 2s ease-in-out infinite;
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% { transform: scale(0.9); opacity: 0.6; }
+            50% { transform: scale(1.2); opacity: 1; }
+        }
+
+        h1 {
+            font-size: 1.45rem;
+            font-weight: 800;
+            color: var(--text-main);
+            line-height: 1.4;
+        }
+
+        .desc-text {
+            font-size: 0.95rem;
+            line-height: 1.8;
+            color: var(--text-muted);
+            max-width: 520px;
+        }
+
+        .timer-box {
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 24px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .timer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.88rem;
+        }
+
+        .timer-label {
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .countdown-val {
+            font-family: monospace;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #fbbf24;
+            letter-spacing: 1px;
+            direction: ltr;
+        }
+
+        .progress-track {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 35%;
+            background: linear-gradient(90deg, #f97316, #6366f1);
+            border-radius: 4px;
+            transition: width 1s linear;
+        }
+
+        .status-footer {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.84rem;
+            color: var(--text-muted);
+        }
+
+        .pulse-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #10b981;
+            box-shadow: 0 0 10px #10b981;
+            animation: blink 1.5s infinite ease-in-out;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 0.3; transform: scale(0.9); }
+            50% { opacity: 1; transform: scale(1.1); }
+        }
+
+        .reconnected-msg {
+            display: none;
+            color: var(--success);
+            font-weight: bold;
+            font-size: 0.95rem;
+            animation: fadeIn 0.5s ease-out;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="maint-container">
+        <div class="logo-badge">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            <span>سامانه جامع بایگانی اسناد سازمانی بانک مسکن</span>
+        </div>
+
+        <div class="hourglass-wrapper">
+            <div class="glow-circle"></div>
+            <!-- High-Fidelity Animated Hourglass SVG -->
+            <svg class="hourglass-svg" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Frame / Stand -->
+                <path d="M14 6H50M14 58H50" stroke="#f97316" stroke-width="4.5" stroke-linecap="round"/>
+                <path d="M18 10C18 24 30 29 30 32C30 35 18 40 18 54" stroke="#818cf8" stroke-width="3" stroke-linecap="round"/>
+                <path d="M46 10C46 24 34 29 34 32C34 35 46 40 46 54" stroke="#818cf8" stroke-width="3" stroke-linecap="round"/>
+                <!-- Upper Sand Bulk -->
+                <path d="M22 14H42C40 24 34 28 32 30C30 28 24 24 22 14Z" fill="#fbbf24" opacity="0.9"/>
+                <!-- Lower Sand Pile -->
+                <path d="M24 53H40C39 46 35 42 32 41C29 42 25 46 24 53Z" fill="#fbbf24" opacity="0.9"/>
+                <!-- Trickling Sand Stream -->
+                <line x1="32" y1="31" x2="32" y2="43" stroke="#fef08a" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 3"/>
+            </svg>
+        </div>
+
+        <h1>در حال بازیابی و همگام‌سازی اضطراری اطلاعات سامانه</h1>
+
+        <p class="desc-text">
+            کاربر گرامی، سامانه در حال حاضر توسط تیم مهندسی در وضعیت <strong>بازیابی پایگاه داده و اسناد سازمانی (Data Disaster Recovery)</strong> قرار دارد.
+            به منظور حفظ پایداری و یکپارچگی اطلاعات، کلیه دسترسی‌ها موقتاً محدود گردیده است.
+            لطفاً تا اتمام فرآیند و برقراری ارتباط شکیبا باشید.
+        </p>
+
+        <div class="timer-box">
+            <div class="timer-header">
+                <span class="timer-label">
+                    <span>زمان تقریبی اتمام بازیابی:</span>
+                </span>
+                <span class="countdown-val" id="countdown-timer">00:55</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-bar" id="maint-progress-bar"></div>
+            </div>
+        </div>
+
+        <div class="status-footer" id="status-footer">
+            <div class="pulse-dot"></div>
+            <span>در حال پایش مداوم وضعیت سرویس... به محض پایان بازیابی، صفحه خودکار بارگذاری می‌شود.</span>
+        </div>
+
+        <div class="reconnected-msg" id="reconnected-msg">
+            ✓ بازیابی اطلاعات با موفقیت انجام شد! در حال انتقال به پرتال آرشیو...
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            var urlParams = new URLSearchParams(window.location.search);
+            var action = urlParams.get('action') || 'restore';
+            var isBackup = (action === 'backup');
+
+            if (isBackup) {
+                var h1 = document.querySelector('h1');
+                if (h1) h1.textContent = 'در حال تهیه نسخه پشتیبان از اطلاعات سامانه';
+                var desc = document.querySelector('.desc-text');
+                if (desc) {
+                    desc.innerHTML = 'کاربر گرامی، سامانه در حال حاضر در وضعیت <strong>تهیه نسخه پشتیبان کامل از پایگاه داده و اسناد سازمانی (Data Backup)</strong> قرار دارد.<br>به منظور ثبت سازگار وضعیت داده‌ها و پیشگیری از هرگونه تداخل، کلیه دسترسی‌ها موقتاً محدود گردیده است.<br>لطفاً تا اتمام فرآیند پشتیبان‌گیری و آزادسازی منابع، شکیبا باشید.';
+                }
+                var timerLabel = document.querySelector('.timer-label span');
+                if (timerLabel) timerLabel.textContent = 'زمان تقریبی اتمام پشتیبان‌گیری:';
+                var success = document.getElementById('reconnected-msg');
+                if (success) success.textContent = '✓ عملیات پشتیبان‌گیری با موفقیت انجام شد! در حال انتقال به پرتال آرشیو...';
+                var footer = document.getElementById('status-footer');
+                if (footer) {
+                    var s = footer.querySelector('span');
+                    if (s) s.textContent = 'در حال پایش خودکار پیشرفت پشتیبان‌گیری... پس از تکمیل، صفحه کاربری شما بازگردانده خواهد شد.';
+                }
+            }
+
+            var totalSeconds = isBackup ? 45 : 60;
+            var remaining = totalSeconds;
+            var timerEl = document.getElementById('countdown-timer');
+            var progressEl = document.getElementById('maint-progress-bar');
+            var footerEl = document.getElementById('status-footer');
+            var successEl = document.getElementById('reconnected-msg');
+
+            // Countdown timer update every second
+            var countdownInterval = setInterval(function() {
+                if (remaining > 1) {
+                    remaining--;
+                    var mins = Math.floor(remaining / 60);
+                    var secs = remaining % 60;
+                    var fmt = (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
+                    timerEl.textContent = fmt;
+
+                    var percent = Math.min(95, Math.round(((totalSeconds - remaining) / totalSeconds) * 90) + 10);
+                    progressEl.style.width = percent + '%';
+                } else {
+                    timerEl.textContent = 'چند لحظه...';
+                    progressEl.style.width = '96%';
+                }
+            }, 1000);
+
+            // Active Heartbeat polling to auto-reload as soon as Nextcloud is back up
+            var checkAlive = function() {
+                fetch('/index.php', { method: 'HEAD', cache: 'no-store' })
+                .then(function(res) {
+                    // Nextcloud returns 200 or 302 when active, not 502/503
+                    if (res.status === 200 || res.status === 302) {
+                        clearInterval(countdownInterval);
+                        timerEl.textContent = '00:00';
+                        progressEl.style.width = '100%';
+                        progressEl.style.background = '#10b981';
+                        footerEl.style.display = 'none';
+                        successEl.style.display = 'block';
+
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 1200);
+                    } else {
+                        setTimeout(checkAlive, 2500);
+                    }
+                })
+                .catch(function() {
+                    setTimeout(checkAlive, 2500);
+                });
+            };
+
+            setTimeout(checkAlive, 3000);
+        })();
+    </script>
+</body>
+</html>

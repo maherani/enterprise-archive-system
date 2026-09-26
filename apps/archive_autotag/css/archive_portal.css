@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap');
 /**
  * Enterprise Archive Portal - Modern Native CSS
  * Theme: Obsidian & Industrial Orange (مشکی و نارنجی سازمانی)
@@ -237,51 +238,150 @@ body[theme="dark"] :root,
   display: none;
 }
 
+/* Universal Button System - Harmonized with Industrial Obsidian & Orange Theme */
 .ea-workflow-actions {
   display: flex;
   align-items: center;
-  gap: 5px;
-  flex-wrap: nowrap;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.ea-btn {
-  display: inline-flex;
+.ea-header-actions {
+  display: flex;
   align-items: center;
-  gap: 3.5px;
-  padding: 2px 6px;
-  font-family: var(--ea-font-family);
-  font-size: 0.58rem;
-  font-weight: 600;
-  border-radius: 7px;
-  border: 1px solid var(--ea-border);
-  background: var(--ea-surface-card);
-  color: var(--ea-text-main);
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  text-decoration: none;
-  box-shadow: var(--ea-shadow-sm);
-  white-space: nowrap;
-  line-height: 1.25;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ea-header-actions::-webkit-scrollbar {
+  display: none;
 }
 
-.ea-btn svg {
-  width: 12px;
-  height: 12px;
-  flex-shrink: 0;
-}
-
+.ea-btn,
+.ea-folder-nav-actions .ea-btn,
 .ea-header-actions .ea-btn,
-.ea-workflow-actions .ea-btn {
-  font-size: 0.58rem !important;
-  padding: 2px 6px !important;
-  gap: 3.5px !important;
-  line-height: 1.25 !important;
+.ea-workflow-actions .ea-btn,
+.ea-drawer-footer .ea-btn,
+.ea-modal-actions .ea-btn,
+.ea-table-toolbar .ea-btn,
+#archive-portal-root button:not(.ea-icon-btn):not(.ea-modal-close):not(.ea-drawer-close):not(.ea-view-btn):not(.ea-search-clear):not(.ea-breadcrumb-btn):not(.ea-tag-del-btn) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 4px 12px !important;
+  font-family: var(--ea-font-family) !important;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.3 !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--ea-border) !important;
+  background: var(--ea-surface-card) !important;
+  color: var(--ea-text-main) !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  text-decoration: none !important;
+  box-shadow: var(--ea-shadow-sm) !important;
+  white-space: nowrap !important;
+  box-sizing: border-box !important;
+  user-select: none !important;
 }
 
+.ea-btn svg,
 .ea-header-actions .ea-btn svg,
-.ea-workflow-actions .ea-btn svg {
-  width: 12px !important;
-  height: 12px !important;
+.ea-workflow-actions .ea-btn svg,
+#archive-portal-root button svg {
+  width: 14px !important;
+  height: 14px !important;
+  flex-shrink: 0 !important;
+}
+
+.ea-btn:hover,
+#archive-portal-root button:not(.ea-icon-btn):not(.ea-modal-close):not(.ea-drawer-close):not(.ea-view-btn):not(.ea-search-clear):not(.ea-breadcrumb-btn):not(.ea-tag-del-btn):hover {
+  border-color: var(--ea-primary) !important;
+  color: var(--ea-primary) !important;
+  background: var(--ea-surface-hover) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 10px rgba(249, 115, 22, 0.25) !important;
+}
+
+.ea-btn:active,
+#archive-portal-root button:active {
+  transform: translateY(0px) scale(0.98) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Primary Button (Like "بارگذاری فایل" in reference image) */
+.ea-btn-primary,
+button.primary,
+.button.primary,
+#archive-portal-root button.ea-btn-primary {
+  background: var(--ea-primary-gradient) !important;
+  border: 1px solid rgba(249, 115, 22, 0.5) !important;
+  color: #ffffff !important;
+  box-shadow: 0 3px 10px var(--ea-primary-glow) !important;
+  border-radius: 8px !important;
+  font-weight: 700 !important;
+}
+
+.ea-btn-primary:hover,
+button.primary:hover,
+#archive-portal-root button.ea-btn-primary:hover {
+  background: linear-gradient(135deg, #fb923c 0%, #ea580c 100%) !important;
+  box-shadow: 0 5px 18px rgba(249, 115, 22, 0.45) !important;
+  transform: translateY(-1px) !important;
+  color: #ffffff !important;
+}
+
+/* Secondary Warm Light Button (Like "پوشه بالا" in reference image) */
+.ea-btn-light,
+#ea-folder-up-btn {
+  background: #fdf4ec !important;
+  border: 1px solid #fed7aa !important;
+  color: #7c2d12 !important;
+  font-weight: 600 !important;
+}
+
+.ea-btn-light:hover,
+#ea-folder-up-btn:hover {
+  background: #ffedd5 !important;
+  border-color: #f97316 !important;
+  color: #431407 !important;
+}
+
+/* Outline Neutral Button (Like "همه اسناد" in reference image) */
+.ea-btn-outline,
+#ea-exit-folder-btn {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid var(--ea-border) !important;
+  color: var(--ea-text-muted) !important;
+  font-weight: 600 !important;
+}
+
+.ea-btn-outline:hover,
+#ea-exit-folder-btn:hover {
+  background: rgba(239, 68, 68, 0.12) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #ef4444 !important;
+}
+
+/* Danger Button */
+.ea-btn-danger {
+  background: rgba(239, 68, 68, 0.18) !important;
+  border: 1px solid rgba(239, 68, 68, 0.45) !important;
+  color: #f87171 !important;
+  font-weight: 600 !important;
+}
+
+.ea-btn-danger:hover {
+  background: #dc2626 !important;
+  border-color: #ef4444 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.45) !important;
 }
 
 .ea-btn:hover {
@@ -1524,15 +1624,18 @@ body[theme="dark"] :root,
 }
 
 .ea-btn-sm {
-  padding: 3.5px 8px;
-  font-size: 0.70rem;
-  font-weight: 700;
-  border-radius: 8px;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 4px 10px !important;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  font-family: var(--ea-font-family) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  box-sizing: border-box !important;
 }
 
 .ea-btn-sm:hover {
@@ -2049,14 +2152,20 @@ body[theme="dark"] :root,
 }
 
 .ea-chip-btn {
-  background: var(--ea-surface-elevated);
-  border: 1px solid var(--ea-border);
-  color: var(--ea-text-muted);
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  background: var(--ea-surface-elevated) !important;
+  border: 1px solid var(--ea-border) !important;
+  color: var(--ea-text-muted) !important;
+  border-radius: 8px !important;
+  padding: 4px 12px !important;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  font-family: var(--ea-font-family) !important;
+  height: 32px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
 }
 
 .ea-chip-btn:hover {
@@ -2294,9 +2403,18 @@ body[theme="dark"] :root,
 }
 
 .ea-btn-sm {
-    padding: 4px 10px !important;
-    font-size: 0.8rem !important;
-    height: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 4px 10px !important;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  border-radius: 8px !important;
+  font-family: var(--ea-font-family) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  box-sizing: border-box !important;
 }
 
 .ea-btn-outline {
@@ -2493,4 +2611,243 @@ body[theme="dark"] :root,
     border-color: #ef4444 !important;
     background: rgba(239, 68, 68, 0.15) !important;
     color: #fca5a5 !important;
+}
+
+
+/* =========================================================================
+   Requirement 29: Backup and Recovery Console Styles
+   ========================================================================= */
+.ea-backup-badge-pass {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.ea-backup-badge-fail {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.ea-backup-badge-untested {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(148, 163, 184, 0.12);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.ea-backup-running-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.15));
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    border-radius: 8px;
+    margin-bottom: 20px;
+    animation: ea-pulse-border 2s infinite ease-in-out;
+}
+
+@keyframes ea-pulse-border {
+    0%, 100% { border-color: rgba(99, 102, 241, 0.4); }
+    50% { border-color: rgba(168, 85, 247, 0.8); }
+}
+
+.ea-restore-danger-box {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 18px;
+    color: #fca5a5;
+    font-size: 0.88rem;
+    line-height: 1.6;
+}
+
+.ea-terminal-snippet {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.85rem;
+    color: #58a6ff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 6px;
+    direction: ltr;
+}
+
+/* Backup & Recovery Modal Width Enhancement */
+.ea-modal-card-backup {
+  width: 96vw !important;
+  max-width: 1380px !important;
+  max-height: 92vh !important;
+}
+
+
+/* =========================================================================
+   Disaster Recovery In-App Hourglass Maintenance Overlay
+   ========================================================================= */
+.ea-maint-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999999;
+    background: rgba(9, 11, 14, 0.96);
+    backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    direction: rtl;
+    animation: ea-fadeIn 0.5s ease-out;
+}
+
+.ea-maint-card {
+    width: 100%;
+    max-width: 640px;
+    background: #11141b;
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    border-radius: 16px;
+    padding: 38px 30px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(99, 102, 241, 0.2);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    position: relative;
+    overflow: hidden;
+}
+
+.ea-maint-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #f97316, #6366f1, #38bdf8);
+}
+
+.ea-hourglass-anim {
+    width: 84px;
+    height: 84px;
+    filter: drop-shadow(0 0 16px rgba(249, 115, 22, 0.4));
+    animation: ea-hourglassRotate 4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+    transform-origin: center center;
+}
+
+@keyframes ea-hourglassRotate {
+    0%, 20% { transform: rotate(0deg); }
+    45%, 70% { transform: rotate(180deg); }
+    95%, 100% { transform: rotate(360deg); }
+}
+
+@keyframes ea-fadeIn {
+    from { opacity: 0; transform: scale(0.98); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes ea-fadeOut {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.97); }
+}
+
+.ea-maint-card.backup-mode {
+    border-color: rgba(6, 182, 212, 0.45);
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75), 0 0 40px rgba(6, 182, 212, 0.22);
+}
+
+.ea-maint-card.backup-mode::before {
+    background: linear-gradient(90deg, #06b6d4, #f97316, #10b981);
+}
+
+.ea-backup-anim-box {
+    position: relative;
+    width: 95px;
+    height: 95px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 6px 0;
+}
+
+.ea-backup-glow-ring {
+    position: absolute;
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(6, 182, 212, 0.3) 0%, transparent 70%);
+    animation: ea-backupPulse 2.5s infinite ease-in-out;
+}
+
+.ea-backup-icon-anim {
+    width: 84px;
+    height: 84px;
+    filter: drop-shadow(0 0 16px rgba(6, 182, 212, 0.45));
+    animation: ea-backupFloat 3s ease-in-out infinite alternate;
+}
+
+@keyframes ea-backupFloat {
+    0% { transform: translateY(0px) scale(0.98); }
+    100% { transform: translateY(-4px) scale(1.02); }
+}
+
+@keyframes ea-backupPulse {
+    0%, 100% { transform: scale(0.9); opacity: 0.5; }
+    50% { transform: scale(1.15); opacity: 0.95; }
+}
+
+@keyframes ea-backupOrbit {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.ea-orbit-ring {
+    animation: ea-backupOrbit 6s linear infinite;
+    transform-origin: 32px 32px;
+}
+
+
+/* Standardized Square Icon & Close Buttons */
+.ea-icon-btn,
+.ea-modal-close,
+.ea-drawer-close,
+button.ea-modal-close,
+button.ea-drawer-close {
+  width: 32px !important;
+  min-width: 32px !important;
+  max-width: 32px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
+  border-radius: 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 14px !important;
+  font-family: var(--ea-font-family) !important;
 }

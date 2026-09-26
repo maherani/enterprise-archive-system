@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap');
 /**
  * Enterprise Archive Multi-Tag Filter Styles
  * Theme: Obsidian & Industrial Orange (مشکی و نارنجی سازمانی)
@@ -704,4 +705,24 @@ body.ea-sidebar-collapsed #app-content {
 .app-menu__current-app:hover .app-menu__current-app-name {
     color: #f97316 !important;
     text-shadow: 0 0 8px rgba(249, 115, 22, 0.4);
+}
+
+
+/* Ensure all buttons in multi_tag_filter match system button design */
+.archive-clear-btn,
+.archive-action-btn,
+.archive-share-btn,
+.ea-filter-toggle-btn {
+    font-family: 'Vazirmatn', 'Shabnam', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    border-radius: 8px !important;
+    padding: 4px 12px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    box-sizing: border-box !important;
 }

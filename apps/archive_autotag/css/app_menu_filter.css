@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap');
 /* Enterprise Archive System - Comprehensive Global Obsidian & Orange Theming */
 /* Theme: Obsidian & Industrial Orange (مشکی و نارنجی سازمانی) */
 
@@ -417,10 +418,33 @@ input[type="button"],
 input[type="submit"],
 .action-item__button,
 .app-navigation__new-button,
-.header-menu__trigger {
+.header-menu__trigger,
+.ea-btn {
+    font-family: 'Vazirmatn', 'Shabnam', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 0 !important;
+    line-height: 1.3 !important;
+    height: 32px !important;
+    min-height: 32px !important;
     border-radius: 8px !important;
+    padding: 4px 12px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    box-sizing: border-box !important;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
     cursor: pointer !important;
+}
+
+button svg,
+.button svg,
+.button-vue svg,
+.ea-btn svg {
+    width: 14px !important;
+    height: 14px !important;
+    flex-shrink: 0 !important;
 }
 
 /* Hover lift and glow effect for standard / neutral buttons */

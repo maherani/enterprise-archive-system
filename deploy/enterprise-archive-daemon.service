@@ -1,0 +1,18 @@
+[Unit]
+Description=Enterprise Archive System Operational Daemon
+Documentation=https://github.com/enterprise-archive-system
+After=docker.service network.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=alborz
+WorkingDirectory=/home/alborz/enterprise-archive-system
+ExecStart=/home/alborz/enterprise-archive-system/deploy/backup_daemon.sh
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/alborz/enterprise-archive-system/deploy/backup_daemon.log
+StandardError=append:/home/alborz/enterprise-archive-system/deploy/backup_daemon.log
+
+[Install]
+WantedBy=multi-user.target

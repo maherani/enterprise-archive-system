@@ -1,0 +1,339 @@
+در پروژه enterprise-archive-system یک
+System Deployment & Recovery Runbook کامل طراحی کن.
+
+هدف این Runbook این است که بتوانیم سامانه را در یک محیط جدید
+از ابتدا راه‌اندازی کنیم.
+
+این Runbook باید دو سناریوی کاملاً مستقل داشته باشد:
+
+Scenario A:
+Rebuild System + Restore Previous Data
+
+Scenario B:
+Fresh Installation / Fresh Deployment
+
+نکته مهم:
+
+Backup و Recovery اطلاعات در Requirement جداگانه تعریف می‌شود.
+
+در این Runbook باید مشخص شود وقتی یک Server یا محیط اجرایی جدید
+در اختیار داریم، چگونه سامانه را دوباره Deploy کنیم و در صورت
+وجود Backup، چگونه اطلاعات قبلی را روی آن Restore کنیم.
+
+--------------------------------------------------
+1. ابتدا معماری فعلی را بررسی کن
+--------------------------------------------------
+
+قبل از هرگونه تغییر، کل ساختار فعلی پروژه را بررسی کن.
+
+مشخص کن:
+
+1. Application چیست؟
+2. Nextcloud چگونه Deploy می‌شود؟
+3. Database چگونه Deploy می‌شود؟
+4. Nginx / Reverse Proxy چگونه Deploy می‌شود؟
+5. Docker Compose چگونه استفاده می‌شود؟
+6. Volumeها کجا هستند؟
+7. Networkها چگونه تعریف شده‌اند؟
+8. Environment Configuration کجاست؟
+9. Custom Apps پروژه کجا هستند؟
+10. Custom Themes کجا هستند؟
+11. Branding کجا انجام شده؟
+12. UI Customization کجا انجام شده؟
+13. Localizationها کجا هستند؟
+14. Archive Portal customizationها کجا هستند؟
+15. Configurationهای اختصاصی Nextcloud کجا هستند؟
+16. چه اجزای دیگری برای اجرای صحیح سامانه لازم هستند؟
+
+فعلاً هیچ فایل یا Code را تغییر نده.
+
+--------------------------------------------------
+2. Scenario A
+--------------------------------------------------
+
+Scenario A زمانی است که:
+
+سامانه قبلاً در حال کار بوده،
+اما محیط فعلی از بین رفته یا قابل استفاده نیست.
+
+مثلاً:
+
+- Server از بین رفته
+- VM از بین رفته
+- Docker Environment از بین رفته
+- OS تعویض شده
+- Storage اصلی از بین رفته
+- Nextcloud خراب شده
+- محیط اجرایی باید از صفر ساخته شود
+
+اما Backup اطلاعات قبلی وجود دارد.
+
+هدف:
+
+ایجاد یک محیط جدید و سپس Restore اطلاعات قبلی.
+
+Runbook این سناریو باید حداقل شامل مراحل زیر باشد:
+
+New Infrastructure
+↓
+OS / Required Dependencies
+↓
+Docker
+↓
+Network
+↓
+Volumes
+↓
+Database
+↓
+Nextcloud
+↓
+Nginx / Reverse Proxy
+↓
+Custom Apps
+↓
+Themes
+↓
+Branding
+↓
+Configuration
+↓
+Restore Database
+↓
+Restore User Files
+↓
+Verify Consistency
+↓
+Verify ACL / Permissions
+↓
+Verify Tags
+↓
+Verify Metadata
+↓
+Verify Application Health
+↓
+System Operational
+
+برای هر مرحله مشخص کن:
+
+- چه کاری انجام می‌شود؟
+- چه Dependencyهایی دارد؟
+- چه اطلاعاتی لازم دارد؟
+- نتیجه موفقیت آن مرحله چیست؟
+- در صورت Failure چه کاری باید انجام شود؟
+
+--------------------------------------------------
+3. Scenario B
+--------------------------------------------------
+
+Scenario B زمانی است که:
+
+هیچ اطلاعات قبلی برای Restore وجود ندارد و سامانه باید
+برای اولین بار راه‌اندازی شود.
+
+در این حالت باید یک Fresh Deployment انجام شود.
+
+مراحل کلی:
+
+New Infrastructure
+↓
+OS / Dependencies
+↓
+Docker
+↓
+Network
+↓
+Volumes
+↓
+Database
+↓
+Nextcloud
+↓
+Nginx / Reverse Proxy
+↓
+Custom Apps
+↓
+Themes
+↓
+Branding
+↓
+Localization
+↓
+Organization Configuration
+↓
+Users / Groups
+↓
+Permissions / ACL
+↓
+Tags
+↓
+Group Sharing
+↓
+Document Metadata
+↓
+Backup Configuration
+↓
+System Validation
+↓
+System Ready
+
+مشخص کن کدام مراحل باید به صورت دستی انجام شوند و
+کدام مراحل باید در آینده قابل Automation باشند.
+
+--------------------------------------------------
+4. Customization Preservation
+--------------------------------------------------
+
+یکی از اهداف اصلی Runbook این است که در صورت Rebuild،
+تمام سفارشی‌سازی‌های پروژه از بین نروند.
+
+بنابراین دقیقاً مشخص کن چگونه موارد زیر باید مجدداً Deploy شوند:
+
+- Custom Apps
+- Custom Themes
+- Branding
+- Archive Portal
+- UI Customization
+- Localization
+- Menu Customization
+- Nextcloud Configuration
+- Custom Security Configuration
+- Custom ACL / Permission Components
+- Tag Management Components
+- سایر Componentهای اختصاصی پروژه
+
+هیچ موردی را حدس نزن؛ ابتدا Repository را بررسی کن.
+
+--------------------------------------------------
+5. Configuration Management
+--------------------------------------------------
+
+مشخص کن چه Configurationهایی برای Rebuild ضروری هستند.
+
+برای هر Configuration مشخص کن:
+
+- محل نگهداری
+- نحوه Version Control
+- نحوه Deployment
+- آیا Secret است یا خیر
+- آیا باید Backup شود یا از Secret Management تهیه شود
+
+Secrets نباید در Repository یا Backup به شکل ناامن قرار بگیرند.
+
+--------------------------------------------------
+6. Dependency و Version
+--------------------------------------------------
+
+مشخص کن برای Rebuild چه Versionهایی باید مشخص و کنترل شوند.
+
+حداقل:
+
+- Nextcloud
+- PostgreSQL
+- Nginx
+- Docker Imageها
+- Custom Apps
+- Runtime Dependencies
+
+هدف این است که Rebuild باعث ایجاد یک محیط متفاوت و ناسازگار
+با سامانه اصلی نشود.
+
+--------------------------------------------------
+7. Validation
+--------------------------------------------------
+
+پس از اجرای Runbook باید بتوان صحت سامانه را بررسی کرد.
+
+حداقل:
+
+- Application Health
+- Database Health
+- Nextcloud Health
+- Login
+- User / Group
+- Folder
+- File Upload
+- File Download
+- Tag
+- Group Sharing
+- ACL
+- Permission
+- Metadata
+- Custom Apps
+- Theme / Branding
+- Reverse Proxy
+- Backup Configuration
+
+--------------------------------------------------
+8. Runbook Structure
+--------------------------------------------------
+
+Runbook نهایی باید به شکلی باشد که یک Administrator یا
+System Administrator بتواند آن را مرحله‌به‌مرحله اجرا کند.
+
+ساختار پیشنهادی:
+
+1. Prerequisites
+2. Infrastructure Preparation
+3. Deployment
+4. Configuration
+5. Custom Components Deployment
+6. Scenario A — Rebuild + Restore
+7. Scenario B — Fresh Deployment
+8. Validation
+9. Troubleshooting
+10. Rollback
+11. Post-Deployment Checklist
+
+--------------------------------------------------
+9. Automation Roadmap
+--------------------------------------------------
+
+در پایان مشخص کن کدام بخش‌های Runbook را می‌توان در آینده
+Automation کرد.
+
+مثلاً:
+
+- Infrastructure provisioning
+- Docker deployment
+- Nextcloud deployment
+- Custom App deployment
+- Configuration deployment
+- Validation
+- Restore
+- Health checks
+
+--------------------------------------------------
+10. خروجی مورد انتظار
+--------------------------------------------------
+
+فعلاً فقط Analysis و Design ارائه کن.
+
+در خروجی مشخص کن:
+
+1. معماری فعلی Deployment
+2. اجزای موردنیاز برای Rebuild
+3. Scenario A — Rebuild + Restore
+4. Scenario B — Fresh Deployment
+5. Dependencyها
+6. Configurationها
+7. Customizationها
+8. Version Requirements
+9. Validation Checklist
+10. Rollback Strategy
+11. Automation Opportunities
+12. فایل‌ها و Componentهایی که برای Implementation باید
+    تغییر کنند
+
+فعلاً:
+
+- Code تغییر نده
+- Database تغییر نده
+- Docker Compose تغییر نده
+- Migration ایجاد نکن
+- Backup واقعی ایجاد نکن
+- Commit ایجاد نکن
+- Push انجام نده
+- فایل‌های Repository را حذف یا جابه‌جا نکن
+
+بعد از ارائه Analysis منتظر تأیید من بمان.

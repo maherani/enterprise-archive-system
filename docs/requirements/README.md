@@ -38,6 +38,8 @@
 | **26** | **حذف امن فایل‌ها و پوشه‌ها توسط مدیر ارشد سامانه (Secure System Administrator File & Folder Deletion)** | [`26_secure_admin_deletion.md`](26_secure_admin_deletion.md) | مستقل / حاکمیت امنیتی و چرخه حیات اسناد | 08, 17, 18, 21, 23, 25 | حذف دائم و امن فایل و پوشه صرفاً توسط System Admin، عملیات DELETE=8 با CentralPermissionResolver، پاکسازی آبشاری متادیتا و دسترسی‌ها، ممیزی تراکنشی ReliableAudit و مودال تایید ادمین | عملیاتی و نهایی (v2.6.0) |
 | **27** | **جدول اسناد واکنش‌گرا، خوانا و با قابلیت تغییر اندازه ستون‌ها توسط کاربر (Responsive, Readable and User-Resizable Archive Table)** | [`27_responsive_resizable_archive_table.md`](27_responsive_resizable_archive_table.md) | مستقل / رابط کاربری و فرانت‌اند | 09, 10, 23 | چیدمان ستون‌های جدول با colgroup، کلمپ ۳ خطی متن‌های طولانی، تغییر عرض با ماوس در محیط RTL، ماندگاری در LocalStorage کاربر و دکمه بازنشانی ابعاد | عملیاتی و نهایی (v2.5.0) |
 | **28** | **مدیریت متمرکز تگ‌ها ویژه مدیر ارشد سامانه (Central Tag Management for System Administrator)** | [`28_central_tag_management.md`](28_central_tag_management.md) | مستقل / حاکمیت تگ و طبقه‌بندی اسناد | 02, 08, 15, 17, 20, 24 | کنسول متمرکز ادمین، ایجاد تگ‌های سراسری و گروهی، حذف ایمن با قفل سطری و خطای 409 تضاد، تخصیص/لغو تگ فایل و پوشه در دراور، ممیزی Fail-Closed و موتور همگام‌سازی Reconcile | عملیاتی و نهایی (v2.7.0) |
+| **29** | **پشتیبان‌گیری و بازیابی جامع اطلاعات و فراداده‌های سامانه (Data Backup & Recovery Specification)** | [`29_data_backup_and_recovery.md`](29_data_backup_and_recovery.md) | مستقل / پایداری و تداوم کسب‌وکار (BCP/DR) | 08, 17, 21, 25 | پشتیبان‌گیری دوره‌ای و برخط از پایگاه داده و فایل‌ها در حالت Point-in-time Consistent با حالت نگهداری موقت، تولید هش SHA-256 و مانیفست، کنسول وب ادمین و CLI ترمینال، آزمون بازیابی در محیط سندباکس ایزوله، فرآیند بازیابی بحران و پالیسی پاکسازی خودکار | عملیاتی و نهایی (v2.8.0) |
+| **30** | **دستورالعمل جامع استقرار و بازیابی سامانه در محیط جدید (System Deployment & Recovery Runbook)** | [`30_system_deployment_and_recovery_runbook.md`](30_system_deployment_and_recovery_runbook.md) | مستقل / عملیات زیرساخت، استقرار و تاب‌آوری (DevOps & DR) | 01, 05, 08, 14, 29 | راهنمای گام‌به‌گام و تکرارپذیر استقرار سامانه در سرور یا VM خام برای دو سناریوی مستقل: سناریوی A (بازسازی سرور و بازیابی داده‌های قبلی از روی بکاپ) و سناریوی B (استقرار تمیز و نصب اولیه سامانه)، حفظ ۱۰۰٪ سفارشی‌سازی‌ها و تم ابسیدین، مدیریت امن اسرار و چک‌لیست اعتبارسنجی | عملیاتی و دارای سند زنده اپراتوری (v2.9.0) |
 
 ---
 
@@ -104,6 +106,7 @@ Requirement → Design → Approval → Implementation → Test → Verification
 | Prompt 16 — Mutating Test Isolation / Cleanup | Requirement 23 | ادغام شد |
 | Prompt 11 — Group Sharing / Group Management | Requirement 24 | ادغام شد |
 | Prompt 17 — Documentation Drift | Documentation Governance همین سند + PROJECT_STATE/README | ادغام شد |
+| Prompt 2 — System Deployment & Recovery Runbook | Requirement 30 | تدوین و ادغام شد |
 
 ### قاعده نگهداری
 - برای رفتار محصول، امنیت، معماری و Acceptance Criteria فقط Requirement متناظر معتبر است.

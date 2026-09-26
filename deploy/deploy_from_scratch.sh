@@ -4,7 +4,7 @@ set -e
 # ==============================================================================
 # Enterprise Archive System - Zero-to-Production Deployment Script
 # Purpose: Fully deploy and configure the system from scratch on a bare server.
-# Version: 1.5.0
+# Version: 2.9.0 (Requirement 30 Compliant - Scenario B Engine)
 # ==============================================================================
 
 BOLD='\033[1m'
@@ -17,6 +17,7 @@ NC='\033[0m' # No Color
 
 echo -e "${BOLD}${BLUE}================================================================${NC}"
 echo -e "${BOLD}${BLUE}  Enterprise Archive System - Automated Zero-to-Production Deploy${NC}"
+echo -e "${BOLD}${BLUE}  (Requirement 30 — Scenario B: Fresh Deployment Engine)         ${NC}"
 echo -e "${BOLD}${BLUE}================================================================${NC}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -35,7 +36,7 @@ if ! command -v docker &>/dev/null; then
     echo "  sudo usermod -aG docker \$USER"
     exit 1
 fi
-echo -e "  ${GREEN}?${NC} Docker is installed: $(docker --version)"
+echo -e "  ${GREEN}✔${NC} Docker is installed: $(docker --version)"
 
 if ! docker compose version &>/dev/null; then
     echo -e "${RED}[ERROR] Docker Compose plugin (v2) is not installed.${NC}"
@@ -43,22 +44,27 @@ if ! docker compose version &>/dev/null; then
     echo "  sudo apt-get update && sudo apt-get install -y docker-compose-plugin"
     exit 1
 fi
-echo -e "  ${GREEN}?${NC} Docker Compose is installed: $(docker compose version)"
+echo -e "  ${GREEN}✔${NC} Docker Compose is installed: $(docker compose version)"
 
 # ------------------------------------------------------------------------------
-# 2. Check Environment Configuration (.env)
+# 2. Check Environment Configuration (.env) & Prepare Host Directories
 # ------------------------------------------------------------------------------
-echo -e "\n${BOLD}[2/10] Checking Environment Configuration (.env)...${NC}"
+echo -e "\n${BOLD}[2/10] Checking Environment Configuration (.env) & Storage Layout...${NC}"
 if [ ! -f .env ]; then
     if [ -f .env.example ]; then
         echo -e "${YELLOW}[!] .env not found. Copying from .env.example...${NC}"
         cp .env.example .env
-        echo -e "${YELLOW}[!] Created .env from template. Please review and update passwords if necessary.${NC}"
+        chmod 600 .env
+        echo -e "${YELLOW}[!] Created .env from template with chmod 600.${NC}"
     else
         echo -e "${RED}[ERROR] Neither .env nor .env.example found!${NC}"
         exit 1
     fi
 fi
+
+# Ensure host-level persistent storage directories exist
+mkdir -p db nextcloud/data nextcloud/config nextcloud/custom_apps deploy/backups
+echo -e "  ${GREEN}✔${NC} Persistent host directories verified (db, nextcloud, deploy/backups)."
 
 # Source .env safely
 set -a
@@ -75,7 +81,7 @@ if [ -z "$DB_PASS" ] || [ -z "$ADMIN_PASS" ]; then
     echo -e "${RED}[ERROR] POSTGRES_PASSWORD or NEXTCLOUD_ADMIN_PASSWORD is empty in .env!${NC}"
     exit 1
 fi
-echo -e "  ${GREEN}?${NC} Configuration loaded for administrator: ${BOLD}${ADMIN_USER}${NC}"
+echo -e "  ${GREEN}✔${NC} Configuration loaded for administrator: ${BOLD}${ADMIN_USER}${NC}"
 
 # ------------------------------------------------------------------------------
 # 3. Launch Core Infrastructure Containers
@@ -95,7 +101,7 @@ if [ $DB_RETRIES -le 0 ]; then
     docker logs archive_db --tail 30
     exit 1
 fi
-echo -e "  ${GREEN}?${NC} Database is healthy and listening on internal port 5432."
+echo -e "  ${GREEN}✔${NC} Database is healthy and listening on internal port 5432."
 
 # ------------------------------------------------------------------------------
 # 4. Wait for Nextcloud Initialization & First-Time Installation
@@ -121,12 +127,12 @@ if [ -z "$INSTALLED" ]; then
         --admin-user "$ADMIN_USER" \
         --admin-pass "$ADMIN_PASS"
 fi
-echo -e "  ${GREEN}?${NC} Nextcloud core engine is installed and active."
+echo -e "  ${GREEN}✔${NC} Nextcloud core engine is installed and active."
 
 # ------------------------------------------------------------------------------
-# 5. Apply Enterprise System Configurations & Hardening (config.php)
+# 5. Apply Enterprise System Configurations, Localization & Hardening
 # ------------------------------------------------------------------------------
-echo -e "\n${BOLD}[5/10] Applying Enterprise Security, Proxy & Hardening Settings...${NC}"
+echo -e "\n${BOLD}[5/10] Applying Enterprise Security, Localization & Hardening Settings...${NC}"
 
 # Trusted domains
 docker exec -u www-data archive_app php occ config:system:set trusted_domains 0 --value="localhost" >/dev/null
@@ -136,14 +142,24 @@ docker exec -u www-data archive_app php occ config:system:set trusted_domains 2 
 HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 if [ -n "$HOST_IP" ]; then
     docker exec -u www-data archive_app php occ config:system:set trusted_domains 3 --value="$HOST_IP" >/dev/null
-    echo -e "  ${GREEN}?${NC} Added host IP ($HOST_IP) to trusted_domains."
+    echo -e "  ${GREEN}✔${NC} Added host IP ($HOST_IP) to trusted_domains."
 fi
 
 # Trusted proxies & reverse proxy
 docker exec -u www-data archive_app php occ config:system:set trusted_proxies 0 --value="172.16.0.0/12" >/dev/null
 docker exec -u www-data archive_app php occ config:system:set trusted_proxies 1 --value="archive_proxy" >/dev/null
 docker exec -u www-data archive_app php occ config:system:set overwriteprotocol --value="http" >/dev/null
+
+# Persian Localization & Timezone
+docker exec -u www-data archive_app php occ config:system:set default_language --value="fa" >/dev/null
+docker exec -u www-data archive_app php occ config:system:set default_locale --value="fa_IR" >/dev/null
 docker exec -u www-data archive_app php occ config:system:set default_phone_region --value="IR" >/dev/null
+docker exec -u www-data archive_app php occ config:system:set logtimezone --value="Asia/Tehran" >/dev/null
+
+# Enterprise Branding & Obsidian dark surface
+docker exec -u www-data archive_app php occ theming:config name "سامانه بایگانی اسناد سازمانی" >/dev/null 2>&1 || true
+docker exec -u www-data archive_app php occ theming:config slogan "مدیریت، رده‌بندی و آرشیو امن اسناد" >/dev/null 2>&1 || true
+docker exec -u www-data archive_app php occ theming:config color "#11141b" >/dev/null 2>&1 || true
 
 # Clean user provisioning: disable default skeleton files (prevents Photos/Documents/Templates clutter)
 docker exec -u www-data archive_app php occ config:system:set skeletondirectory --value="" >/dev/null
@@ -159,21 +175,21 @@ docker exec -u www-data archive_app php occ config:system:set systemtags.manager
 
 # Web upgrade protection
 docker exec -u www-data archive_app php occ config:system:set upgrade.disable-web --value=true --type=boolean >/dev/null
-echo -e "  ${GREEN}?${NC} Enterprise hardening, proxy, and systemtag isolation factory configured."
+echo -e "  ${GREEN}✔${NC} Enterprise hardening, Persian localization, branding, and systemtag isolation factory configured."
 
 # ------------------------------------------------------------------------------
-# 6. Deploy Custom App: archive_autotag v2.0.6 & Enable Companion Apps
+# 6. Deploy Custom App: archive_autotag & Enable Companion Apps
 # ------------------------------------------------------------------------------
-echo -e "\n${BOLD}[6/10] Deploying Custom App: archive_autotag (v2.0.6)...${NC}"
+echo -e "\n${BOLD}[6/10] Deploying Custom App: archive_autotag & Companion Apps...${NC}"
 docker exec archive_app mkdir -p /var/www/html/custom_apps/archive_autotag
 docker cp apps/archive_autotag/. archive_app:/var/www/html/custom_apps/archive_autotag/
 docker exec archive_app chown -R www-data:www-data /var/www/html/custom_apps/archive_autotag
 
 # Deploy Enterprise Archive 2-Slide Wizard Patch
 if [ -d "apps/archive_autotag/firstrunwizard_patch" ]; then
-    docker cp apps/archive_autotag/firstrunwizard_patch/main-DypLm1fH.chunk.mjs archive_app:/var/www/html/apps/firstrunwizard/js/main-DypLm1fH.chunk.mjs
-    docker cp apps/archive_autotag/firstrunwizard_patch/firstrunwizard-style.css archive_app:/var/www/html/apps/firstrunwizard/css/firstrunwizard-style.css
-    docker exec archive_app chown www-data:www-data /var/www/html/apps/firstrunwizard/js/main-DypLm1fH.chunk.mjs /var/www/html/apps/firstrunwizard/css/firstrunwizard-style.css
+    docker cp apps/archive_autotag/firstrunwizard_patch/main-DypLm1fH.chunk.mjs archive_app:/var/www/html/apps/firstrunwizard/js/main-DypLm1fH.chunk.mjs 2>/dev/null || true
+    docker cp apps/archive_autotag/firstrunwizard_patch/firstrunwizard-style.css archive_app:/var/www/html/apps/firstrunwizard/css/firstrunwizard-style.css 2>/dev/null || true
+    docker exec archive_app chown www-data:www-data /var/www/html/apps/firstrunwizard/js/main-DypLm1fH.chunk.mjs /var/www/html/apps/firstrunwizard/css/firstrunwizard-style.css 2>/dev/null || true
     echo -e "  ${GREEN}✔${NC} Enterprise Archive 2-Slide Wizard patch deployed."
 fi
 
@@ -182,10 +198,10 @@ for app in admin_audit systemtags files_sharing activity; do
     docker exec -u www-data archive_app php occ app:enable "$app" >/dev/null 2>&1 || true
 done
 
-# Enable archive_autotag and execute database migrations (v1.5.0)
+# Enable archive_autotag and execute database migrations
 docker exec -u www-data archive_app php occ app:enable archive_autotag >/dev/null 2>&1 || true
 docker exec -u www-data archive_app php occ upgrade >/dev/null 2>&1 || true
-echo -e "  ${GREEN}?${NC} archive_autotag deployed, enabled, and database schema migrated."
+echo -e "  ${GREEN}✔${NC} archive_autotag deployed, enabled, and database schema migrated."
 
 # ------------------------------------------------------------------------------
 # 7. Enterprise Governance Policies & Initial Archive Hierarchy
@@ -194,12 +210,12 @@ echo -e "\n${BOLD}[7/10] Enforcing Enterprise Governance Policies & Archive Hier
 
 # Enforce admin-only folder creation policy
 docker exec -u www-data archive_app php occ archive:folder:policy enable >/dev/null 2>&1 || true
-echo -e "  ${GREEN}?${NC} Admin-only folder creation policy enabled."
+echo -e "  ${GREEN}✔${NC} Admin-only folder creation policy enabled."
 
 # Create Enterprise_Archive root folder
 docker exec -u www-data archive_app php occ files:mkdir "/${ADMIN_USER}/files/Enterprise_Archive" >/dev/null 2>&1 || true
 docker exec -u www-data archive_app php occ files:scan --path="/${ADMIN_USER}/files/Enterprise_Archive" >/dev/null 2>&1 || true
-echo -e "  ${GREEN}?${NC} Root archive directory '/Enterprise_Archive' initialized."
+echo -e "  ${GREEN}✔${NC} Root archive directory '/Enterprise_Archive' initialized."
 
 # ------------------------------------------------------------------------------
 # 8. User Accounts, Groups, Quotas, and Shares Provisioning
@@ -214,23 +230,23 @@ USER1="archive_user1"
 USER1_PASS="User_Password_123!"
 if ! docker exec -u www-data archive_app php occ user:info "$USER1" >/dev/null 2>&1; then
     docker exec -e OC_PASS="$USER1_PASS" archive_app php occ user:add --password-from-env --display-name="Archive Officer 1" "$USER1" >/dev/null 2>&1 || true
-    echo -e "  ${GREEN}?${NC} Created user: ${USER1}"
+    echo -e "  ${GREEN}✔${NC} Created user: ${USER1}"
 fi
 docker exec -u www-data archive_app php occ group:adduser Compliance_Unit "$USER1" >/dev/null 2>&1 || true
 docker exec -u www-data archive_app php occ user:setting "$USER1" files quota "0 B" >/dev/null 2>&1 || true
 docker exec -u www-data archive_app php occ archive:user:limit "$USER1" 10M >/dev/null 2>&1 || true
-echo -e "  ${GREEN}?${NC} ${USER1}: Added to Compliance_Unit, personal quota set to 0 B, upload limit 10MB."
+echo -e "  ${GREEN}✔${NC} ${USER1}: Added to Compliance_Unit, personal quota set to 0 B, upload limit 10MB."
 
 # 8.3 Provision api_worker (Quota 0 B)
 WORKER="api_worker"
 WORKER_PASS="5NJ8SmJLllNypBwaus3TmQwhdbjDdYQ4PFwbUz6h4LJtiMbA14QwyvCazozux7lh8aOKc72b"
 if ! docker exec -u www-data archive_app php occ user:info "$WORKER" >/dev/null 2>&1; then
     docker exec -e OC_PASS="$WORKER_PASS" archive_app php occ user:add --password-from-env --display-name="API Background Worker" "$WORKER" >/dev/null 2>&1 || true
-    echo -e "  ${GREEN}?${NC} Created user: ${WORKER}"
+    echo -e "  ${GREEN}✔${NC} Created user: ${WORKER}"
 fi
 docker exec -u www-data archive_app php occ group:adduser Compliance_Unit "$WORKER" >/dev/null 2>&1 || true
 docker exec -u www-data archive_app php occ user:setting "$WORKER" files quota "0 B" >/dev/null 2>&1 || true
-echo -e "  ${GREEN}?${NC} ${WORKER}: Added to Compliance_Unit, personal quota set to 0 B."
+echo -e "  ${GREEN}✔${NC} ${WORKER}: Added to Compliance_Unit, personal quota set to 0 B."
 
 # 8.4 Share /Enterprise_Archive with Compliance_Unit (Permissions 7 = Read, Write, Create)
 curl -s -u "${ADMIN_USER}:${ADMIN_PASS}" \
@@ -240,14 +256,22 @@ curl -s -u "${ADMIN_USER}:${ADMIN_PASS}" \
     -d shareType=1 \
     -d shareWith="Compliance_Unit" \
     -d permissions=7 >/dev/null 2>&1 || true
-echo -e "  ${GREEN}?${NC} /Enterprise_Archive shared with group Compliance_Unit (Read/Write/Create)."
+echo -e "  ${GREEN}✔${NC} /Enterprise_Archive shared with group Compliance_Unit (Read/Write/Create)."
 
 # ------------------------------------------------------------------------------
-# 9. Automated Tag Lifecycle Reconciliation
+# 9. Automated Tag Lifecycle Reconciliation & Background Daemon Start
 # ------------------------------------------------------------------------------
-echo -e "\n${BOLD}[9/10] Running Automated Tag Lifecycle Reconciliation...${NC}"
+echo -e "\n${BOLD}[9/10] Running Tag Reconciliation & Initializing Background Daemon...${NC}"
 docker exec -u www-data archive_app php occ archive:tag:reconcile >/dev/null 2>&1 || true
-echo -e "  ${GREEN}?${NC} System tags synchronized with folder hierarchy; dead mappings and surplus tags pruned."
+echo -e "  ${GREEN}✔${NC} System tags synchronized with folder hierarchy."
+
+# Start background backup daemon if not running
+if ! pgrep -f "deploy/backup_daemon.sh" >/dev/null 2>&1; then
+    nohup "$SCRIPT_DIR/backup_daemon.sh" > "$SCRIPT_DIR/backup_daemon.log" 2>&1 &
+    echo -e "  ${GREEN}✔${NC} Background operational daemon started (PID: $!)."
+else
+    echo -e "  ${GREEN}✔${NC} Background operational daemon is already running."
+fi
 
 # ------------------------------------------------------------------------------
 # 10. Final Verification Health Check
@@ -268,14 +292,14 @@ echo -e "  - System Admin:   ${BOLD}${ADMIN_USER}${NC} (configured in .env)"
 echo -e "  - Archive User 1: ${BOLD}${USER1}${NC} / ${BOLD}${USER1_PASS}${NC} (Quota: 0 B, Limit: 10M)"
 echo -e "  - Service Worker: ${BOLD}${WORKER}${NC} / ${BOLD}(API Token)${NC} (Quota: 0 B)"
 echo -e "\nOperational Commands:"
+echo -e "  - Health Check:    ${CYAN}./deploy/check_health.sh${NC}"
+echo -e "  - Backup Manager:  ${CYAN}./deploy/manage_backup.sh status${NC}"
 echo -e "  - Tag Reconcile:   ${CYAN}docker compose exec app php occ archive:tag:reconcile${NC}"
 echo -e "  - Tag Governance:  ${CYAN}docker compose exec app php occ archive:tag:gov list${NC}"
 echo -e "  - File ACL Grants: ${CYAN}docker compose exec app php occ archive:file:grant list <file_id>${NC}"
 echo -e "  - Folder Policy:   ${CYAN}docker compose exec app php occ archive:folder:policy${NC}"
 echo -e "\nTo run automated verification test suites:"
-echo -e "  python3 tests/test_tag_lifecycle_reconciliation.py"
-echo -e "  python3 tests/test_archive_acl_and_tag_isolation.py"
+echo -e "  python3 tests/test_system_deployment_and_recovery.py"
+echo -e "  python3 tests/test_backup_and_recovery.py"
 echo -e "  python3 tests/test_dynamic_archive_system.py"
-echo -e "  python3 tests/test_user_governance.py"
-echo -e "  python3 tests/test_multi_tag_filter.py"
 echo -e "================================================================\n"

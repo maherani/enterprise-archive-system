@@ -1,0 +1,234 @@
+در پروژه enterprise-archive-system یک Requirement کامل برای
+Backup & Recovery طراحی کن.
+
+هدف این Requirement این است که سامانه بتواند به صورت دوره‌ای و
+قابل تنظیم توسط Administrator از اطلاعات موردنیاز Backup تهیه کند
+و در صورت از دست رفتن اطلاعات، بتوان اطلاعات قبلی را از یک
+Recovery Point معتبر بازیابی کرد.
+
+نکته مهم:
+
+این Requirement فقط مربوط به Backup و Recovery اطلاعات است.
+
+موضوع راه‌اندازی کامل سامانه از صفر و Runbook استقرار سامانه
+در Requirement جداگانه بررسی خواهد شد و نباید با این Requirement
+ادغام شود.
+
+--------------------------------------------------
+1. ابتدا وضعیت فعلی پروژه را بررسی کن
+--------------------------------------------------
+
+قبل از هرگونه تغییر در Code یا Configuration، معماری فعلی پروژه
+را بررسی کن و مشخص کن:
+
+1. Database فعلی کجاست و چگونه استفاده می‌شود؟
+2. User Files کجا نگهداری می‌شوند؟
+3. Nextcloud metadata در کجا قرار دارد؟
+4. اطلاعات مربوط به Folderها، Tagها، ACLها، Permissionها،
+   Group Sharing و Document Metadata کجا نگهداری می‌شوند؟
+5. آیا اطلاعاتی خارج از Database و User Files وجود دارد که
+   برای Recovery اطلاعات ضروری باشد؟
+6. آیا در پروژه Backup فعلی وجود دارد؟
+7. اگر Backup فعلی وجود دارد، چه چیزهایی را پوشش می‌دهد و
+   چه چیزهایی را پوشش نمی‌دهد؟
+
+فعلاً هیچ فایل، Code، Database یا Configuration را تغییر نده.
+
+--------------------------------------------------
+2. هدف Backup
+--------------------------------------------------
+
+Backup باید بتواند این سناریو را پوشش دهد:
+
+سامانه قبلاً در حال کار بوده و اطلاعات کاربران وجود داشته،
+اما به هر دلیل Database یا User Files یا بخشی از اطلاعات
+قابل استفاده نباشد یا از بین برود.
+
+هدف این است که بتوانیم سامانه موجود را با استفاده از یک
+Recovery Point معتبر، به وضعیت قبلی اطلاعات برگردانیم.
+
+--------------------------------------------------
+3. اطلاعاتی که باید Backup شوند
+--------------------------------------------------
+
+مشخص کن دقیقاً چه اطلاعاتی باید Backup شوند.
+
+حداقل موارد مورد بررسی:
+
+- Database
+- User Uploaded Files
+- Folder Structure
+- Tags
+- Group Tags
+- Permissions
+- ACL information
+- Group Sharing information
+- Document Metadata
+- Ownership information
+- اطلاعات لازم برای File/Database consistency
+- سایر داده‌های ضروری که در معماری فعلی پروژه وجود دارند
+
+برای هر مورد مشخص کن:
+
+- چرا باید Backup شود؟
+- محل نگهداری آن چیست؟
+- روش Backup آن چیست؟
+- در Recovery چگونه Restore می‌شود؟
+
+هیچ موردی را صرفاً به دلیل حدس اضافه نکن؛ ابتدا معماری واقعی
+پروژه را بررسی کن.
+
+--------------------------------------------------
+4. Recovery Point
+--------------------------------------------------
+
+Backup باید دارای Recovery Point مشخص باشد.
+
+بررسی کن چگونه می‌توان Database و Files را به صورت سازگار
+با یکدیگر Backup کرد.
+
+نباید چنین وضعیتی ایجاد شود:
+
+Database مربوط به ساعت 02:00
++
+Files مربوط به ساعت 05:00
+
+و هر دو به عنوان یک Backup واحد معرفی شوند.
+
+روش پیشنهادی برای ایجاد Consistent Recovery Point را
+بر اساس معماری فعلی پروژه مشخص کن.
+
+--------------------------------------------------
+5. زمان‌بندی Backup
+--------------------------------------------------
+
+Administrator باید بتواند Backup را تنظیم کند.
+
+حداقل موارد:
+
+- Enable / Disable
+- Backup Schedule
+- Backup Time
+- Backup Interval
+- Backup Type
+- Backup Storage Location
+- Retention Policy
+- تعداد Backupهای قابل نگهداری
+- حذف خودکار Backupهای منقضی‌شده
+
+در صورت نیاز پیشنهاد بده که Backupها چگونه Version شوند.
+
+--------------------------------------------------
+6. Backup Integrity
+--------------------------------------------------
+
+برای هر Backup باید بتوان مشخصات زیر را ثبت و مشاهده کرد:
+
+- Backup ID
+- Backup Type
+- Creation Time
+- Recovery Point
+- Size
+- Status
+- Duration
+- Checksum / Hash
+- Success / Failure
+- Error Information
+
+Backup ناقص یا خراب نباید به عنوان Backup قابل Restore
+معرفی شود.
+
+--------------------------------------------------
+7. Recovery
+--------------------------------------------------
+
+Recovery باید بتواند اطلاعات را به یک Recovery Point مشخص
+برگرداند.
+
+فرآیند کلی:
+
+Backup
+↓
+Validate Backup
+↓
+Restore Database
+↓
+Restore User Files
+↓
+Consistency Verification
+↓
+Nextcloud Verification
+↓
+ACL / Permission Verification
+↓
+Tag / Metadata Verification
+↓
+Recovery Complete
+
+--------------------------------------------------
+8. Restore Verification
+--------------------------------------------------
+
+بعد از Restore باید بتوان بررسی کرد:
+
+- Database سالم است
+- Files قابل دسترسی هستند
+- Folderها صحیح هستند
+- Tags صحیح هستند
+- Group Tags صحیح هستند
+- ACLها صحیح هستند
+- Permissions صحیح هستند
+- Group Sharing صحیح است
+- Document Metadata صحیح است
+- Ownership صحیح است
+- ارتباط Database و Files صحیح است
+
+--------------------------------------------------
+9. Test Restore
+--------------------------------------------------
+
+در طراحی، Test Restore را نیز در نظر بگیر.
+
+صرفاً موفق بودن Backup کافی نیست.
+
+باید بتوان بررسی کرد که Backup واقعاً قابل Restore است.
+
+مشخص کن:
+
+- Test Restore چگونه انجام شود؟
+- آیا باید در محیط جدا انجام شود؟
+- چه Validationهایی انجام شود؟
+- نتیجه Test Restore چگونه ثبت شود؟
+
+--------------------------------------------------
+10. خروجی مورد انتظار
+--------------------------------------------------
+
+فعلاً فقط Analysis و Design ارائه کن.
+
+در خروجی مشخص کن:
+
+1. Backup Scope
+2. اطلاعات دقیق قابل Backup
+3. Recovery Point Design
+4. Backup Scheduling Design
+5. Retention Design
+6. Backup Integrity Design
+7. Recovery Design
+8. Test Restore Design
+9. وضعیت Backup فعلی پروژه
+10. Gapهای موجود
+11. فایل‌ها و Componentهایی که برای Implementation باید
+    تغییر کنند
+
+فعلاً:
+
+- Code تغییر نده
+- Database تغییر نده
+- Docker تغییر نده
+- Backup واقعی ایجاد نکن
+- Migration ایجاد نکن
+- Commit ایجاد نکن
+- Push انجام نده
+
+بعد از ارائه Analysis منتظر تأیید من بمان.

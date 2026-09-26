@@ -1,4 +1,4 @@
-﻿services:
+services:
   db:
     image: postgres:15-alpine
     container_name: archive_db
@@ -27,6 +27,8 @@
         condition: service_healthy
     volumes:
       - ./nextcloud:/var/www/html
+      - ./apps/archive_autotag:/var/www/html/custom_apps/archive_autotag
+      - ./deploy:/var/www/html/deploy
     environment:
       - POSTGRES_HOST=db
       - POSTGRES_DB=${POSTGRES_DB}
@@ -48,6 +50,7 @@
       - "80:80"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/maintenance.html:/usr/share/nginx/html/maintenance.html:ro
     networks:
       - archive_net
 

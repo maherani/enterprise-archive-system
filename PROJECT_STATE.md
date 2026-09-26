@@ -809,6 +809,38 @@ econcileCentralTags).
 un_e2e_tests.py, 100%).
 - **Documentation:** docs/requirements/28_central_tag_management.md.
 
+### Requirement 29: Data Backup and Recovery Specification (Completed)
+- **Status:** Fully Implemented, Hardened & Operative (v2.8.0)
+- **Scope & Model:** Strict focus on Point-in-time Consistent Data & Metadata Backup and Disaster Recovery for a running/deployed deployment. Bare-metal/from-scratch server rebuilding remains documented in `docs/DEPLOYMENT_RUNBOOK.md`.
+- **Core CLI & Automation Engines:**
+  - `deploy/backup_db.sh`: Point-in-time backup engine with temporary maintenance mode, PostgreSQL dump (`database.sql`), file stream (`data.tar.gz`), Nextcloud system configuration and salts extraction, SHA-256 generation, JSON manifest packaging, and auto-pruning.
+  - `deploy/restore_db.sh`: Disaster recovery engine with SHA-256 pre-flight validation, container isolation (`docker compose stop app proxy`), clean database drop/create, atomic data directory restoration, system salt synchronization, and full `occ files:scan --all`.
+  - `deploy/test_restore.sh`: Sandbox verification engine creating an isolated temporary PostgreSQL database (`nextcloud_restore_sandbox_<PID>`), verifying all standard and custom archive tables (10 custom tables audited), checking table row consistency, and dropping the sandbox database without affecting production.
+  - `deploy/manage_backup.sh`: Unified terminal CLI tool for operators supporting `status`, `list`, `run`, `restore [file]`, `test [file]`, `prune`, and `config`.
+  - `deploy/backup_daemon.sh`: Isolated host-side daemon monitoring the queue for Web-initiated backup, restore, and sandbox test jobs.
+- **Web Admin Console Integration (Dual Interface Parity):**
+  - Nextcloud REST API (`AdminBackupController.php`): Endpoints for `/status`, `/list`, `/run`, `/restore/run`, `/test`, `/task-status`, `/config`, and `/download`.
+  - Safety Guards: Disaster recovery via Web API requires strict confirmation phrase `RESTORE-CONFIRM`, rejecting unauthorized users (HTTP 403) or missing confirmation (HTTP 400).
+  - Admin Portal UI (`archive_portal.js` & `archive_portal.css`): Dedicated modal accessed via «💾 پشتیبان‌گیری و بازیابی» featuring status cards, live task progress banner with animated auto-polling, backup archives table with SHA-256 and sandbox test badges, sandbox test trigger, download link, danger-styled restore confirmation modal, schedule/retention policy tab, and terminal CLI guide tab.
+- **Documentation:**
+  - `docs/requirements/29_data_backup_and_recovery.md`: Complete 23-section standard canonical specification.
+  - `docs/DATA_RECOVERY_OPERATOR_GUIDE.md`: Step-by-step Standard Operating Procedure (SOP) runbook for operators.
+- **Verification:**
+  - Automated Suite: `tests/test_backup_and_recovery.py` (10/10 PASS, 100%).
+
+### System-Wide Button Design System Standardization
+- **Visual Reference Alignment:** All buttons across the entire system (header actions, workflow actions, folder navigation, breadcrumbs, modals, drawers, tables, and Nextcloud global actions) are now strictly standardized to match the user's reference design:
+  - **Font Family:** Vazirmatn (`@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap')`) with Shabnam and modern system Persian fallbacks.
+  - **Font Size & Weight:** `0.82rem` (13.5px), `font-weight: 600` (semi-bold), crisp line-height `1.3`, zero letter-spacing.
+  - **Dimensions & Box Model:** Fixed `height: 32px !important; min-height: 32px !important;`, comfortable padding `4px 12px !important;`, `gap: 6px !important;`.
+  - **Corner Radius:** `border-radius: 8px !important;` smooth rounded geometry.
+  - **Icon Standards:** All icons inside buttons standardized to `14px x 14px` flex-shrink 0.
+  - **Tri-Variant Color Tokens:**
+    - *Primary (مثل بارگذاری فایل):* Vibrant orange gradient (`#f97316` to `#ea580c`) with white text.
+    - *Secondary Light/Warm (مثل پوشه بالا):* Warm off-white/cream `#fdf4ec` with `#7c2d12` amber text.
+    - *Outline/Neutral Dark (مثل همه اسناد):* Obsidian surface `#11141b` with `#2d3647` border and `#94a3b8` text.
+  - **Global Scope:** Implemented universally across `archive_portal.css`, `app_menu_filter.css` (applies to all Nextcloud pages), `multi_tag_filter.css`, and cleaned all hardcoded inline styles in `archive_portal.js`.
+
 ### UI & Security Refinements: Cartable Modal & System Tag Deletion Lockdown
 - **Cartable Modal Sizing Fix:** Expanded width (max-width: 1320px, width: 96vw, overflow-x: auto) for the Super Admin Folder Requests Cartable modal, ensuring all 7 columns (including وضعیت and عملیات / Approve & Reject) are visible and responsive across viewports without clipping.
 - **System Tag Deletion Guard for Group Admins:**
@@ -822,9 +854,17 @@ un_e2e_tests.py, 100%).
 
 ## Canonical Requirement & Prompt Consolidation
 
-از این نقطه، `docs/requirements/` مرجع اصلی نیازمندی‌های زنده پروژه است و تعداد نیازمندی‌های Canonical برابر **۲۸** است. Promptهای تاریخی که صرفاً همان نیازمندی‌ها را تکرار می‌کردند حذف و محتوای آن‌ها در Requirement متناظر ادغام شده است.
+از این نقطه، `docs/requirements/` مرجع اصلی نیازمندی‌های زنده پروژه است و تعداد نیازمندی‌های Canonical برابر **۳۰** است. Promptهای تاریخی که صرفاً همان نیازمندی‌ها را تکرار می‌کردند حذف و محتوای آن‌ها در Requirement متناظر ادغام شده است.
 
 برای traceability، نگاشت Promptهای تاریخی به Requirementهای نهایی در `docs/requirements/README.md` و `Prompts/README.md` ثبت شده است. برای وضعیت واقعی implementation و verification، `PROJECT_STATE.md`، کد و تست‌های موجود ملاک هستند.
+### Step 12 ➔ System Deployment & Recovery Runbook & Living Operator Guide (Requirement 30)
+- **Comprehensive Runbook Architecture:** Defined Zero-to-One deployment specification covering both Scenario A (Rebuild + Restore previous data on new server) and Scenario B (Fresh headless deployment with zero data).
+- **Living Operator Guide (`docs/DEPLOYMENT_RUNBOOK.md`):** Authored an exhaustive, step-by-step Standard Operating Procedure (SOP) for operators and DevOps engineers with copy-paste terminal commands, pre-flight checks, daemon management, troubleshooting matrix, rollback SOP, and production handover checklist.
+- **Customization & Branding Preservation:** Formalized the persistence of `apps/archive_autotag` (53 classes), Obsidian dark theme, Vazirmatn typography, central tag governance, and effective ACL resolution across container rebuilds.
+- **Living Documentation Policy:** Codified that any future architectural, configurational or infrastructure modification must synchronously update `docs/DEPLOYMENT_RUNBOOK.md` and `docs/requirements/30_system_deployment_and_recovery_runbook.md`.
+
+Status: **Completed & Living Document Active**
+
 ## Latest Validation Status
 
 All 30 integration suites (including security, ACL, and AI Audit semantics) passed successfully with a 100% success rate.

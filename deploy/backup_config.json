@@ -1,0 +1,19 @@
+{
+    "backup_enabled": true,
+    "backup_type": "data_only",
+    "storage_location": "/home/alborz/enterprise-archive-system/deploy/backups",
+    "schedule": {
+        "enabled": true,
+        "cron_expression": "0 2 * * *",
+        "description": "Daily backup at 02:00 AM"
+    },
+    "retention_policy": {
+        "max_backups_count": 14,
+        "retention_days": 30,
+        "auto_prune": true
+    },
+    "notifications": {
+        "on_failure": true,
+        "on_success": false
+    }
+}
