@@ -69,7 +69,7 @@ Nextcloud به طور پیش‌فرض فاقد مکانیزم جامع پشتی�
 * **اسکریپت بازرسی سلامت زیرساخت:**
   * `deploy/check_health.sh`: بررسی وضعیت پروسه‌ها، منابع و سرویس‌های در حال اجرا.
 * **سند مرجع پایایی داده‌ها:**
-  * `docs/DATA_PERSISTENCE_AND_RELIABILITY.md`: تشریح جامع معماری ذخیره‌سازی و راهنمای عملیاتی بازیابی.
+  * `docs/backup_and_recovery/DATA_RECOVERY_OPERATOR_GUIDE.md`: تشریح جامع معماری ذخیره‌سازی و راهنمای عملیاتی بازیابی در بحران.
 
 ## ۹. هوک‌ها، ایونت‌ها و نقاط اتصال به هسته (Hooks, Events & Integration Points)
 * فراخوانی ابزار `docker exec` برای ارتباط مستقیم با ابزارهای `pg_dump` و `psql` در کانتینر دیتابیس.
@@ -137,7 +137,7 @@ Nextcloud به طور پیش‌فرض فاقد مکانیزم جامع پشتی�
 
 ## ۲۲. ارتباط با سایر اسناد (Related Documents)
 * سند [01_infrastructure_and_containerization.md](file:///home/alborz/enterprise-archive-system/docs/requirements/01_infrastructure_and_containerization.md)
-* سند مرجع [DATA_PERSISTENCE_AND_RELIABILITY.md](file:///home/alborz/enterprise-archive-system/docs/DATA_PERSISTENCE_AND_RELIABILITY.md)
+* سند مرجع [DATA_RECOVERY_OPERATOR_GUIDE.md](file:///home/alborz/enterprise-archive-system/docs/backup_and_recovery/DATA_RECOVERY_OPERATOR_GUIDE.md)
 
 ## ۲۳. وضعیت نهایی (Final Implementation Status)
 * **وضعیت پیاده‌سازی:** کامل، عملیاتی و ادغام‌شده در ابزارهای نگهداری سرور.

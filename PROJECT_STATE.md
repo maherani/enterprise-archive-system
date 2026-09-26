@@ -185,7 +185,7 @@ Status: **Completed**
 - Configured resilient volume mapping and safe restart policies (`restart: unless-stopped`).
 - Developed `deploy/backup_db.sh`: Monolithic multi-component backup engine producing complete archives (`database.sql`, `data.tar.gz`, `config.tar.gz`, `custom_apps.tar.gz`, `manifest.txt`) with SHA256 checksum verification.
 - Developed `deploy/restore_db.sh`: Enterprise disaster recovery engine featuring checksum validation, service orchestration, PostgreSQL role password synchronization from `.env`, containerized filesystem replacement, deterministic `config.php` credential alignment, and cache rebuild.
-- Published architectural analysis in `docs/backup_and_recovery/DATA_PERSISTENCE_AND_RELIABILITY.md`.
+- Resolved early startup mount race condition and integrated disaster recovery procedures into `docs/backup_and_recovery/DATA_RECOVERY_OPERATOR_GUIDE.md`.
 
 Status: **Completed**
 
