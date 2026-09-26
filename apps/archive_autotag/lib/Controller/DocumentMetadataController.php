@@ -93,7 +93,7 @@ class DocumentMetadataController extends Controller {
 
         // 3. Resolve target folder
         $folderId = (int)($this->request->getParam('folder_id') ?? $_POST['folder_id'] ?? 0);
-        $targetPath = trim((string)($this->request->getParam('target_folder') ?? $this->request->getParam('folder_path') ?? $_POST['target_folder'] ?? ''));
+        $targetPath = trim((string)($this->request->getParam('target_folder') ?? $this->request->getParam('folder_path') ?? $this->request->getParam('target_dir') ?? $_POST['target_folder'] ?? $_POST['target_dir'] ?? ''));
 
         $targetFolder = null;
         if ($folderId > 0) {
@@ -105,33 +105,27 @@ class DocumentMetadataController extends Controller {
 
         if ($targetFolder === null && $targetPath !== '') {
             $cleanDir = trim(trim($targetPath, '/'), '.');
+            $strippedDir = str_starts_with($cleanDir, 'Enterprise_Archive/') ? substr($cleanDir, strlen('Enterprise_Archive/')) : $cleanDir;
             $userFolder = $this->rootFolder->getUserFolder($uid);
+            
             if ($cleanDir === '') {
                 $targetFolder = $userFolder;
-            } elseif ($userFolder->nodeExists($cleanDir)) {
-                $n = $userFolder->get($cleanDir);
-                if ($n instanceof Folder) {
-                    $targetFolder = $n;
-                }
-            } elseif ($userFolder->nodeExists('Enterprise_Archive/' . $cleanDir)) {
-                $n = $userFolder->get('Enterprise_Archive/' . $cleanDir);
-                if ($n instanceof Folder) {
-                    $targetFolder = $n;
-                }
+            } elseif ($userFolder->nodeExists($cleanDir) && ($n = $userFolder->get($cleanDir)) instanceof Folder) {
+                $targetFolder = $n;
+            } elseif ($userFolder->nodeExists($strippedDir) && ($n = $userFolder->get($strippedDir)) instanceof Folder) {
+                $targetFolder = $n;
+            } elseif ($userFolder->nodeExists('Enterprise_Archive/' . $strippedDir) && ($n = $userFolder->get('Enterprise_Archive/' . $strippedDir)) instanceof Folder) {
+                $targetFolder = $n;
             } else {
                 $adminUser = $this->userManager->get('admin');
                 if ($adminUser !== null) {
                     $adminHome = $this->rootFolder->getUserFolder('admin');
-                    if ($adminHome->nodeExists($cleanDir)) {
-                        $n = $adminHome->get($cleanDir);
-                        if ($n instanceof Folder) {
-                            $targetFolder = $n;
-                        }
-                    } elseif ($adminHome->nodeExists('Enterprise_Archive/' . $cleanDir)) {
-                        $n = $adminHome->get('Enterprise_Archive/' . $cleanDir);
-                        if ($n instanceof Folder) {
-                            $targetFolder = $n;
-                        }
+                    if ($adminHome->nodeExists($cleanDir) && ($n = $adminHome->get($cleanDir)) instanceof Folder) {
+                        $targetFolder = $n;
+                    } elseif ($adminHome->nodeExists('Enterprise_Archive/' . $strippedDir) && ($n = $adminHome->get('Enterprise_Archive/' . $strippedDir)) instanceof Folder) {
+                        $targetFolder = $n;
+                    } elseif ($adminHome->nodeExists($strippedDir) && ($n = $adminHome->get($strippedDir)) instanceof Folder) {
+                        $targetFolder = $n;
                     }
                 }
             }

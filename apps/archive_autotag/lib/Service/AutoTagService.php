@@ -6,6 +6,7 @@ namespace OCA\ArchiveAutoTag\Service;
 use OCP\Files\Folder;
 use OCP\Files\Node;
 use OCP\Files\File;
+use OCP\Files\IRootFolder;
 use OCP\IDBConnection;
 use OCP\IUserManager;
 use OCP\SystemTag\ISystemTag;
@@ -21,6 +22,7 @@ class AutoTagService {
         private IDBConnection $db,
         private TagOwnershipService $tagOwnershipService,
         private LoggerInterface $logger,
+        private ?IRootFolder $rootFolder = null,
     ) {
     }
 
@@ -34,19 +36,39 @@ class AutoTagService {
             throw new \InvalidArgumentException('Tag name cannot be empty');
         }
 
+        $cleanSearch = mb_strtolower($name, 'UTF-8');
         $allTags = $this->tagManager->getAllTags();
         foreach ($allTags as $tag) {
-            if (strcasecmp($tag->getName(), $name) === 0) {
+            $tagName = trim($tag->getName());
+            if (mb_strtolower($tagName, 'UTF-8') === $cleanSearch || strcasecmp($tagName, $name) === 0) {
                 return $tag;
             }
         }
 
-        $this->logger->error("archive_autotag: About to create tag hex: " . bin2hex($name) . " name: " . $name);
-        // Create restricted tag: userVisible=true, userAssignable=false
-        $tag = $this->tagManager->createTag($name, true, false);
-        $this->tagOwnershipService->setTagOwner((int)$tag->getId(), 'system');
-        $this->logger->info("archive_autotag: Created restricted system tag '{$name}' (ID: {$tag->getId()})");
-        return $tag;
+        try {
+            // Create restricted tag: userVisible=true, userAssignable=false
+            $tag = $this->tagManager->createTag($name, true, false);
+            $this->tagOwnershipService->setTagOwner((int)$tag->getId(), 'system');
+            $this->logger->info("archive_autotag: Created restricted system tag '{$name}' (ID: {$tag->getId()})");
+            return $tag;
+        } catch (\OCP\SystemTag\TagAlreadyExistsException $e) {
+            // Tag already exists under slightly different casing/normalization, retrieve and return it
+            $allTags = $this->tagManager->getAllTags();
+            foreach ($allTags as $t) {
+                $tName = trim($t->getName());
+                if (mb_strtolower($tName, 'UTF-8') === $cleanSearch || strcasecmp($tName, $name) === 0) {
+                    return $t;
+                }
+            }
+            // Fallback prefix or substring match
+            foreach ($allTags as $t) {
+                $tName = trim($t->getName());
+                if (str_starts_with($name, $tName) || str_starts_with($tName, $name)) {
+                    return $t;
+                }
+            }
+            throw $e;
+        }
     }
 
     /**
@@ -112,8 +134,27 @@ class AutoTagService {
     }
 
     public function getAncestorFolderNames(Node $node): array {
+        $canonicalNode = $node;
+        try {
+            $nodeId = (int)$node->getId();
+            if ($nodeId > 0 && $this->rootFolder !== null) {
+                $candidates = $this->rootFolder->getById($nodeId);
+                foreach ($candidates as $cand) {
+                    if (str_contains($cand->getPath(), 'Enterprise_Archive')) {
+                        $canonicalNode = $cand;
+                        break;
+                    }
+                }
+                if ($canonicalNode === $node && !empty($candidates)) {
+                    $canonicalNode = $candidates[0];
+                }
+            }
+        } catch (\Throwable $t) {
+            $canonicalNode = $node;
+        }
+
         $ancestors = [];
-        $current = $node->getParent();
+        $current = $canonicalNode->getParent();
 
         while ($current !== null) {
             $name = $current->getName();
@@ -133,7 +174,44 @@ class AutoTagService {
         }
 
         // Return top-down hierarchy (e.g. Enterprise_Archive -> Finance -> 2026 -> Invoices)
-        return array_values(array_unique(array_reverse($ancestors)));
+        $result = array_values(array_unique(array_reverse($ancestors)));
+
+        // If Enterprise_Archive was missed (e.g. recipient shared mount points where root was truncated),
+        // query canonical path directly in filecache
+        if (!in_array('Enterprise_Archive', $result, true)) {
+            try {
+                $nodeId = (int)$node->getId();
+                if ($nodeId > 0) {
+                    $qb = $this->db->getQueryBuilder();
+                    $qb->select('path')
+                       ->from('filecache')
+                       ->where($qb->expr()->eq('fileid', $qb->createNamedParameter($nodeId)));
+                    $row = $qb->executeQuery()->fetchAssociative();
+                    if ($row && !empty($row['path'])) {
+                        $segments = explode('/', trim((string)$row['path'], '/'));
+                        // Remove filename (last segment if this is a file)
+                        if ($node instanceof File || ($node instanceof Node && !$node instanceof Folder)) {
+                            array_pop($segments);
+                        }
+                        $canonicalAncestors = [];
+                        foreach ($segments as $seg) {
+                            $seg = trim($seg);
+                            if ($seg === '' || $seg === 'files' || str_starts_with($seg, 'appdata_') || $seg === 'cache' || $this->userManager->userExists($seg)) {
+                                continue;
+                            }
+                            $canonicalAncestors[] = $seg;
+                        }
+                        if (!empty($canonicalAncestors) && in_array('Enterprise_Archive', $canonicalAncestors, true)) {
+                            return array_values(array_unique($canonicalAncestors));
+                        }
+                    }
+                }
+            } catch (\Throwable $t) {
+                // Keep existing result if query fails
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -157,8 +235,12 @@ class AutoTagService {
 
             $tagIdsToAssign = [];
             foreach ($allTagNames as $tagName) {
-                $tag = $this->getOrCreateRestrictedTag($tagName);
-                $tagIdsToAssign[] = (string)$tag->getId();
+                try {
+                    $tag = $this->getOrCreateRestrictedTag($tagName);
+                    $tagIdsToAssign[] = (string)$tag->getId();
+                } catch (\Throwable $t) {
+                    $this->logger->warning("archive_autotag: Could not resolve tag '{$tagName}': " . $t->getMessage());
+                }
             }
 
             $objectId = (string)$node->getId();
