@@ -1,4 +1,4 @@
-# Requirement 25 — Mandatory Document Metadata Capture Before Archive Upload (Fail-Closed)
+# Requirement 20 — Mandatory Document Metadata Capture Before Archive Upload (Fail-Closed)
 
 ## ۱. شرح نیازمندی (Problem Statement & Business Need)
 

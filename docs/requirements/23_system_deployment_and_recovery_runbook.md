@@ -1,4 +1,4 @@
-# نیازمندی ۳۰: دستورالعمل جامع استقرار و بازیابی سامane در محیط جدید (System Deployment & Recovery Runbook)
+# نیازمندی ۲۳: دستورالعمل جامع استقرار و بازیابی سامane در محیط جدید (System Deployment & Recovery Runbook)
 
 ## ۱. شرح نیازمندی (Problem Statement & Business Need)
 

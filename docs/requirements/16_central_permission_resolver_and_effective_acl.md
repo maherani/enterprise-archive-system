@@ -1,4 +1,4 @@
-# نیازمندی ۱۷: لایه متمرکز حل دسترسی و محاسبه مجوزهای موثر (Central Permission Resolver & Effective ACL Engine)
+# نیازمندی ۱۶: لایه متمرکز حل دسترسی و محاسبه مجوزهای موثر (Central Permission Resolver & Effective ACL Engine)
 
 > **وضعیت نیازمندی:** عملیاتی و نهایی شده (Implemented & Fully Verified)  
 > **نسخه استقرار:** v2.1.0  

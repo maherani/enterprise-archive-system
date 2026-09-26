@@ -1,4 +1,4 @@
-# نیازمندی ۱۶: نوار ناوبری دسترسی‌محور سراسری (Access-Aware Global Navigation Bar)
+# نیازمندی ۱۵: نوار ناوبری دسترسی‌محور سراسری (Access-Aware Global Navigation Bar)
 
 ## ۱. بیان مسئله و اهداف (Problem Statement & Business Objectives)
 در رابط کاربری سامانه بایگانی اسناد سازمانی (**Enterprise Archive System**)، کاربران سازمانی برای مرور اسناد و جابجایی سریع میان بخش‌های مجاز خود نیازمند یک ساختار ناوبری یکپارچه، امن و بدون ابهام هستند. 

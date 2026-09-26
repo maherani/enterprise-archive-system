@@ -1,4 +1,4 @@
-# سند نیازمندی شماره ۲۱: سیستم ممیزی قابل‌اعتماد و نفوذناپذیر (Reliable Audit Subsystem & Fail-Closed Gating)
+# سند نیازمندی شماره ۱۷: سیستم ممیزی قابل‌اعتماد و نفوذناپذیر (Reliable Audit Subsystem & Fail-Closed Gating)
 
 ---
 

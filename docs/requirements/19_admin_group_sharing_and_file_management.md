@@ -1,4 +1,4 @@
-# Requirement 24: Admin Group Sharing, File Management & Isolated Group Tag Governance
+# Requirement 19: Admin Group Sharing, File Management & Isolated Group Tag Governance
 
 ## 1. Executive Summary & Architectural Overview
 

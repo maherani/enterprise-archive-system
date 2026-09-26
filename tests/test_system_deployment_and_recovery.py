@@ -181,9 +181,11 @@ class TestSystemDeploymentAndRecoveryRunbook(unittest.TestCase):
         self.assertIn("Scenario B", rb_text)
         self.assertIn("Living Documentation", rb_text)
 
-        req30 = os.path.join(DOCS_DIR, "requirements", "30_system_deployment_and_recovery_runbook.md")
-        self.assertTrue(os.path.isfile(req30), "Requirement 30 document missing")
-        with open(req30, "r", encoding="utf-8") as f:
+        req_runbook = os.path.join(DOCS_DIR, "requirements", "23_system_deployment_and_recovery_runbook.md")
+        if not os.path.isfile(req_runbook):
+            req_runbook = os.path.join(DOCS_DIR, "requirements", "30_system_deployment_and_recovery_runbook.md")
+        self.assertTrue(os.path.isfile(req_runbook), "Deployment runbook requirement document missing")
+        with open(req_runbook, "r", encoding="utf-8") as f:
             req_text = f.read()
         self.assertIn("Problem Statement & Business Need", req_text)
         self.assertIn("Scenario A", req_text)

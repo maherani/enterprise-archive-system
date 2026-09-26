@@ -1,4 +1,4 @@
-# نیازمندی ۱۵: مدیریت تگ‌های اختصاصی گروه توسط ادمین گروه و ایزولاسیون کامل بین‌گروهی (Group-Specific Tag Management by Group Admin & Cross-Group Isolation)
+# نیازمندی ۱۴: مدیریت تگ‌های اختصاصی گروه توسط ادمین گروه و ایزولاسیون کامل بین‌گروهی (Group-Specific Tag Management by Group Admin & Cross-Group Isolation)
 
 ## ۱. بیان مسئله و اهداف (Problem Statement & Business Objectives)
 در سامانه بایگانی اسناد سازمانی (**Enterprise Archive System**)، اسناد محرمانه در ساختار سلسله‌مراتبی پوشه‌های گروهی (نظیر `SOC`, `CERT`, `IncidentMNG`, `NetWork`, `Office`) نگهداری می‌شوند. با توجه به حجم فزاینده اسناد سازمانی و نیاز به دسته‌بندی‌های تخصصی درون‌بخشی، قابلیت جدیدی به سیستم اضافه گردید که اهداف زیر را محقق می‌سازد:
