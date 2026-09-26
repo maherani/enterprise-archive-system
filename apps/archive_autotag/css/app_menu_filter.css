@@ -166,12 +166,31 @@ a[href*="docs.nextcloud.com"] {
     font-weight: 700 !important;
 }
 
-/* Header Unified Search Bar */
+/* -------------------------------------------------------------------------
+   Header Unified Search Bar
+   Temporarily concealed globally across all pages and users as per user request.
+   Preserved completely so it can be re-enabled at any time.
+   ------------------------------------------------------------------------- */
 #unified-search,
-.unified-search {
-    background: transparent !important;
+.unified-search,
+.unified-search-menu,
+.header-end #unified-search,
+.unified-search-modal,
+.unified-search-modal-root,
+.local-unified-search,
+[data-id="unified-search"] {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
 }
 
+/* Original Search Bar Styling (Preserved for future re-enablement)
 #unified-search input,
 .unified-search input,
 .unified-search__input {
@@ -196,6 +215,7 @@ a[href*="docs.nextcloud.com"] {
 .unified-search__input::placeholder {
     color: #64748b !important;
 }
+*/
 
 /* Header End (Notifications, Contacts, User Profile) */
 #header-end {

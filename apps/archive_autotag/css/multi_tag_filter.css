@@ -726,3 +726,23 @@ body.ea-sidebar-collapsed #app-content {
     gap: 6px !important;
     box-sizing: border-box !important;
 }
+
+/* Conceal Header Unified Search globally across all pages */
+#unified-search,
+.unified-search,
+.unified-search-menu,
+.header-end #unified-search,
+.unified-search-modal,
+.unified-search-modal-root,
+.local-unified-search,
+[data-id="unified-search"] {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
+}

@@ -117,6 +117,15 @@
 
     function applyAppMenuFilter() {
         applyBankMaskanBranding();
+        
+        // Conceal Unified Search Bar globally across all pages for all users (Preserved for future re-enablement)
+        try {
+            const searchEls = document.querySelectorAll('#unified-search, .unified-search, .unified-search-menu, .local-unified-search');
+            searchEls.forEach(el => {
+                el.style.display = 'none';
+                el.style.setProperty('display', 'none', 'important');
+            });
+        } catch (e) {}
         const isAdmin = isCurrentUserAdmin();
         if (isAdmin) {
             // Admin users see all apps normally (including App store)
