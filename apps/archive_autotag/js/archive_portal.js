@@ -5769,7 +5769,7 @@
             '    <div class="ea-terminal-snippet"><code style="color:#f87171;">./deploy/manage_backup.sh restore [نام_فایل.tar.gz]</code></div>',
             '  </div>',
             '  <div style="padding:14px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:6px;font-size:0.85rem;color:#c7d2fe;">',
-            '    📄 مستندات کامل راهنمای گام‌به‌گام اپراتور در مسیر پروژه موجود است: <code>docs/DATA_RECOVERY_OPERATOR_GUIDE.md</code>',
+            '    📄 مستندات کامل راهنمای گام‌به‌گام اپراتور در مسیر پروژه موجود است: <code>docs/backup_and_recovery/DATA_RECOVERY_OPERATOR_GUIDE.md</code>',
             '  </div>',
             '</div>'
         ].join('\n');

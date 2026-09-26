@@ -185,7 +185,7 @@ Status: **Completed**
 - Configured resilient volume mapping and safe restart policies (`restart: unless-stopped`).
 - Developed `deploy/backup_db.sh`: Monolithic multi-component backup engine producing complete archives (`database.sql`, `data.tar.gz`, `config.tar.gz`, `custom_apps.tar.gz`, `manifest.txt`) with SHA256 checksum verification.
 - Developed `deploy/restore_db.sh`: Enterprise disaster recovery engine featuring checksum validation, service orchestration, PostgreSQL role password synchronization from `.env`, containerized filesystem replacement, deterministic `config.php` credential alignment, and cache rebuild.
-- Published architectural analysis in `docs/DATA_PERSISTENCE_AND_RELIABILITY.md`.
+- Published architectural analysis in `docs/backup_and_recovery/DATA_PERSISTENCE_AND_RELIABILITY.md`.
 
 Status: **Completed**
 
@@ -214,7 +214,7 @@ Status: **Completed**
 - Created `.env.example` configuration template for zero-touch deployments.
 - Updated `docker-compose.yml` with environment-driven admin credentials for headless unattended installs.
 - Developed `deploy/deploy_from_scratch.sh` automating all 7 phases of bare-server deployment.
-- Completely overhauled and updated `docs/DEPLOYMENT_RUNBOOK.md` with comprehensive guides for bare-metal servers.
+- Completely overhauled and updated `docs/backup_and_recovery/DEPLOYMENT_RUNBOOK.md` with comprehensive guides for bare-metal servers.
 
 Status: **Completed**
 
@@ -811,7 +811,7 @@ un_e2e_tests.py, 100%).
 
 ### Requirement 29: Data Backup and Recovery Specification (Completed)
 - **Status:** Fully Implemented, Hardened & Operative (v2.8.0)
-- **Scope & Model:** Strict focus on Point-in-time Consistent Data & Metadata Backup and Disaster Recovery for a running/deployed deployment. Bare-metal/from-scratch server rebuilding remains documented in `docs/DEPLOYMENT_RUNBOOK.md`.
+- **Scope & Model:** Strict focus on Point-in-time Consistent Data & Metadata Backup and Disaster Recovery for a running/deployed deployment. Bare-metal/from-scratch server rebuilding remains documented in `docs/backup_and_recovery/DEPLOYMENT_RUNBOOK.md`.
 - **Core CLI & Automation Engines:**
   - `deploy/backup_db.sh`: Point-in-time backup engine with temporary maintenance mode, PostgreSQL dump (`database.sql`), file stream (`data.tar.gz`), Nextcloud system configuration and salts extraction, SHA-256 generation, JSON manifest packaging, and auto-pruning.
   - `deploy/restore_db.sh`: Disaster recovery engine with SHA-256 pre-flight validation, container isolation (`docker compose stop app proxy`), clean database drop/create, atomic data directory restoration, system salt synchronization, and full `occ files:scan --all`.
@@ -824,7 +824,7 @@ un_e2e_tests.py, 100%).
   - Admin Portal UI (`archive_portal.js` & `archive_portal.css`): Dedicated modal accessed via «💾 پشتیبان‌گیری و بازیابی» featuring status cards, live task progress banner with animated auto-polling, backup archives table with SHA-256 and sandbox test badges, sandbox test trigger, download link, danger-styled restore confirmation modal, schedule/retention policy tab, and terminal CLI guide tab.
 - **Documentation:**
   - `docs/requirements/29_data_backup_and_recovery.md`: Complete 23-section standard canonical specification.
-  - `docs/DATA_RECOVERY_OPERATOR_GUIDE.md`: Step-by-step Standard Operating Procedure (SOP) runbook for operators.
+  - `docs/backup_and_recovery/DATA_RECOVERY_OPERATOR_GUIDE.md`: Step-by-step Standard Operating Procedure (SOP) runbook for operators.
 - **Verification:**
   - Automated Suite: `tests/test_backup_and_recovery.py` (10/10 PASS, 100%).
 
@@ -859,9 +859,9 @@ un_e2e_tests.py, 100%).
 برای traceability، نگاشت Promptهای تاریخی به Requirementهای نهایی در `docs/requirements/README.md` و `Prompts/README.md` ثبت شده است. برای وضعیت واقعی implementation و verification، `PROJECT_STATE.md`، کد و تست‌های موجود ملاک هستند.
 ### Step 12 ➔ System Deployment & Recovery Runbook & Living Operator Guide (Requirement 30)
 - **Comprehensive Runbook Architecture:** Defined Zero-to-One deployment specification covering both Scenario A (Rebuild + Restore previous data on new server) and Scenario B (Fresh headless deployment with zero data).
-- **Living Operator Guide (`docs/DEPLOYMENT_RUNBOOK.md`):** Authored an exhaustive, step-by-step Standard Operating Procedure (SOP) for operators and DevOps engineers with copy-paste terminal commands, pre-flight checks, daemon management, troubleshooting matrix, rollback SOP, and production handover checklist.
+- **Living Operator Guide (`docs/backup_and_recovery/DEPLOYMENT_RUNBOOK.md`):** Authored an exhaustive, step-by-step Standard Operating Procedure (SOP) for operators and DevOps engineers with copy-paste terminal commands, pre-flight checks, daemon management, troubleshooting matrix, rollback SOP, and production handover checklist.
 - **Customization & Branding Preservation:** Formalized the persistence of `apps/archive_autotag` (53 classes), Obsidian dark theme, Vazirmatn typography, central tag governance, and effective ACL resolution across container rebuilds.
-- **Living Documentation Policy:** Codified that any future architectural, configurational or infrastructure modification must synchronously update `docs/DEPLOYMENT_RUNBOOK.md` and `docs/requirements/30_system_deployment_and_recovery_runbook.md`.
+- **Living Documentation Policy:** Codified that any future architectural, configurational or infrastructure modification must synchronously update `docs/backup_and_recovery/DEPLOYMENT_RUNBOOK.md` and `docs/requirements/30_system_deployment_and_recovery_runbook.md`.
 
 Status: **Completed & Living Document Active**
 

@@ -171,7 +171,9 @@ class TestSystemDeploymentAndRecoveryRunbook(unittest.TestCase):
 
     def test_10_documentation_and_runbook_governance(self):
         """docs/DEPLOYMENT_RUNBOOK.md and Requirement 30 document must be comprehensive."""
-        runbook = os.path.join(DOCS_DIR, "DEPLOYMENT_RUNBOOK.md")
+        runbook = os.path.join(DOCS_DIR, "backup_and_recovery", "DEPLOYMENT_RUNBOOK.md")
+        if not os.path.isfile(runbook):
+            runbook = os.path.join(DOCS_DIR, "DEPLOYMENT_RUNBOOK.md")
         self.assertTrue(os.path.isfile(runbook), "docs/DEPLOYMENT_RUNBOOK.md missing")
         with open(runbook, "r", encoding="utf-8") as f:
             rb_text = f.read()
