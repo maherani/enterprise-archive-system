@@ -149,8 +149,8 @@ class AutoTagService {
             }
 
             $ancestorNames = $this->getAncestorFolderNames($node);
-            $groupNames = $this->getAssociatedGroupNames($node);
-            $allTagNames = array_values(array_unique(array_merge($ancestorNames, $groupNames)));
+            // Strict folder hierarchy tags: do not convert internal technical share GIDs (like 'SOC' or 'admin') into tags
+            $allTagNames = array_values(array_unique($ancestorNames));
             if (empty($allTagNames)) {
                 return;
             }
