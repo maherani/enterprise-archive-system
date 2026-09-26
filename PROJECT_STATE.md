@@ -872,6 +872,13 @@ Status: **Completed & Living Document Active**
 
 Status: **Completed & Living Document Active**
 
+### Group Administrator User Guide (docs/GROUP_ADMIN_USER_GUIDE.md)
+- **Role Isolation & Operational Boundaries:** Authored comprehensive, step-by-step user guide tailored specifically for Group Administrators (Subadmins), detailing strict role boundaries separating System Admin, Group Admin, and regular group members.
+- **Visual Evidence:** Embedded 7 live screenshots captured directly from active Subadmin account (`Bakbari` / SOC group), demonstrating folder request submissions, department request tracking, group tag governance, subadmin user management, and document metadata.
+- **Governance Alignment:** Enforced strict documentation of the hard ban on user deletion by Subadmins (HTTP 403 Forbidden), protection of system tags (🔒), and the formal 2-tier folder creation cartable workflow.
+
+Status: **Completed & Living Document Active**
+
 ## Latest Validation Status
 
 All 30 integration suites (including security, ACL, and AI Audit semantics) passed successfully with a 100% success rate.
