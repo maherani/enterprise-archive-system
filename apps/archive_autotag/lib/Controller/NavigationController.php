@@ -153,6 +153,14 @@ class NavigationController extends Controller {
             $folderName = $node->getName();
             $folderRelPath = 'Enterprise_Archive/' . $folderName;
 
+            // Resolve canonical group ID and display name first
+            $canonicalGid = $this->folderRequestService->resolveGroupIdFromDisplayNameOrId($folderName);
+            $groupObj = $this->groupManager->get($canonicalGid) ?? $this->groupManager->get($folderName);
+            $displayName = ($groupObj && method_exists($groupObj, 'getDisplayName') && trim((string)$groupObj->getDisplayName()) !== '')
+                ? trim((string)$groupObj->getDisplayName())
+                : $folderName;
+            $isGroupMember = in_array($canonicalGid, $userGroups, true) || in_array($folderName, $userGroups, true);
+
             // Unified Access Check via CentralPermissionResolver
             if ($isAdmin) {
                 $hasAccess = true;
@@ -161,10 +169,9 @@ class NavigationController extends Controller {
                     $decision = $resolver->evaluateFolder($userId, $folderRelPath, PermissionOperation::READ_METADATA);
                     $hasAccess = $decision->allowed;
                 } else {
-                    $matchesGroup = in_array($folderName, $userGroups, true);
-                    $tagId = $tagMapByName[$folderName] ?? null;
+                    $tagId = $tagMapByName[$folderName] ?? ($tagMapByName[$canonicalGid] ?? null);
                     $tagVisible = $tagId !== null && in_array($tagId, $visibleTagIds, true);
-                    $hasAccess = $matchesGroup || $tagVisible;
+                    $hasAccess = $isGroupMember || $tagVisible;
                 }
             }
 
@@ -172,15 +179,10 @@ class NavigationController extends Controller {
                 continue;
             }
 
-            $tagId = $tagMapByName[$folderName] ?? null;
-            $groupObj = $this->groupManager->get($folderName);
-            $displayName = ($groupObj && method_exists($groupObj, 'getDisplayName')) ? $groupObj->getDisplayName() : $folderName;
-            if (empty($displayName)) {
-                $displayName = $folderName;
-            }
+            $tagId = $tagMapByName[$folderName] ?? ($tagMapByName[$canonicalGid] ?? null);
 
             $items[] = [
-                'id' => $folderName,
+                'id' => $canonicalGid,
                 'name' => $displayName,
                 'raw_name' => $folderName,
                 'display_name' => $displayName,
@@ -189,7 +191,7 @@ class NavigationController extends Controller {
                 'path' => $folderRelPath,
                 'folder_url' => '/index.php/apps/files/files?dir=' . rawurlencode('/' . $folderRelPath),
                 'tag_id' => $tagId,
-                'is_group' => in_array($folderName, $userGroups, true),
+                'is_group' => $isGroupMember,
             ];
         }
 

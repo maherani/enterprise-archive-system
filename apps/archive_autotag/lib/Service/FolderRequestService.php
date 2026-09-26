@@ -555,6 +555,81 @@ class FolderRequestService {
      * Approve folder creation request and atomically create folder, permissions, and group-bound tag.
      * Can ONLY be performed by System Admin.
      */
+    
+    /**
+     * Resolve the designated folder name for a group inside Enterprise_Archive.
+     * Always uses the group's human-readable display name if available, otherwise falls back to gid.
+     */
+    
+    /**
+     * Bidirectional resolver: maps display name or raw ID to canonical group ID (gid).
+     */
+    public function resolveGroupIdFromDisplayNameOrId(string $nameOrId): string {
+        $clean = trim($nameOrId);
+        if ($clean === '') {
+            return '';
+        }
+        if ($this->groupManager->groupExists($clean)) {
+            return $clean;
+        }
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('gid')
+               ->from('groups')
+               ->where($qb->expr()->eq('displayname', $qb->createNamedParameter($clean)));
+            $gid = $qb->executeQuery()->fetchOne();
+            if ($gid && is_string($gid)) {
+                return $gid;
+            }
+        } catch (\Throwable $t) {
+            // fallback
+        }
+        return $clean;
+    }
+
+    public function getGroupArchiveFolderName(string $groupId): string {
+        try {
+            $group = $this->groupManager->get($groupId);
+            if ($group && method_exists($group, 'getDisplayName')) {
+                $display = trim((string)$group->getDisplayName());
+                if ($display !== '') {
+                    return $display;
+                }
+            }
+        } catch (\Throwable $t) {
+            // fallback
+        }
+        return $groupId;
+    }
+
+    /**
+     * Get or create the base Folder object for a group under Enterprise_Archive.
+     * Checks for folder named by display name first, then by groupId (for backward compatibility),
+     * and creates with display name if neither exists.
+     */
+    public function getOrCreateGroupBaseFolder(Folder $archiveRoot, string $groupId): Folder {
+        $folderName = $this->getGroupArchiveFolderName($groupId);
+
+        // 1. Try display name folder
+        if ($archiveRoot->nodeExists($folderName)) {
+            $node = $archiveRoot->get($folderName);
+            if ($node instanceof Folder) {
+                return $node;
+            }
+        }
+
+        // 2. Try raw groupId folder (backward compatibility)
+        if ($archiveRoot->nodeExists($groupId)) {
+            $node = $archiveRoot->get($groupId);
+            if ($node instanceof Folder) {
+                return $node;
+            }
+        }
+
+        // 3. Create new folder with human-readable display name
+        return $archiveRoot->newFolder($folderName);
+    }
+
     public function approveRequest(int $id, string $adminUid): array {
         if (!$this->isSystemAdmin($adminUid)) {
             throw new SecurityPermissionException("Forbidden: Only System Administrators can approve folder creation requests.");
@@ -595,10 +670,8 @@ class FolderRequestService {
                 throw new \RuntimeException("Enterprise_Archive is not a directory.");
             }
 
-            // 3. Ensure Group Base Directory (e.g. Enterprise_Archive/SOC)
-            $groupBase = $archiveRoot->nodeExists($groupId)
-                ? $archiveRoot->get($groupId)
-                : $archiveRoot->newFolder($groupId);
+            // 3. Ensure Group Base Directory using human-readable display name (e.g. Enterprise_Archive/مرکز عملیات و پاسخ‌گویی امنیت سایبری)
+            $groupBase = $this->getOrCreateGroupBaseFolder($archiveRoot, $groupId);
 
             if (!($groupBase instanceof Folder)) {
                 throw new \RuntimeException("Group directory '{$groupId}' is not a directory.");
@@ -844,11 +917,28 @@ class FolderRequestService {
             }
 
             $archiveRoot = $adminHome->get('Enterprise_Archive');
-            if (!($archiveRoot instanceof Folder) || !$archiveRoot->nodeExists($groupId)) {
+            if (!($archiveRoot instanceof Folder)) {
                 return $folders;
             }
 
-            $groupBase = $archiveRoot->get($groupId);
+            $folderName = $this->getGroupArchiveFolderName($groupId);
+            $groupBase = null;
+            if ($archiveRoot->nodeExists($folderName)) {
+                $node = $archiveRoot->get($folderName);
+                if ($node instanceof Folder) {
+                    $groupBase = $node;
+                }
+            }
+            if ($groupBase === null && $archiveRoot->nodeExists($groupId)) {
+                $node = $archiveRoot->get($groupId);
+                if ($node instanceof Folder) {
+                    $groupBase = $node;
+                }
+            }
+
+            if (!($groupBase instanceof Folder)) {
+                return $folders;
+            }
             if (!($groupBase instanceof Folder)) {
                 return $folders;
             }
@@ -1079,9 +1169,7 @@ class FolderRequestService {
 
         // If groupId specified, ensure group share exists and tag is bound
         if ($groupId !== null && $groupId !== '' && $groupId !== 'all') {
-            $groupBase = $archiveRoot->nodeExists($groupId)
-                ? $archiveRoot->get($groupId)
-                : $archiveRoot->newFolder($groupId);
+            $groupBase = $this->getOrCreateGroupBaseFolder($archiveRoot, $groupId);
             $this->ensureGroupShareExists($groupBase, $groupId, $createdFolder);
 
             $createdTag = $this->autoTagService->getOrCreateRestrictedTag($folderName);

@@ -214,7 +214,8 @@ class CentralPermissionResolver implements IPermissionResolver {
 
         // Rule 5: Department Group Scope
         // If file resides in Enterprise_Archive/<DepartmentGroup> and user is an active member
-        if ($deptGroup !== null && in_array($deptGroup, $userGroups, true)) {
+        $canonicalGid = $this->resolveCanonicalGroupId($deptGroup);
+        if ($canonicalGid !== null && in_array($canonicalGid, $userGroups, true)) {
             $deptMask = PermissionOperation::READ | PermissionOperation::READ_METADATA | PermissionOperation::WRITE | PermissionOperation::CREATE;
             if (($deptMask & $operation) === $operation) {
                 return $this->cacheDecision($cacheKey, PermissionDecision::allow(
@@ -440,6 +441,39 @@ class CentralPermissionResolver implements IPermissionResolver {
         } catch (\Throwable $t) {
             return false;
         }
+    }
+
+    
+    /**
+     * Map a department folder name (which could be a display name or a gid)
+     * to its canonical group ID (gid).
+     */
+    private function resolveCanonicalGroupId(?string $deptNameOrId): ?string {
+        if ($deptNameOrId === null || $deptNameOrId === '') {
+            return null;
+        }
+        $deptClean = trim($deptNameOrId);
+
+        // 1. If it directly matches an existing group GID
+        if ($this->groupManager->groupExists($deptClean)) {
+            return $deptClean;
+        }
+
+        // 2. Lookup by displayname in oc_groups
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('gid')
+               ->from('groups')
+               ->where($qb->expr()->eq('displayname', $qb->createNamedParameter($deptClean)));
+            $gid = $qb->executeQuery()->fetchOne();
+            if ($gid && is_string($gid)) {
+                return $gid;
+            }
+        } catch (\Throwable $t) {
+            // fallback
+        }
+
+        return $deptClean;
     }
 
     private function extractDepartmentFromPath(string $path): ?string {

@@ -243,7 +243,12 @@ def run_tests():
 
     # 5.4 Verify WebDAV File Upload into the Newly Created Folder
     print("\n[Step 5.4] Verifying WebDAV Upload into newly created folder...")
-    new_folder_webdav = f"{NEXTCLOUD_URL}/remote.php/dav/files/{SOC_ADMIN_USER}/SOC/افتا/{folder_to_create}"
+    import urllib.parse
+    group_folder_name = 'مرکز عملیات و پاسخ‌گویی امنیت سایبری'
+    encoded_group_folder = urllib.parse.quote(group_folder_name)
+    encoded_target_path = urllib.parse.quote('افتا')
+    encoded_folder_to_create = urllib.parse.quote(folder_to_create)
+    new_folder_webdav = f"{NEXTCLOUD_URL}/remote.php/dav/files/{SOC_ADMIN_USER}/{encoded_group_folder}/{encoded_target_path}/{encoded_folder_to_create}"
     sample_doc_url = f"{new_folder_webdav}/incident_report_{int(time.time())}.txt"
     r_put = requests.put(sample_doc_url, data=b"Highly confidential SOC operation report content.", auth=soc_admin_auth)
     print(f"  - WebDAV PUT status: {r_put.status_code}")

@@ -618,14 +618,27 @@ class GroupTagService {
         $lowerClean = strtolower($cleanPath);
         $grpLower = strtolower($groupId);
 
-        $prefix1 = "files/enterprise_archive/{$grpLower}/";
-        $prefix2 = "enterprise_archive/{$grpLower}/";
+        $prefixes = [
+            "files/enterprise_archive/{$grpLower}/",
+            "enterprise_archive/{$grpLower}/",
+        ];
 
-        if (str_starts_with($lowerClean, $prefix1) ||
-            str_starts_with($lowerClean, $prefix2) ||
-            $lowerClean === rtrim($prefix1, '/') ||
-            $lowerClean === rtrim($prefix2, '/')) {
-            return ['in_scope' => true, 'type' => $type, 'path' => $path];
+        try {
+            $group = $this->groupManager->get($groupId);
+            if ($group && method_exists($group, 'getDisplayName')) {
+                $dispLower = mb_strtolower(trim((string)$group->getDisplayName()));
+                if ($dispLower !== '' && $dispLower !== $grpLower) {
+                    $prefixes[] = "files/enterprise_archive/{$dispLower}/";
+                    $prefixes[] = "enterprise_archive/{$dispLower}/";
+                }
+            }
+        } catch (\Throwable $t) {}
+
+        foreach ($prefixes as $pfx) {
+            if (str_starts_with($lowerClean, $pfx) ||
+                $lowerClean === rtrim($pfx, '/')) {
+                return ['in_scope' => true, 'type' => $type, 'path' => $path];
+            }
         }
 
         // 2. Explicit group grant check in archive_file_grants

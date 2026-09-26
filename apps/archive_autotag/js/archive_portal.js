@@ -37,6 +37,32 @@
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
     }
+    // Helper: Map Group ID to human-readable Persian Display Name
+    function getGroupDisplayName(groupId) {
+        if (!groupId) return '';
+        if (state && state.userRole) {
+            var all = (state.userRole.all_groups_details || [])
+                .concat(state.userRole.subadmin_groups_details || [])
+                .concat(state.userRole.member_groups_details || []);
+            for (var i = 0; i < all.length; i++) {
+                if (all[i].id === groupId && all[i].name) {
+                    return all[i].name;
+                }
+            }
+        }
+        var map = {
+            'SOC': 'مرکز عملیات و پاسخ‌گویی امنیت سایبری',
+            'CERT': 'حاکمیت، ریسک و انطباق امنیت اطلاعات',
+            'Compliance_Unit': 'واحد تطبیق و مقررات',
+            'Network': 'عملیات و پشتیبانی شبکه',
+            'Finance': 'امور مالی و حسابداری',
+            'Deputy Directorate of Security and Network': 'معاونت امنیت و شبکه',
+            'Director General of Security and Infrastructure': 'اداره کل امنیت و زیرساخت',
+            'Deputy Director of Infrastructure': 'معاونت زیرساخت و عملیات'
+        };
+        return map[groupId] || groupId;
+    }
+
 
     // Helper: Parse and validate search query with '+' delimiter and AND logic
     function parseSearchQuery(query) {
@@ -2374,7 +2400,7 @@
         function loadParentFolders(groupId) {
             if (!pathSelect) return;
             pathSelect.disabled = true;
-            pathSelect.innerHTML = '<option value="">⏳ در حال دریافت پوشه‌های گروه ' + escapeHtml(groupId) + '...</option>';
+            pathSelect.innerHTML = '<option value="">⏳ در حال دریافت پوشه‌های گروه ' + escapeHtml(getGroupDisplayName(groupId)) + '...</option>';
 
             fetch('/index.php/apps/archive_autotag/api/group-folders?group_id=' + encodeURIComponent(groupId), {
                 headers: { 'Accept': 'application/json' }
