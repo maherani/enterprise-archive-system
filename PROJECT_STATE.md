@@ -854,7 +854,7 @@ un_e2e_tests.py, 100%).
 
 ## Canonical Requirement & Prompt Consolidation
 
-از این نقطه، `docs/requirements/` مرجع اصلی نیازمندی‌های زنده پروژه است و تعداد نیازمندی‌های Canonical برابر **۳۰** است. Promptهای تاریخی که صرفاً همان نیازمندی‌ها را تکرار می‌کردند حذف و محتوای آن‌ها در Requirement متناظر ادغام شده است.
+از این نقطه، `docs/requirements/` مرجع اصلی نیازمندی‌های زنده پروژه است و تمامی نیازمندی‌های هم‌پوشان در قالب **۲۰ سند جامع و مستقل (Canonical Specifications)** تجمیع و بازآرایی شده‌اند (شرح ماتریس ادغام در `docs/requirements/README.md`). Promptهای تاریخی که صرفاً همان نیازمندی‌ها را تکرار می‌کردند حذف و محتوای آن‌ها در Requirement متناظر ادغام شده است.
 
 برای traceability، نگاشت Promptهای تاریخی به Requirementهای نهایی در `docs/requirements/README.md` و `Prompts/README.md` ثبت شده است. برای وضعیت واقعی implementation و verification، `PROJECT_STATE.md`، کد و تست‌های موجود ملاک هستند.
 ### Step 12 ➔ System Deployment & Recovery Runbook & Living Operator Guide (Requirement 30)
