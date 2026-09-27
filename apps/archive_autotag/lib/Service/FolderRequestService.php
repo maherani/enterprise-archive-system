@@ -882,6 +882,7 @@ class FolderRequestService {
                     $share->setShareOwner($groupBase->getOwner()->getUID());
                     $this->shareManager->createShare($share);
                     $this->logger->info("archive_autotag: Created group share for '{$groupId}' on '{$groupBase->getName()}'.");
+                    $this->normalizeGroupMountTargets((int)$groupBase->getId());
                 }
             }
         } catch (\Throwable $t) {
@@ -1193,4 +1194,56 @@ class FolderRequestService {
         ];
     }
 
+
+    /**
+     * Ensure child usergroup shares and mounts match the canonical folder target without '(2)' suffixes.
+     */
+    private function normalizeGroupMountTargets(int $fileId): void {
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('id', 'file_source', 'file_target')
+               ->from('share')
+               ->where($qb->expr()->eq('item_source', $qb->createNamedParameter((string)$fileId)))
+               ->andWhere($qb->expr()->eq('share_type', $qb->createNamedParameter(1))); // TYPE_GROUP
+            $gShares = $qb->executeQuery()->fetchAllAssociative();
+
+            foreach ($gShares as $gShare) {
+                $pId = (int)$gShare['id'];
+                $fSource = (int)$gShare['file_source'];
+                $cTarget = '/' . ltrim(rtrim((string)$gShare['file_target'], '/'), '/');
+
+                $cqb = $this->db->getQueryBuilder();
+                $cqb->select('id', 'share_with', 'file_target')
+                    ->from('share')
+                    ->where($cqb->expr()->eq('parent', $cqb->createNamedParameter($pId)))
+                    ->andWhere($cqb->expr()->eq('share_type', $cqb->createNamedParameter(2))); // TYPE_USERGROUP
+                $children = $cqb->executeQuery()->fetchAllAssociative();
+
+                foreach ($children as $c) {
+                    $cId = (int)$c['id'];
+                    $user = (string)$c['share_with'];
+                    if ((string)$c['file_target'] !== $cTarget) {
+                        $upS = $this->db->getQueryBuilder();
+                        $upS->update('share')
+                            ->set('file_target', $upS->createNamedParameter($cTarget))
+                            ->where($upS->expr()->eq('id', $upS->createNamedParameter($cId)));
+                        $upS->executeStatement();
+                    }
+
+                    $expectedMount = '/' . $user . '/files' . $cTarget . '/';
+                    $expectedHash = md5($expectedMount);
+                    $upM = $this->db->getQueryBuilder();
+                    $upM->update('mounts')
+                        ->set('mount_point', $upM->createNamedParameter($expectedMount))
+                        ->set('mount_point_hash', $upM->createNamedParameter($expectedHash))
+                        ->where($upM->expr()->eq('user_id', $upM->createNamedParameter($user)))
+                        ->andWhere($upM->expr()->eq('root_id', $upM->createNamedParameter($fSource)))
+                        ->andWhere($upM->expr()->eq('mount_provider_class', $upM->createNamedParameter('OCA\\Files_Sharing\\MountProvider')));
+                    $upM->executeStatement();
+                }
+            }
+        } catch (\Throwable $t) {
+            $this->logger->warning("FolderRequestService: Mount target normalization warning: " . $t->getMessage());
+        }
+    }
 }

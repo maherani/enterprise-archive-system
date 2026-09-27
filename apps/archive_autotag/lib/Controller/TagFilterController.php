@@ -167,9 +167,15 @@ class TagFilterController extends Controller {
                 $folderUrl = '/index.php/apps/files/files?dir=' . $encodedTargetDir;
                 $webUrl = $folderUrl;
 
+                $isDir = $node->getType() === FileInfo::TYPE_FOLDER;
+                $nodeName = $node->getName();
+                if ($isDir) {
+                    $nodeName = $this->resolveCanonicalFolderName($fileId, $nodeName, $uid);
+                }
+
                 $filesResult[] = [
                     'id' => $fileId,
-                    'name' => $node->getName(),
+                    'name' => $nodeName,
                     'path' => $relPath,
                     'parent_dir' => $parentDir,
                     'target_dir' => $targetDir,
@@ -490,9 +496,14 @@ class TagFilterController extends Controller {
             $folderUrl = '/index.php/apps/files/files?dir=' . $encodedTargetDir;
             $webUrl = $folderUrl;
 
+            $nodeName = $node->getName();
+            if ($isDir) {
+                $nodeName = $this->resolveCanonicalFolderName($fileId, $nodeName, $uid);
+            }
+
             $filesResult[] = [
                 'id' => $fileId,
-                'name' => $node->getName(),
+                'name' => $nodeName,
                 'path' => $relPath,
                 'parent_dir' => $parentDir,
                 'target_dir' => $targetDir,
@@ -572,5 +583,70 @@ class TagFilterController extends Controller {
         $units = ['B', 'KB', 'MB', 'GB', 'TB'];
         $i = (int)floor(log($bytes, 1024));
         return round($bytes / pow(1024, $i), 2) . ' ' . ($units[$i] ?? 'B');
+    }
+
+    /**
+     * Resolves the canonical folder name from filecache / share target,
+     * stripping and healing any false collision suffixes (like ' (2)').
+     */
+    private function resolveCanonicalFolderName(int $fileId, string $currentName, string $uid): string {
+        if (!preg_match('/^(.*?)(?:\s*\(\d+\))$/u', $currentName, $matches)) {
+            return $currentName;
+        }
+
+        $baseCandidate = trim($matches[1]);
+        if ($baseCandidate === '') {
+            return $currentName;
+        }
+
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('name')
+               ->from('filecache')
+               ->where($qb->expr()->eq('fileid', $qb->createNamedParameter($fileId)));
+            $row = $qb->executeQuery()->fetchAssociative();
+
+            if ($row && !empty($row['name'])) {
+                $canonicalName = (string)$row['name'];
+                if (!preg_match('/\s*\(\d+\)$/u', $canonicalName)) {
+                    $this->healUserChildShare($fileId, $canonicalName, $uid);
+                    return $canonicalName;
+                }
+            }
+        } catch (\Throwable $t) {
+            // Non-blocking fallback
+        }
+
+        return $baseCandidate;
+    }
+
+    /**
+     * Self-heal child share and mount point for a specific user and fileId.
+     */
+    private function healUserChildShare(int $fileId, string $canonicalName, string $uid): void {
+        try {
+            $canonicalTarget = '/' . ltrim($canonicalName, '/');
+            $upShare = $this->db->getQueryBuilder();
+            $upShare->update('share')
+                ->set('file_target', $upShare->createNamedParameter($canonicalTarget))
+                ->where($upShare->expr()->eq('item_source', $upShare->createNamedParameter((string)$fileId)))
+                ->andWhere($upShare->expr()->eq('share_with', $upShare->createNamedParameter($uid)))
+                ->andWhere($upShare->expr()->eq('share_type', $upShare->createNamedParameter(IShare::TYPE_USERGROUP)));
+            $upShare->executeStatement();
+
+            $expectedMountPoint = '/' . $uid . '/files' . $canonicalTarget . '/';
+            $expectedHash = md5($expectedMountPoint);
+
+            $upMount = $this->db->getQueryBuilder();
+            $upMount->update('mounts')
+                ->set('mount_point', $upMount->createNamedParameter($expectedMountPoint))
+                ->set('mount_point_hash', $upMount->createNamedParameter($expectedHash))
+                ->where($upMount->expr()->eq('user_id', $upMount->createNamedParameter($uid)))
+                ->andWhere($upMount->expr()->eq('root_id', $upMount->createNamedParameter($fileId)))
+                ->andWhere($upMount->expr()->eq('mount_provider_class', $upMount->createNamedParameter('OCA\\Files_Sharing\\MountProvider')));
+            $upMount->executeStatement();
+        } catch (\Throwable $t) {
+            // Ignore non-critical background heal errors
+        }
     }
 }

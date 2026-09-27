@@ -193,6 +193,12 @@ class ArchiveDeletionService {
                         $sqb->delete('share')
                             ->where($sqb->expr()->eq('item_source', $sqb->createNamedParameter((string)$cId)))
                             ->executeStatement();
+
+                        $mqb = $this->db->getQueryBuilder();
+                        $mqb->delete('mounts')
+                            ->where($mqb->expr()->eq('root_id', $mqb->createNamedParameter($cId)))
+                            ->andWhere($mqb->expr()->eq('mount_provider_class', $mqb->createNamedParameter('OCA\\Files_Sharing\\MountProvider')))
+                            ->executeStatement();
                     }
                 }
             }
@@ -205,6 +211,12 @@ class ArchiveDeletionService {
             $sqb = $this->db->getQueryBuilder();
             $sqb->delete('share')
                 ->where($sqb->expr()->eq('item_source', $sqb->createNamedParameter((string)$effectiveFileId)))
+                ->executeStatement();
+
+            $mqb = $this->db->getQueryBuilder();
+            $mqb->delete('mounts')
+                ->where($mqb->expr()->eq('root_id', $mqb->createNamedParameter($effectiveFileId)))
+                ->andWhere($mqb->expr()->eq('mount_provider_class', $mqb->createNamedParameter('OCA\\Files_Sharing\\MountProvider')))
                 ->executeStatement();
 
             // 7. Physical Node Deletion via Nextcloud API

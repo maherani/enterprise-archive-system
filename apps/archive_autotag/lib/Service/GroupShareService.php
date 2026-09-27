@@ -201,6 +201,7 @@ class GroupShareService {
                 $share = $this->shareManager->getShareById((string)$shareId);
                 $share->setPermissions($permissions);
                 $this->shareManager->updateShare($share);
+                $this->reconcileAllGroupShares($shareId);
             } catch (\Throwable $t) {
                 // Direct DB update fallback if share manager instance wrapper has caching nuance
                 $upQb = $this->db->getQueryBuilder();
@@ -219,6 +220,7 @@ class GroupShareService {
                 $share->setPermissions($permissions);
                 $createdShare = $this->shareManager->createShare($share);
                 $shareId = (int)$createdShare->getId();
+                $this->reconcileAllGroupShares($shareId);
             } catch (\Throwable $t) {
                 $this->logger->error("GroupShareService: Failed to create share via manager: " . $t->getMessage());
                 throw new \RuntimeException("Failed to create native Nextcloud group share: " . $t->getMessage(), 0, $t);
@@ -327,6 +329,13 @@ class GroupShareService {
             $delQb->executeStatement();
         }
 
+        // Clean up lingering mounts in oc_mounts for this fileId
+        $delMountQb = $this->db->getQueryBuilder();
+        $delMountQb->delete('mounts')
+              ->where($delMountQb->expr()->eq('root_id', $delMountQb->createNamedParameter($fileId)))
+              ->andWhere($delMountQb->expr()->eq('mount_provider_class', $delMountQb->createNamedParameter('OCA\\Files_Sharing\\MountProvider')));
+        $delMountQb->executeStatement();
+
         // 2. Synchronize removal in archive_file_grants
         $this->fileOwnershipService->purgeGrant(
             $fileId,
@@ -364,6 +373,101 @@ class GroupShareService {
             'file_id' => $fileId,
             'group_id' => $groupId,
             'message' => 'Group share removed successfully. Underlying resource preserved.',
+        ];
+    }
+
+    /**
+     * Automatically reconcile all group shares and child usergroup shares to ensure:
+     * 1. No child share has drifted or acquired an accidental collision suffix (e.g. ' (2)').
+     * 2. All child shares have file_target matching the parent group share's canonical target.
+     * 3. Mounts in oc_mounts match the canonical mount point and hash for each member.
+     * 4. Any orphaned share mounts in oc_mounts pointing to nonexistent file sources are purged.
+     *
+     * @return array{reconciled_shares: int, purged_orphan_mounts: int}
+     */
+    public function reconcileAllGroupShares(?int $specificShareId = null): array {
+        $reconciledCount = 0;
+        $purgedMountsCount = 0;
+
+        // 1. Purge orphaned mounts where root_id is no longer in oc_share
+        try {
+            $orphanMountsQb = $this->db->getQueryBuilder();
+            $orphanMountsQb->delete('mounts')
+                ->where($orphanMountsQb->expr()->eq('mount_provider_class', $orphanMountsQb->createNamedParameter('OCA\\Files_Sharing\\MountProvider')))
+                ->andWhere($orphanMountsQb->expr()->notIn(
+                    'root_id',
+                    $orphanMountsQb->createFunction('SELECT file_source FROM *PREFIX*share')
+                ));
+            $purgedMountsCount = (int)$orphanMountsQb->executeStatement();
+        } catch (\Throwable $t) {
+            $this->logger->warning("GroupShareService: Failed to purge orphan mounts: " . $t->getMessage());
+        }
+
+        // 2. Fetch group shares to reconcile
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('id', 'file_source', 'file_target', 'share_with')
+           ->from('share')
+           ->where($qb->expr()->eq('share_type', $qb->createNamedParameter(IShare::TYPE_GROUP)));
+
+        if ($specificShareId !== null && $specificShareId > 0) {
+            $qb->andWhere($qb->expr()->eq('id', $qb->createNamedParameter($specificShareId)));
+        }
+
+        $groupShares = $qb->executeQuery()->fetchAllAssociative();
+
+        foreach ($groupShares as $gShare) {
+            $parentShareId = (int)$gShare['id'];
+            $fileSource = (int)$gShare['file_source'];
+            $canonicalTarget = (string)$gShare['file_target'];
+
+            // Clean canonical target of any trailing slashes
+            $canonicalTarget = '/' . ltrim(rtrim($canonicalTarget, '/'), '/');
+
+            // Find all child usergroup shares
+            $childQb = $this->db->getQueryBuilder();
+            $childQb->select('id', 'share_with', 'file_target')
+                ->from('share')
+                ->where($childQb->expr()->eq('parent', $childQb->createNamedParameter($parentShareId)))
+                ->andWhere($childQb->expr()->eq('share_type', $childQb->createNamedParameter(IShare::TYPE_USERGROUP)));
+            $children = $childQb->executeQuery()->fetchAllAssociative();
+
+            foreach ($children as $child) {
+                $childId = (int)$child['id'];
+                $childTarget = (string)$child['file_target'];
+                $recipient = (string)$child['share_with'];
+
+                $needsFix = false;
+                if ($childTarget !== $canonicalTarget) {
+                    $needsFix = true;
+                }
+
+                $expectedMountPoint = '/' . $recipient . '/files' . $canonicalTarget . '/';
+                $expectedHash = md5($expectedMountPoint);
+
+                if ($needsFix) {
+                    $upShareQb = $this->db->getQueryBuilder();
+                    $upShareQb->update('share')
+                        ->set('file_target', $upShareQb->createNamedParameter($canonicalTarget))
+                        ->where($upShareQb->expr()->eq('id', $upShareQb->createNamedParameter($childId)));
+                    $upShareQb->executeStatement();
+                    $reconciledCount++;
+                }
+
+                // Ensure oc_mounts is updated to the canonical mount point
+                $upMountQb = $this->db->getQueryBuilder();
+                $upMountQb->update('mounts')
+                    ->set('mount_point', $upMountQb->createNamedParameter($expectedMountPoint))
+                    ->set('mount_point_hash', $upMountQb->createNamedParameter($expectedHash))
+                    ->where($upMountQb->expr()->eq('user_id', $upMountQb->createNamedParameter($recipient)))
+                    ->andWhere($upMountQb->expr()->eq('root_id', $upMountQb->createNamedParameter($fileSource)))
+                    ->andWhere($upMountQb->expr()->eq('mount_provider_class', $upMountQb->createNamedParameter('OCA\\Files_Sharing\\MountProvider')));
+                $upMountQb->executeStatement();
+            }
+        }
+
+        return [
+            'reconciled_shares' => $reconciledCount,
+            'purged_orphan_mounts' => $purgedMountsCount,
         ];
     }
 }
