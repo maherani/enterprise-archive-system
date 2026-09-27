@@ -2001,7 +2001,19 @@
 
         // Also fetch from /api/group-folders
         if (state.userRole) {
-            var groupsToQuery = (state.userRole.subadmin_groups || []).concat(state.userRole.is_admin ? ['SOC', 'CERT', 'Compliance_Unit'] : []);
+            var groupsToQuery = [];
+            if (state.userRole.is_admin) {
+                if (Array.isArray(state.userRole.all_groups_details) && state.userRole.all_groups_details.length > 0) {
+                    groupsToQuery = state.userRole.all_groups_details.map(function(g) { return g.id; });
+                } else {
+                    groupsToQuery = (state.userRole.subadmin_groups || []).concat(state.userRole.member_groups || []);
+                }
+            } else {
+                groupsToQuery = (state.userRole.subadmin_groups || []).concat(state.userRole.member_groups || []);
+            }
+            groupsToQuery = Array.from(new Set(groupsToQuery)).filter(function(grp) {
+                return grp && (typeof grp !== 'string' || grp.toLowerCase() !== 'admin');
+            });
             groupsToQuery.forEach(function(grp) {
                 fetch('/index.php/apps/archive_autotag/api/group-folders?group_id=' + encodeURIComponent(grp), {
                     headers: { 'Accept': 'application/json' }
@@ -2216,11 +2228,6 @@
             '      <label class="ea-form-label">تخصیص دسترسی دپارتمان / گروه (اختیاری):</label>',
             '      <select id="ea-admin-group-id" class="ea-form-select">',
             '        <option value="">🏛️ عمومی سازمانی (کلیه کاربران و دپارتمان‌ها)</option>',
-            '        <option value="SOC">🛡️ دپارتمان SOC (مرکز عملیات امنیت)</option>',
-            '        <option value="CERT">🚨 دپارتمان CERT (امداد و واکنش به رخداد)</option>',
-            '        <option value="Compliance_Unit">📋 واحد تطبیق و مقررات (Compliance Unit)</option>',
-            '        <option value="Network">🌐 دپارتمان شبکه (Network)</option>',
-            '        <option value="Finance">💰 امور مالی و حسابداری (Finance)</option>',
             '      </select>',
             '      <div class="ea-form-help">در صورت انتخاب یک دپارتمان، دسترسی و برچسب‌های سلسله‌مراتبی به صورت ایزوله به اعضای آن گروه تخصیص می‌یابد.</div>',
             '      <div class="ea-modal-footer">',
@@ -2255,6 +2262,47 @@
         .catch(function () {
             parentSelect.innerHTML = '<option value="">🏛️ ریشه آرشیو سازمانی (Enterprise_Archive)</option>';
         });
+
+        // Dynamically fetch and populate groups directly from the database
+        var groupSelect = document.getElementById('ea-admin-group-id');
+        function populateAdminGroups(groupsList) {
+            if (!groupSelect || !Array.isArray(groupsList)) return;
+            var currentVal = groupSelect.value;
+            var opts = [
+                '<option value="">🏛️ عمومی سازمانی (کلیه کاربران و دپارتمان‌ها)</option>'
+            ];
+            groupsList.forEach(function (g) {
+                var gid = g.id || g;
+                if (!gid || (typeof gid === 'string' && gid.toLowerCase() === 'admin')) return;
+                var displayName = g.display_name || g.name || getGroupDisplayName(gid) || gid;
+                var label = '🏢 ' + displayName;
+                if (gid !== displayName && !displayName.includes(gid)) {
+                    label += ' (' + gid + ')';
+                }
+                opts.push('<option value="' + escapeHtml(gid) + '">' + escapeHtml(label) + '</option>');
+            });
+            groupSelect.innerHTML = opts.join('');
+            if (currentVal) {
+                groupSelect.value = currentVal;
+            }
+        }
+
+        // Pre-fill immediately if cached in state.userRole
+        if (state.userRole && Array.isArray(state.userRole.all_groups_details) && state.userRole.all_groups_details.length > 0) {
+            populateAdminGroups(state.userRole.all_groups_details);
+        }
+
+        // Fetch live from database groups API
+        fetch('/index.php/apps/archive_autotag/api/share/groups', {
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data && data.status === 'success' && Array.isArray(data.groups) && data.groups.length > 0) {
+                populateAdminGroups(data.groups);
+            }
+        })
+        .catch(function () {});
 
         // Form submission
         var form = document.getElementById('ea-admin-create-folder-form');
@@ -4149,7 +4197,9 @@
 
         groups.forEach(function (g) {
             if (g !== 'admin') {
-                html.push('<option value="' + escapeHtml(g) + '">' + escapeHtml(g) + '</option>');
+                var disp = getGroupDisplayName(g);
+                var label = (disp && disp !== g) ? disp + ' (' + g + ')' : g;
+                html.push('<option value="' + escapeHtml(g) + '">' + escapeHtml(label) + '</option>');
             }
         });
 
