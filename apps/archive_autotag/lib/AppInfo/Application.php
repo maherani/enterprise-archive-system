@@ -247,7 +247,7 @@ class Application extends App implements IBootstrap {
     /**
      * Intercept filesystem delete to trigger tag reconciliation upon deletion.
      */
-    public static function postDeleteHook(array &$params): void {
+    public static function postDeleteHook(array $params): void {
         try {
             $container = \OC::$server;
             /** @var AutoTagService $autoTagService */
@@ -260,7 +260,7 @@ class Application extends App implements IBootstrap {
     /**
      * Intercept filesystem mkdir to enforce admin-only folder creation.
      */
-    public static function preMkdirHook(array &$params): void {
+    public static function preMkdirHook(array $params): void {
         $container = \OC::$server;
         /** @var FolderPolicyService $folderPolicyService */
         $folderPolicyService = $container->get(FolderPolicyService::class);
@@ -277,7 +277,7 @@ class Application extends App implements IBootstrap {
     /**
      * Intercept filesystem pre-write to enforce per-user upload size limits.
      */
-    public static function preWriteHook(array &$params): void {
+    public static function preWriteHook(array $params): void {
         $container = \OC::$server;
         /** @var IUserSession $userSession */
         $userSession = $container->get(IUserSession::class);

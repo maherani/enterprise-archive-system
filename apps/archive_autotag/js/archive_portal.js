@@ -476,6 +476,10 @@
             '      </div>',
             '    </div>',
             '    <div class="ea-header-actions">',
+            '      <button id="ea-upload-btn" class="ea-btn ea-btn-primary" title="بارگذاری سند جدید همراه با ثبت متادیتا">',
+            '        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
+            '        <span>بارگذاری سند</span>',
+            '      </button>',
             '      <div id="ea-workflow-actions" class="ea-workflow-actions"></div>',
             '      <button id="ea-refresh-btn" class="ea-btn" title="تازه سازی اطلاعات">',
             '        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
@@ -1776,7 +1780,7 @@
             '    <button class="ea-modal-close" id="ea-upload-modal-close-btn" title="بستن">&times;</button>',
             '  </div>',
             '  <div class="ea-modal-body">',
-            '    <div id="ea-upload-error" class="ea-form-error" style="display:none;"></div>',
+            '    <div id="ea-upload-error" class="ea-form-error ea-rejection-box" style="display:none; margin-bottom: 12px;"></div>',
             '    ',
             '    <label class="ea-form-label">۱. پوشه مقصد در بایگانی:</label>',
             '    <select id="ea-upload-target-select" class="ea-form-select"></select>',
@@ -1883,6 +1887,8 @@
 
         var subjectInput = document.getElementById('ea-meta-subject');
         var numberInput = document.getElementById('ea-meta-number');
+        var subjectHint = document.getElementById('ea-meta-subject-hint');
+        var numberHint = document.getElementById('ea-meta-number-hint');
         var dateInput = document.getElementById('ea-meta-date');
         var confSelect = document.getElementById('ea-meta-confidentiality');
         var issuerInput = document.getElementById('ea-meta-issuer');
@@ -1894,39 +1900,129 @@
         var selectedFile = null;
         var folderMap = {};
 
+        function clearInputErrors() {
+            if (subjectInput) {
+                subjectInput.style.borderColor = '';
+                subjectInput.style.boxShadow = '';
+            }
+            if (numberInput) {
+                numberInput.style.borderColor = '';
+                numberInput.style.boxShadow = '';
+            }
+            if (subjectHint) {
+                subjectHint.style.color = 'var(--ea-text-muted)';
+                subjectHint.style.fontWeight = 'normal';
+            }
+            if (numberHint) {
+                numberHint.style.color = 'var(--ea-text-muted)';
+                numberHint.style.fontWeight = 'normal';
+            }
+        }
+
+        function showUploadError(msg, highlightInputs, highlightHints) {
+            clearInputErrors();
+            errorDiv.className = 'ea-form-error ea-rejection-box';
+            errorDiv.style.display = 'block';
+            errorDiv.textContent = msg;
+            if (Array.isArray(highlightInputs)) {
+                highlightInputs.forEach(function(inp) {
+                    if (inp) {
+                        inp.style.borderColor = '#ef4444';
+                        inp.style.boxShadow = '0 0 0 1px #ef4444';
+                    }
+                });
+            }
+            if (Array.isArray(highlightHints)) {
+                highlightHints.forEach(function(h) {
+                    if (h) {
+                        h.style.color = '#ef4444';
+                        h.style.fontWeight = '600';
+                    }
+                });
+            }
+        }
+
         function checkCanSubmit() {
-            var subj = (subjectInput ? subjectInput.value : '').trim();
             var hasFile = Boolean(selectedFile);
-            var validSubj = subj.length >= 2;
-            submitBtn.disabled = !(hasFile && validSubj);
+            submitBtn.disabled = !hasFile;
         }
 
         if (subjectInput) {
-            subjectInput.addEventListener('input', checkCanSubmit);
+            subjectInput.addEventListener('input', function() {
+                var sVal = subjectInput.value.trim();
+                if (sVal.length >= 2) {
+                    subjectInput.style.borderColor = '';
+                    subjectInput.style.boxShadow = '';
+                    if (subjectHint) {
+                        subjectHint.style.color = 'var(--ea-text-muted)';
+                        subjectHint.style.fontWeight = 'normal';
+                    }
+                    if (errorDiv.style.display === 'block') {
+                        var nVal = (numberInput ? numberInput.value : '').trim();
+                        if (!nVal) {
+                            showUploadError('ورود شماره سند الزامی است.', [numberInput], [numberHint]);
+                        } else {
+                            errorDiv.style.display = 'none';
+                        }
+                    }
+                } else if (sVal.length === 1 && errorDiv.style.display === 'block') {
+                    subjectInput.style.borderColor = '#ef4444';
+                    if (subjectHint) {
+                        subjectHint.style.color = '#ef4444';
+                        subjectHint.style.fontWeight = '600';
+                    }
+                }
+                checkCanSubmit();
+            });
+        }
+
+        if (numberInput) {
+            numberInput.addEventListener('input', function() {
+                var nVal = numberInput.value.trim();
+                if (nVal.length > 0) {
+                    numberInput.style.borderColor = '';
+                    numberInput.style.boxShadow = '';
+                    if (numberHint) {
+                        numberHint.style.color = 'var(--ea-text-muted)';
+                        numberHint.style.fontWeight = 'normal';
+                    }
+                    if (errorDiv.style.display === 'block') {
+                        var sVal = (subjectInput ? subjectInput.value : '').trim();
+                        if (!sVal || sVal.length < 2) {
+                            showUploadError('ورود موضوع سند الزامی است (حداقل ۲ کاراکتر).', [subjectInput], [subjectHint]);
+                        } else {
+                            errorDiv.style.display = 'none';
+                        }
+                    }
+                }
+                checkCanSubmit();
+            });
         }
 
         // 1. Group roots from user role
         if (state.userRole) {
             if (Array.isArray(state.userRole.member_groups_details) && state.userRole.member_groups_details.length > 0) {
                 state.userRole.member_groups_details.forEach(function(g) {
-                    var p = '/' + g.id;
+                    var p = '/' + (g.name || g.id);
                     folderMap[p] = { path: p, display: '📁 ' + g.name + ' (ریشه گروه سازمانی)' };
                 });
             } else if (Array.isArray(state.userRole.member_groups) && state.userRole.member_groups.length > 0) {
                 state.userRole.member_groups.forEach(function(grp) {
-                    var p = '/' + grp;
-                    folderMap[p] = { path: p, display: '📁 ' + grp + ' (ریشه گروه سازمانی)' };
+                    var grpName = typeof getGroupDisplayName === 'function' ? getGroupDisplayName(grp) : grp;
+                    var p = '/' + grpName;
+                    folderMap[p] = { path: p, display: '📁 ' + grpName + ' (ریشه گروه سازمانی)' };
                 });
             }
             if (Array.isArray(state.userRole.subadmin_groups_details) && state.userRole.subadmin_groups_details.length > 0) {
                 state.userRole.subadmin_groups_details.forEach(function(g) {
-                    var p = '/' + g.id;
+                    var p = '/' + (g.name || g.id);
                     folderMap[p] = { path: p, display: '📁 ' + g.name + ' (مدیریت گروه سازمانی)' };
                 });
             } else if (Array.isArray(state.userRole.subadmin_groups)) {
                 state.userRole.subadmin_groups.forEach(function(grp) {
-                    var p = '/' + grp;
-                    folderMap[p] = { path: p, display: '📁 ' + grp + ' (مدیریت گروه سازمانی)' };
+                    var grpName = typeof getGroupDisplayName === 'function' ? getGroupDisplayName(grp) : grp;
+                    var p = '/' + grpName;
+                    folderMap[p] = { path: p, display: '📁 ' + grpName + ' (مدیریت گروه سازمانی)' };
                 });
             }
         }
@@ -1964,7 +2060,7 @@
             }
             var paths = Object.keys(folderMap).sort();
             if (paths.length === 0) {
-                folderSelect.innerHTML = '<option value="/SOC">📁 /SOC</option>';
+                folderSelect.innerHTML = '<option value="/">📁 ریشه آرشیو</option>';
             } else {
                 folderSelect.innerHTML = paths.map(function(k) {
                     var item = folderMap[k];
@@ -2015,6 +2111,7 @@
                 return grp && (typeof grp !== 'string' || grp.toLowerCase() !== 'admin');
             });
             groupsToQuery.forEach(function(grp) {
+                var grpName = typeof getGroupDisplayName === 'function' ? getGroupDisplayName(grp) : grp;
                 fetch('/index.php/apps/archive_autotag/api/group-folders?group_id=' + encodeURIComponent(grp), {
                     headers: { 'Accept': 'application/json' }
                 })
@@ -2022,7 +2119,7 @@
                 .then(function(res) {
                     if (res && res.status === 'success' && Array.isArray(res.folders)) {
                         res.folders.forEach(function(f) {
-                            var p = f.path ? '/' + grp + '/' + f.path.replace(/^\/+/, '') : '/' + grp;
+                            var p = f.path ? '/' + grpName + '/' + f.path.replace(/^\/+/, '') : '/' + grpName;
                             var clean = '/' + p.replace(/^\/+|\/+$/g, '');
                             if (!folderMap[clean]) {
                                 var indent = '';
@@ -2046,6 +2143,7 @@
             fileSizeEl.textContent = formatBytes(file.size);
             checkCanSubmit();
             errorDiv.style.display = 'none';
+            clearInputErrors();
         }
 
         dropzoneBox.onclick = function() {
@@ -2064,6 +2162,8 @@
             fileCard.style.display = 'none';
             dropzoneBox.style.display = 'block';
             checkCanSubmit();
+            errorDiv.style.display = 'none';
+            clearInputErrors();
         };
 
         dropzoneBox.ondragover = function(e) {
@@ -2093,19 +2193,27 @@
             var numberVal = (numberInput ? numberInput.value : '').trim();
 
             if (!selectedFile) {
-                errorDiv.style.display = 'block';
-                errorDiv.textContent = 'لطفاً ابتدا یک فایل را انتخاب فرمایید.';
+                showUploadError('لطفاً ابتدا یک فایل را انتخاب فرمایید.');
                 return;
             }
-            if (!subjectVal || subjectVal.length < 2) {
-                errorDiv.style.display = 'block';
-                errorDiv.textContent = 'ورود موضوع سند الزامی است (حداقل ۲ کاراکتر).';
+
+            var subjectMissing = !subjectVal || subjectVal.length < 2;
+            var numberMissing = !numberVal;
+
+            if (subjectMissing && numberMissing) {
+                showUploadError('ورود موضوع سند الزامی است (حداقل ۲ کاراکتر). ورود شماره سند الزامی است.', [subjectInput, numberInput], [subjectHint, numberHint]);
                 if (subjectInput) subjectInput.focus();
                 return;
             }
-            if (!numberVal) {
-                errorDiv.style.display = 'block';
-                errorDiv.textContent = 'ورود شماره سند الزامی است.';
+
+            if (subjectMissing) {
+                showUploadError('ورود موضوع سند الزامی است (حداقل ۲ کاراکتر).', [subjectInput], [subjectHint]);
+                if (subjectInput) subjectInput.focus();
+                return;
+            }
+
+            if (numberMissing) {
+                showUploadError('ورود شماره سند الزامی است.', [numberInput], [numberHint]);
                 if (numberInput) numberInput.focus();
                 return;
             }

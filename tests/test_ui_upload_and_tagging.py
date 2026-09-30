@@ -47,7 +47,7 @@ class TestUIUploadAndTagging(unittest.TestCase):
     def test_03_webdav_upload_in_soc_folder_triggers_auto_tagging(self):
         """Verify that uploading a file to SOC folder automatically attaches hierarchical tags."""
         test_filename = "auto_tag_ui_test_doc.txt"
-        target_path = "SOC/افتا/گزارش ها/" + test_filename
+        target_path = "مرکز عملیات و پاسخ‌گویی امنیت سایبری/افتا/عملیات_امنیتی_۱۴۰۵/" + test_filename
         encoded_path = urllib.parse.quote(target_path)
         dav_url = f"{NEXTCLOUD_URL}/remote.php/dav/files/Bakbari/{encoded_path}"
 
@@ -69,9 +69,9 @@ class TestUIUploadAndTagging(unittest.TestCase):
         self.assertIsNotNone(found, f"Uploaded file {test_filename} not found in portal files list")
         tag_names = [t["name"] for t in found.get("tags", [])]
         print(f"Uploaded file tags: {tag_names}")
-        self.assertIn("SOC", tag_names, "Hierarchical tag 'SOC' must be applied")
+        self.assertIn("Enterprise_Archive", tag_names, "Hierarchical tag 'Enterprise_Archive' must be applied")
         self.assertIn("افتا", tag_names, "Hierarchical tag 'افتا' must be applied")
-        self.assertIn("گزارش ها", tag_names, "Hierarchical tag 'گزارش ها' must be applied")
+        self.assertIn("عملیات_امنیتی_۱۴۰۵", tag_names, "Hierarchical tag 'عملیات_امنیتی_۱۴۰۵' must be applied")
 
 if __name__ == "__main__":
     unittest.main()

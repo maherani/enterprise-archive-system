@@ -174,12 +174,9 @@ class CentralPermissionResolver implements IPermissionResolver {
         }
 
         // Rule 4: Native Nextcloud Shares (oc_share) - DAC Layer
+        // Group shares on ancestor folders cascade down to all enclosed files regardless of file creator
         $sQb = $this->db->getQueryBuilder();
-        if ($owner === 'admin' || $owner === 'system' || $owner === null) {
-            $shareSourceIds = array_map('strval', array_unique(array_merge([$fileId], $ancestorIds)));
-        } else {
-            $shareSourceIds = [(string)$fileId];
-        }
+        $shareSourceIds = array_map('strval', array_unique(array_merge([$fileId], $ancestorIds)));
         $sOrConds = [
             $sQb->expr()->andX(
                 $sQb->expr()->in('share_type', $sQb->createNamedParameter([0, 2], IQueryBuilder::PARAM_INT_ARRAY)),
@@ -238,18 +235,28 @@ class CentralPermissionResolver implements IPermissionResolver {
      */
     public function evaluateFolder(string $userId, string $folderPath, int $operation = PermissionOperation::READ): PermissionDecision {
         $cleanPath = trim(trim($folderPath, '/'), '.');
+        $cleanPath = preg_replace('#^[^/]+/files/#', '', $cleanPath);
+        $cleanPath = preg_replace('#^files/#', '', $cleanPath);
 
         // Admin Bypass
         if ($userId === 'admin' || $this->groupManager->isAdmin($userId)) {
             return PermissionDecision::allow('ADMIN_BYPASS', 'System admin folder superuser', PermissionOperation::ALL);
         }
 
-        // Archive Root: visible to all authenticated users
+        // Archive Root: visible to all authenticated users for browsing only (READ / READ_METADATA)
         if ($cleanPath === '' || $cleanPath === 'Enterprise_Archive' || strcasecmp($cleanPath, 'Enterprise_Archive') === 0) {
-            return PermissionDecision::allow(
-                'ARCHIVE_ROOT_DISCOVERY',
-                'Enterprise Archive root is accessible for browsing.',
-                PermissionOperation::READ | PermissionOperation::READ_METADATA
+            $rootMask = PermissionOperation::READ | PermissionOperation::READ_METADATA;
+            if (($rootMask & $operation) === $operation) {
+                return PermissionDecision::allow(
+                    'ARCHIVE_ROOT_DISCOVERY',
+                    'Enterprise Archive root is accessible for browsing.',
+                    $rootMask
+                );
+            }
+            return PermissionDecision::deny(
+                'ARCHIVE_ROOT_READ_ONLY',
+                'Enterprise Archive root is read-only for regular users.',
+                $rootMask
             );
         }
 
@@ -258,17 +265,20 @@ class CentralPermissionResolver implements IPermissionResolver {
         // Department folder: Enterprise_Archive/<DeptName>
         $deptGroup = $this->extractDepartmentFromPath($cleanPath);
         if ($deptGroup !== null) {
-            // Direct membership check
-            if (in_array($deptGroup, $userGroups, true)) {
-                $isSubadmin = $this->isUserSubadminOfGroup($userId, $deptGroup);
+            $canonicalGid = $this->resolveCanonicalGroupId($deptGroup);
+            // Direct membership check with canonical group ID resolution
+            if ($canonicalGid !== null && in_array($canonicalGid, $userGroups, true)) {
+                $isSubadmin = $this->isUserSubadminOfGroup($userId, $canonicalGid);
                 $mask = PermissionOperation::READ | PermissionOperation::READ_METADATA | PermissionOperation::WRITE | PermissionOperation::CREATE;
                 if ($isSubadmin) {
                     $mask |= PermissionOperation::MANAGE | PermissionOperation::TAG_ASSIGN;
                 }
-                return PermissionDecision::allow('DEPARTMENT_MEMBERSHIP', "User is member of group '{$deptGroup}'.", $mask);
+                if (($mask & $operation) === $operation) {
+                    return PermissionDecision::allow('DEPARTMENT_MEMBERSHIP', "User is member of group '{$deptGroup}' ('{$canonicalGid}').", $mask);
+                }
             }
 
-            // Check if folder has an explicit grant
+            // Check if folder has an explicit grant or inherits an ancestor grant
             $folderFileId = $this->getFileIdByPath($cleanPath);
             if ($folderFileId > 0) {
                 $grantDecision = $this->evaluateFile($userId, $folderFileId, $operation);
@@ -284,6 +294,17 @@ class CentralPermissionResolver implements IPermissionResolver {
             $grantDecision = $this->evaluateFile($userId, $folderFileId, $operation);
             if ($grantDecision->allowed) {
                 return $grantDecision;
+            }
+        }
+
+        // Check parent directory for write/create operations on new subfolders
+        if (($operation & (PermissionOperation::WRITE | PermissionOperation::CREATE)) !== 0) {
+            $parentPath = dirname($cleanPath);
+            if ($parentPath !== '.' && $parentPath !== '' && $parentPath !== '/' && strcasecmp($parentPath, 'Enterprise_Archive') !== 0) {
+                $parentDecision = $this->evaluateFolder($userId, $parentPath, PermissionOperation::CREATE);
+                if ($parentDecision->allowed && (($parentDecision->effectiveMask & $operation) === $operation)) {
+                    return $parentDecision;
+                }
             }
         }
 
@@ -478,19 +499,21 @@ class CentralPermissionResolver implements IPermissionResolver {
 
     private function extractDepartmentFromPath(string $path): ?string {
         $clean = trim(str_replace('\\', '/', $path), '/');
-        // Handle variations like: files/Enterprise_Archive/SOC/report.txt or Enterprise_Archive/SOC/...
+        $clean = preg_replace('#^[^/]+/files/#', '', $clean);
+        $clean = preg_replace('#^files/#', '', $clean);
+        // Handle variations like: Enterprise_Archive/SOC/report.txt or Enterprise_Archive/SOC/...
         $parts = explode('/', $clean);
         foreach ($parts as $idx => $segment) {
             if (strcasecmp($segment, 'Enterprise_Archive') === 0 && isset($parts[$idx + 1])) {
                 return $parts[$idx + 1];
             }
         }
-        // Direct group folder variation: files/SOC/... or SOC/...
+        // Direct group folder variation: SOC/...
         foreach ($parts as $segment) {
             if ($segment === 'files' || $segment === '' || $segment === '.') {
                 continue;
             }
-            if ($this->groupManager->groupExists($segment)) {
+            if ($this->groupManager->groupExists($segment) || $this->resolveCanonicalGroupId($segment) !== null) {
                 return $segment;
             }
             break; // only check first meaningful path component
@@ -559,6 +582,8 @@ class CentralPermissionResolver implements IPermissionResolver {
 
     private function getFileIdByPath(string $path): int {
         $clean = trim(trim($path, '/'), '.');
+        $clean = preg_replace('#^[^/]+/files/#', '', $clean);
+        $clean = preg_replace('#^files/#', '', $clean);
         if ($clean === '') {
             return 0;
         }
@@ -567,13 +592,13 @@ class CentralPermissionResolver implements IPermissionResolver {
            ->from('filecache')
            ->where(
                $qb->expr()->orX(
-                   $qb->expr()->eq('path', $qb->createNamedParameter($clean)),
                    $qb->expr()->eq('path', $qb->createNamedParameter('files/' . $clean)),
+                   $qb->expr()->eq('path', $qb->createNamedParameter($clean)),
                    $qb->expr()->like('path', $qb->createNamedParameter('%/' . $clean)),
-                   $qb->expr()->like('path', $qb->createNamedParameter('%' . $clean))
+                   $qb->expr()->like('path', $qb->createNamedParameter('files/%/' . $clean))
                )
            )
-           ->orderBy('fileid', 'ASC')
+           ->orderBy('fileid', 'DESC')
            ->setMaxResults(1);
         $fid = $qb->executeQuery()->fetchOne();
         return $fid ? (int)$fid : 0;

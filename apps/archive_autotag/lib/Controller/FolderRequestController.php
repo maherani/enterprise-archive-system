@@ -66,6 +66,7 @@ class FolderRequestController extends Controller {
             $targetPath = $target_path !== '' ? $target_path : (string)($body['target_path'] ?? '');
             $desc = $description !== '' ? $description : (string)($body['description'] ?? '');
             $groupId = $group_id !== '' ? $group_id : (string)($body['group_id'] ?? '');
+            $groupId = $this->folderRequestService->resolveCanonicalGroupId($groupId);
 
             $created = $this->folderRequestService->createRequest(
                 $folderName,
@@ -240,18 +241,21 @@ class FolderRequestController extends Controller {
             return new DataResponse(['status' => 'error', 'message' => 'Unauthenticated.'], Http::STATUS_UNAUTHORIZED);
         }
 
-        $groupId = $group_id !== '' ? $group_id : (string)$this->request->getParam('group_id', '');
-        if ($groupId === '') {
+        $rawGroupId = $group_id !== '' ? $group_id : (string)$this->request->getParam('group_id', '');
+        if ($rawGroupId === '') {
             return new DataResponse(['status' => 'error', 'message' => 'شناسه گروه الزامی است.'], Http::STATUS_BAD_REQUEST);
         }
+        $groupId = $this->folderRequestService->resolveCanonicalGroupId($rawGroupId);
 
         $roleInfo = $this->folderRequestService->getUserRoleInfo($user->getUID());
 
-        // Admin can view any group folders; Group Admin can only view their own subadmin groups
-        if (!$roleInfo['is_admin'] && !in_array($groupId, $roleInfo['subadmin_groups'], true)) {
+        // Admin can view any group folders; Group Admin or Member can view their own groups
+        $isAuthorized = $roleInfo['is_admin']
+            || in_array($groupId, $roleInfo['subadmin_groups'], true)
+            || in_array($groupId, $roleInfo['member_groups'], true);
+        if (!$isAuthorized) {
             return new DataResponse(['status' => 'error', 'message' => 'دسترسی به پوشه‌های این گروه برای شما مجاز نیست.'], Http::STATUS_FORBIDDEN);
         }
-
         $folders = $this->folderRequestService->getGroupFolders($groupId);
         return new DataResponse([
             'status' => 'success',

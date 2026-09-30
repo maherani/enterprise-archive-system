@@ -65,6 +65,7 @@ return [
         ['name' => 'DocumentMetadata#uploadWithMetadata', 'url' => '/api/upload-with-metadata', 'verb' => 'POST'],
         ['name' => 'DocumentMetadata#getMetadata', 'url' => '/api/metadata/{fileId}', 'verb' => 'GET'],
         ['name' => 'DocumentMetadata#saveMetadata', 'url' => '/api/metadata/{fileId}', 'verb' => 'POST'],
+        ['name' => 'DocumentMetadata#download', 'url' => '/api/download/{fileId}', 'verb' => 'GET'],
 
         // Secure System Administrator Deletion (Requirement 26)
         ['name' => 'ArchiveResource#delete', 'url' => '/api/resource/delete', 'verb' => 'POST'],
@@ -150,6 +151,7 @@ return [
         ['name' => 'DocumentMetadata#uploadWithMetadata', 'url' => '/api/upload-with-metadata', 'verb' => 'POST'],
         ['name' => 'DocumentMetadata#getMetadata', 'url' => '/api/metadata/{fileId}', 'verb' => 'GET'],
         ['name' => 'DocumentMetadata#saveMetadata', 'url' => '/api/metadata/{fileId}', 'verb' => 'POST'],
+        ['name' => 'DocumentMetadata#download', 'url' => '/api/download/{fileId}', 'verb' => 'GET'],
 
         // Secure System Administrator Deletion (Requirement 26)
         ['name' => 'ArchiveResource#delete', 'url' => '/api/resource/delete', 'verb' => 'POST'],

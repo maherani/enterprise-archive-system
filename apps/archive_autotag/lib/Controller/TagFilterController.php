@@ -16,11 +16,60 @@ use OCP\Files\FileInfo;
 use OCP\Files\IRootFolder;
 use OCP\IDBConnection;
 use OCP\IRequest;
+use OCP\IUserManager;
 use OCP\IUserSession;
 use OCP\SystemTag\ISystemTagManager;
 use OCP\SystemTag\ISystemTagObjectMapper;
 
 class TagFilterController extends Controller {
+    private function resolveGroupDisplayName(string $nameOrId): string {
+        try {
+            $groupManager = \OC::$server->get(\OCP\IGroupManager::class);
+            if ($groupManager->groupExists($nameOrId)) {
+                $group = $groupManager->get($nameOrId);
+                if ($group && method_exists($group, 'getDisplayName')) {
+                    $d = $group->getDisplayName();
+                    if (!empty($d)) {
+                        return $d;
+                    }
+                }
+            }
+        } catch (\Throwable $t) {}
+        return $nameOrId;
+    }
+
+    /**
+     * Normalize a node's full physical path to a clean, logical archive display path.
+     *
+     * Rules:
+     * 1. If path is within the current user's folder ($userFolderPath), preserve existing relative path behavior.
+     * 2. If path is an archive path under any other user's home (e.g. /admin/files/Enterprise_Archive/...),
+     *    strip the prefix before 'Enterprise_Archive' so it resolves to 'Enterprise_Archive/...'.
+     * 3. Normalization only applies to paths belonging to Enterprise_Archive.
+     * 4. Private user files outside Enterprise_Archive remain unmodified.
+     * 5. The output path must never have a leading slash (matching $relPath convention).
+     */
+    private function normalizeArchiveDisplayPath(string $fullPath, string $userFolderPath): string {
+        $cleanFull = trim(str_replace('\\', '/', $fullPath));
+
+        // 1. If path is within current user's home folder, preserve current relative path behavior
+        if ($userFolderPath !== '' && str_starts_with($cleanFull, $userFolderPath)) {
+            return ltrim(substr($cleanFull, strlen($userFolderPath)), '/');
+        }
+
+        // 2 & 3. If path contains /files/Enterprise_Archive/... or starts with files/Enterprise_Archive/...,
+        // strip everything before Enterprise_Archive
+        if (preg_match('#(?:^|/)files/Enterprise_Archive(?:/.*)?$#', $cleanFull)) {
+            $eaPos = strpos($cleanFull, 'Enterprise_Archive');
+            if ($eaPos !== false) {
+                return ltrim(substr($cleanFull, $eaPos), '/');
+            }
+        }
+
+        // 4 & 5. Private user files outside Enterprise_Archive or non-archive paths: preserve as-is without leading slash
+        return ltrim($cleanFull, '/');
+    }
+
 
     public function __construct(
         string $appName,
@@ -33,6 +82,7 @@ class TagFilterController extends Controller {
         private TagOwnershipService $tagOwnershipService,
         private FileOwnershipService $fileOwnershipService,
         private DocumentMetadataService $documentMetadataService,
+        private IUserManager $userManager,
     ) {
         parent::__construct($appName, $request);
     }
@@ -126,13 +176,60 @@ class TagFilterController extends Controller {
             ?? $this->request->getParam('dir', null)
             ?? ($_GET['dir'] ?? '')
         ));
-        $cleanDir = trim($rawDir, '/');
+        $cleanDir = trim(trim($rawDir, '/'), '.');
+        $strippedDir = str_starts_with($cleanDir, 'Enterprise_Archive/')
+            ? substr($cleanDir, strlen('Enterprise_Archive/'))
+            : $cleanDir;
+
+        $mappedCleanDir = $cleanDir;
+        $mappedStrippedDir = $strippedDir;
+        $parts = explode('/', $strippedDir);
+        if (!empty($parts)) {
+            $firstSeg = $parts[0];
+            $mappedName = $this->resolveGroupDisplayName($firstSeg);
+            if ($mappedName !== $firstSeg) {
+                $parts[0] = $mappedName;
+                $mappedStrippedDir = implode('/', $parts);
+                $mappedCleanDir = str_starts_with($cleanDir, 'Enterprise_Archive/') ? 'Enterprise_Archive/' . $mappedStrippedDir : $mappedStrippedDir;
+            }
+        }
 
         try {
             $userFolder = $this->rootFolder->getUserFolder($uid);
             $userFolderPath = $userFolder->getPath();
 
-            $targetNode = ($cleanDir === '' || $cleanDir === '.') ? $userFolder : $userFolder->get($cleanDir);
+            $targetNode = null;
+            if ($cleanDir === '' || $cleanDir === '.') {
+                $targetNode = $userFolder;
+            } elseif ($userFolder->nodeExists($cleanDir) && ($n = $userFolder->get($cleanDir)) instanceof \OCP\Files\Folder) {
+                $targetNode = $n;
+            } elseif ($userFolder->nodeExists($strippedDir) && ($n = $userFolder->get($strippedDir)) instanceof \OCP\Files\Folder) {
+                $targetNode = $n;
+            } elseif ($userFolder->nodeExists($mappedStrippedDir) && ($n = $userFolder->get($mappedStrippedDir)) instanceof \OCP\Files\Folder) {
+                $targetNode = $n;
+            } elseif ($userFolder->nodeExists($mappedCleanDir) && ($n = $userFolder->get($mappedCleanDir)) instanceof \OCP\Files\Folder) {
+                $targetNode = $n;
+            } elseif ($userFolder->nodeExists('Enterprise_Archive/' . $strippedDir) && ($n = $userFolder->get('Enterprise_Archive/' . $strippedDir)) instanceof \OCP\Files\Folder) {
+                $targetNode = $n;
+            } elseif ($userFolder->nodeExists('Enterprise_Archive/' . $mappedStrippedDir) && ($n = $userFolder->get('Enterprise_Archive/' . $mappedStrippedDir)) instanceof \OCP\Files\Folder) {
+                $targetNode = $n;
+            } else {
+                $adminUser = $this->userManager->get('admin');
+                if ($adminUser !== null) {
+                    $adminHome = $this->rootFolder->getUserFolder('admin');
+                    if ($adminHome->nodeExists($cleanDir) && ($n = $adminHome->get($cleanDir)) instanceof \OCP\Files\Folder) {
+                        $targetNode = $n;
+                    } elseif ($adminHome->nodeExists('Enterprise_Archive/' . $strippedDir) && ($n = $adminHome->get('Enterprise_Archive/' . $strippedDir)) instanceof \OCP\Files\Folder) {
+                        $targetNode = $n;
+                    } elseif ($adminHome->nodeExists('Enterprise_Archive/' . $mappedStrippedDir) && ($n = $adminHome->get('Enterprise_Archive/' . $mappedStrippedDir)) instanceof \OCP\Files\Folder) {
+                        $targetNode = $n;
+                    } elseif ($adminHome->nodeExists($strippedDir) && ($n = $adminHome->get($strippedDir)) instanceof \OCP\Files\Folder) {
+                        $targetNode = $n;
+                    } elseif ($adminHome->nodeExists($mappedStrippedDir) && ($n = $adminHome->get($mappedStrippedDir)) instanceof \OCP\Files\Folder) {
+                        $targetNode = $n;
+                    }
+                }
+            }
 
             if ($targetNode->getType() !== FileInfo::TYPE_FOLDER) {
                 return new DataResponse(['status' => 'error', 'message' => 'Path is not a directory'], Http::STATUS_BAD_REQUEST);
@@ -149,10 +246,7 @@ class TagFilterController extends Controller {
                 }
 
                 $fullPath = $node->getPath();
-                $relPath = $fullPath;
-                if (str_starts_with($fullPath, $userFolderPath)) {
-                    $relPath = ltrim(substr($fullPath, strlen($userFolderPath)), '/');
-                }
+                $relPath = $this->normalizeArchiveDisplayPath($fullPath, $userFolderPath);
 
                 $isDir = $node->getType() === FileInfo::TYPE_FOLDER;
                 $parentDir = dirname($relPath);
@@ -187,7 +281,7 @@ class TagFilterController extends Controller {
                     'is_dir' => $isDir,
                     'web_url' => $webUrl,
                     'folder_url' => $folderUrl,
-                    'download_url' => '/remote.php/webdav/' . str_replace('%2F', '/', rawurlencode($relPath)),
+                    'download_url' => '/index.php/apps/archive_autotag/api/download/' . $fileId,
                 ];
             }
 
@@ -430,11 +524,7 @@ class TagFilterController extends Controller {
             /** @var \OCP\Files\Node $node */
             $node = $nodes[0];
             $fullPath = $node->getPath();
-
-            $relPath = $fullPath;
-            if (str_starts_with($fullPath, $userFolderPath)) {
-                $relPath = ltrim(substr($fullPath, strlen($userFolderPath)), '/');
-            }
+            $relPath = $this->normalizeArchiveDisplayPath($fullPath, $userFolderPath);
 
             $fileMeta = $metadataMap[$fileId] ?? null;
 
@@ -517,7 +607,7 @@ class TagFilterController extends Controller {
                 'metadata' => $fileMeta,
                 'web_url' => $webUrl,
                 'folder_url' => $folderUrl,
-                'download_url' => '/remote.php/webdav/' . str_replace('%2F', '/', rawurlencode($relPath)),
+                'download_url' => '/index.php/apps/archive_autotag/api/download/' . $fileId,
             ];
         }
 

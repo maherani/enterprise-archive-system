@@ -14,7 +14,10 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataResponse;
+use OCP\AppFramework\Http\StreamResponse;
+use OCP\Files\File;
 use OCP\Files\Folder;
+use Symfony\Component\HttpFoundation\HeaderUtils;
 use OCP\Files\IRootFolder;
 use OCP\IRequest;
 use OCP\IUserManager;
@@ -35,6 +38,22 @@ class DocumentMetadataController extends Controller {
         private readonly LoggerInterface $logger,
     ) {
         parent::__construct($appName, $request);
+    }
+
+    private function resolveGroupDisplayName(string $nameOrId): string {
+        try {
+            $groupManager = \OC::$server->get(\OCP\IGroupManager::class);
+            if ($groupManager->groupExists($nameOrId)) {
+                $group = $groupManager->get($nameOrId);
+                if ($group && method_exists($group, 'getDisplayName')) {
+                    $d = $group->getDisplayName();
+                    if (!empty($d)) {
+                        return $d;
+                    }
+                }
+            }
+        } catch (\Throwable $t) {}
+        return $nameOrId;
     }
 
     /**
@@ -108,13 +127,32 @@ class DocumentMetadataController extends Controller {
             $strippedDir = str_starts_with($cleanDir, 'Enterprise_Archive/') ? substr($cleanDir, strlen('Enterprise_Archive/')) : $cleanDir;
             $userFolder = $this->rootFolder->getUserFolder($uid);
             
+            $mappedCleanDir = $cleanDir;
+            $mappedStrippedDir = $strippedDir;
+            $parts = explode('/', $strippedDir);
+            if (!empty($parts)) {
+                $firstSeg = $parts[0];
+                $mappedName = $this->resolveGroupDisplayName($firstSeg);
+                if ($mappedName !== $firstSeg) {
+                    $parts[0] = $mappedName;
+                    $mappedStrippedDir = implode('/', $parts);
+                    $mappedCleanDir = str_starts_with($cleanDir, 'Enterprise_Archive/') ? 'Enterprise_Archive/' . $mappedStrippedDir : $mappedStrippedDir;
+                }
+            }
+
             if ($cleanDir === '') {
                 $targetFolder = $userFolder;
             } elseif ($userFolder->nodeExists($cleanDir) && ($n = $userFolder->get($cleanDir)) instanceof Folder) {
                 $targetFolder = $n;
             } elseif ($userFolder->nodeExists($strippedDir) && ($n = $userFolder->get($strippedDir)) instanceof Folder) {
                 $targetFolder = $n;
+            } elseif ($userFolder->nodeExists($mappedStrippedDir) && ($n = $userFolder->get($mappedStrippedDir)) instanceof Folder) {
+                $targetFolder = $n;
+            } elseif ($userFolder->nodeExists($mappedCleanDir) && ($n = $userFolder->get($mappedCleanDir)) instanceof Folder) {
+                $targetFolder = $n;
             } elseif ($userFolder->nodeExists('Enterprise_Archive/' . $strippedDir) && ($n = $userFolder->get('Enterprise_Archive/' . $strippedDir)) instanceof Folder) {
+                $targetFolder = $n;
+            } elseif ($userFolder->nodeExists('Enterprise_Archive/' . $mappedStrippedDir) && ($n = $userFolder->get('Enterprise_Archive/' . $mappedStrippedDir)) instanceof Folder) {
                 $targetFolder = $n;
             } else {
                 $adminUser = $this->userManager->get('admin');
@@ -124,7 +162,11 @@ class DocumentMetadataController extends Controller {
                         $targetFolder = $n;
                     } elseif ($adminHome->nodeExists('Enterprise_Archive/' . $strippedDir) && ($n = $adminHome->get('Enterprise_Archive/' . $strippedDir)) instanceof Folder) {
                         $targetFolder = $n;
+                    } elseif ($adminHome->nodeExists('Enterprise_Archive/' . $mappedStrippedDir) && ($n = $adminHome->get('Enterprise_Archive/' . $mappedStrippedDir)) instanceof Folder) {
+                        $targetFolder = $n;
                     } elseif ($adminHome->nodeExists($strippedDir) && ($n = $adminHome->get($strippedDir)) instanceof Folder) {
+                        $targetFolder = $n;
+                    } elseif ($adminHome->nodeExists($mappedStrippedDir) && ($n = $adminHome->get($mappedStrippedDir)) instanceof Folder) {
                         $targetFolder = $n;
                     }
                 }
@@ -132,6 +174,13 @@ class DocumentMetadataController extends Controller {
         }
 
         if ($targetFolder === null) {
+            if ($folderId > 0 || $targetPath !== '') {
+                return new DataResponse([
+                    'status' => 'error',
+                    'code' => 'NOT_FOUND',
+                    'message' => 'پوشه مقصد مورد نظر یافت نشد یا دسترسی به آن مجاز نمی‌باشد.',
+                ], Http::STATUS_NOT_FOUND);
+            }
             $targetFolder = $this->rootFolder->getUserFolder($uid);
         }
 
@@ -327,6 +376,112 @@ class DocumentMetadataController extends Controller {
                 'message' => $t->getMessage(),
             ], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
+    }
+
+    /**
+     * Download an archive document with access control validation.
+     */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function download(int $fileId): Http\Response {
+        $user = $this->userSession->getUser();
+        if ($user === null) {
+            return new DataResponse([
+                'status' => 'error',
+                'code' => 'UNAUTHORIZED',
+                'message' => 'احراز هویت الزامی است.',
+            ], Http::STATUS_UNAUTHORIZED);
+        }
+
+        $uid = $user->getUID();
+        if ($fileId <= 0) {
+            return new DataResponse([
+                'status' => 'error',
+                'code' => 'BAD_REQUEST',
+                'message' => 'شناسه فایل نامعتبر است.',
+            ], Http::STATUS_BAD_REQUEST);
+        }
+
+        // Strict Authorization: Check READ permission via CentralPermissionResolver
+        if (!$this->permissionResolver->can($uid, $fileId, PermissionOperation::READ)) {
+            return new DataResponse([
+                'status' => 'error',
+                'code' => 'FORBIDDEN',
+                'message' => 'شما مجوز دسترسی و دانلود این فایل را ندارید.',
+            ], Http::STATUS_FORBIDDEN);
+        }
+
+        // Resolve Node from current user's context (Shared Mount / User folder)
+        $node = null;
+        try {
+            $userFolder = $this->rootFolder->getUserFolder($uid);
+            $nodes = $userFolder->getById($fileId);
+            if (!empty($nodes)) {
+                $node = $nodes[0];
+            }
+        } catch (\Throwable $t) {
+            $this->logger->warning("DocumentMetadataController::download: User folder resolution error: " . $t->getMessage());
+        }
+
+        // Fallback: If not resolved via userFolder (only after explicit permission check above)
+        if ($node === null) {
+            try {
+                $nodes = $this->rootFolder->getById($fileId);
+                if (!empty($nodes)) {
+                    $node = $nodes[0];
+                }
+            } catch (\Throwable $t) {
+                $this->logger->warning("DocumentMetadataController::download: Root folder resolution error: " . $t->getMessage());
+            }
+        }
+
+        if (!$node instanceof File) {
+            return new DataResponse([
+                'status' => 'error',
+                'code' => 'NOT_FOUND',
+                'message' => 'فایل یافت نشد.',
+            ], Http::STATUS_NOT_FOUND);
+        }
+
+        $stream = $node->fopen('rb');
+        if ($stream === false) {
+            return new DataResponse([
+                'status' => 'error',
+                'code' => 'STORAGE_ERROR',
+                'message' => 'امکان باز کردن جریان فایل وجود ندارد.',
+            ], Http::STATUS_INTERNAL_SERVER_ERROR);
+        }
+
+        $fileName = $node->getName();
+        $mime = $node->getMimetype() ?: 'application/octet-stream';
+        $size = $node->getSize();
+
+        $disposition = HeaderUtils::makeDisposition(
+            HeaderUtils::DISPOSITION_ATTACHMENT,
+            $fileName,
+            preg_replace('/[^\x20-\x7e]/', '', $fileName) ?: 'download'
+        );
+
+        if ($size === 0) {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+            $response = new \OCP\AppFramework\Http\Response();
+            $response->setStatus(Http::STATUS_OK);
+            $response->addHeader('Content-Type', $mime);
+            $response->addHeader('Content-Disposition', $disposition);
+            $response->addHeader('Content-Length', '0');
+            return $response;
+        }
+
+        $response = new StreamResponse($stream);
+        $response->addHeader('Content-Type', $mime);
+        $response->addHeader('Content-Disposition', $disposition);
+        if ($size > 0) {
+            $response->addHeader('Content-Length', (string)$size);
+        }
+
+        return $response;
     }
 
     private function getJsonOrParams(): array {

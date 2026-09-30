@@ -21,6 +21,28 @@ use OCP\Share\IManager as IShareManager;
 use OCP\SystemTag\ISystemTagManager;
 
 class FolderRequestService {
+    public function resolveCanonicalGroupId(string $groupIdOrName): string {
+        $clean = trim($groupIdOrName);
+        if ($clean === '') {
+            return '';
+        }
+        if ($this->groupManager->groupExists($clean)) {
+            return $clean;
+        }
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('gid')
+               ->from('groups')
+               ->where($qb->expr()->eq('displayname', $qb->createNamedParameter($clean)));
+            $res = $qb->executeQuery()->fetchOne();
+            if ($res && is_string($res)) {
+                return $res;
+            }
+        } catch (\Throwable $t) {}
+        return $clean;
+    }
+
+
     public const STATUS_PENDING = 'pending';
     public const STATUS_APPROVED = 'approved';
     public const STATUS_REJECTED = 'rejected';
@@ -222,8 +244,14 @@ class FolderRequestService {
                 $adminHome = $this->rootFolder->getUserFolder($adminUser->getUID());
                 if ($adminHome->nodeExists('Enterprise_Archive')) {
                     $archiveRoot = $adminHome->get('Enterprise_Archive');
-                    if ($archiveRoot instanceof Folder && $archiveRoot->nodeExists($groupId)) {
-                        $groupBase = $archiveRoot->get($groupId);
+                    if ($archiveRoot instanceof Folder) {
+                        $folderNameDept = $this->getGroupArchiveFolderName($groupId);
+                        $groupBase = null;
+                        if ($archiveRoot->nodeExists($folderNameDept) && ($n = $archiveRoot->get($folderNameDept)) instanceof Folder) {
+                            $groupBase = $n;
+                        } elseif ($archiveRoot->nodeExists($groupId) && ($n = $archiveRoot->get($groupId)) instanceof Folder) {
+                            $groupBase = $n;
+                        }
                         if ($groupBase instanceof Folder) {
                             $checkDir = $groupBase;
                             if ($targetPath !== '') {
@@ -375,6 +403,7 @@ class FolderRequestService {
             throw new \InvalidArgumentException("System administrators create folders directly and do not need approval workflow.");
         }
 
+        $groupId = $this->resolveCanonicalGroupId($groupId);
         $subadminGroups = $this->getSubadminGroups($requesterUid);
         if (!in_array($groupId, $subadminGroups, true)) {
             throw new SecurityPermissionException("Access Denied: You are not an authorized administrator for group '{$groupId}'.");
@@ -855,38 +884,106 @@ class FolderRequestService {
      */
     private function ensureGroupShareExists(Folder $groupBase, string $groupId, Folder $newFolder): void {
         try {
+            $targetGroup = trim($groupId);
+            if ($targetGroup === '' || !$this->groupManager->groupExists($targetGroup)) {
+                return;
+            }
+
+            $groupBaseId = (int)$groupBase->getId();
+            $newFolderId = (int)$newFolder->getId();
+
             $shares = $this->shareManager->getSharesBy($groupBase->getOwner()->getUID(), \OCP\Share\Constants::SHARE_TYPE_GROUP, $groupBase, true, -1);
-            $isShared = false;
+            $hasBaseShare = false;
             foreach ($shares as $share) {
-                if ($share->getSharedWith() === $groupId) {
-                    $isShared = true;
+                if ($share->getSharedWith() === $targetGroup) {
+                    $hasBaseShare = true;
+                    // In Nextcloud, uploading files requires Read(1) | Update(2) | Create(4) = 7
+                    $currentPerms = (int)$share->getPermissions();
+                    if (($currentPerms & 7) !== 7) {
+                        try {
+                            $share->setPermissions($currentPerms | 7);
+                            $this->shareManager->updateShare($share);
+                        } catch (\Throwable $t) {
+                            $upQb = $this->db->getQueryBuilder();
+                            $upQb->update('share')
+                                 ->set('permissions', $upQb->createNamedParameter($currentPerms | 7))
+                                 ->where($upQb->expr()->eq('id', $upQb->createNamedParameter($share->getId())));
+                            $upQb->executeStatement();
+                        }
+                    }
                     break;
                 }
             }
 
-            if (!$isShared) {
-                $newShares = $this->shareManager->getSharesBy($newFolder->getOwner()->getUID(), \OCP\Share\Constants::SHARE_TYPE_GROUP, $newFolder, true, -1);
-                foreach ($newShares as $s) {
-                    if ($s->getSharedWith() === $groupId) {
-                        $isShared = true;
-                        break;
-                    }
-                }
-
-                if (!$isShared) {
+            if (!$hasBaseShare) {
+                try {
                     $share = $this->shareManager->newShare();
                     $share->setNode($groupBase);
                     $share->setShareType(\OCP\Share\Constants::SHARE_TYPE_GROUP);
-                    $share->setSharedWith($groupId);
-                    $share->setPermissions(\OCP\Constants::PERMISSION_READ | \OCP\Constants::PERMISSION_CREATE);
+                    $share->setSharedWith($targetGroup);
+                    $share->setPermissions(\OCP\Constants::PERMISSION_READ | \OCP\Constants::PERMISSION_UPDATE | \OCP\Constants::PERMISSION_CREATE);
                     $share->setShareOwner($groupBase->getOwner()->getUID());
                     $this->shareManager->createShare($share);
-                    $this->logger->info("archive_autotag: Created group share for '{$groupId}' on '{$groupBase->getName()}'.");
-                    $this->normalizeGroupMountTargets((int)$groupBase->getId());
+                    $this->logger->info("archive_autotag: Created group share for '{$targetGroup}' on '{$groupBase->getName()}'.");
+                } catch (\Throwable $t) {
+                    $this->logger->warning("archive_autotag: Failed to create group share: " . $t->getMessage());
                 }
             }
+
+            // Synchronize with archive_file_grants (Archive MAC layer)
+            $this->syncGroupGrant($groupBaseId, $targetGroup, 7);
+            if ($newFolderId > 0 && $newFolderId !== $groupBaseId) {
+                $this->syncGroupGrant($newFolderId, $targetGroup, 7);
+            }
+
+            $this->normalizeGroupMountTargets($groupBaseId);
+
+            // Reconcile child shares and mounts across group members
+            try {
+                $groupShareService = \OC::$server->get(GroupShareService::class);
+                if ($groupShareService instanceof GroupShareService) {
+                    $groupShareService->reconcileAllGroupShares();
+                }
+            } catch (\Throwable $t) {}
+
         } catch (\Throwable $t) {
             $this->logger->warning("archive_autotag: Group share verification warning: " . $t->getMessage());
+        }
+    }
+
+    private function syncGroupGrant(int $fileId, string $groupId, int $permissions): void {
+        try {
+            $gQb = $this->db->getQueryBuilder();
+            $gQb->select('id', 'permissions')
+                ->from('archive_file_grants')
+                ->where($gQb->expr()->eq('file_id', $gQb->createNamedParameter($fileId)))
+                ->andWhere($gQb->expr()->eq('grantee_type', $gQb->createNamedParameter('group')))
+                ->andWhere($gQb->expr()->eq('grantee_id', $gQb->createNamedParameter($groupId)));
+            $existing = $gQb->executeQuery()->fetchAssociative();
+
+            if ($existing) {
+                if (((int)$existing['permissions'] & $permissions) !== $permissions) {
+                    $upQb = $this->db->getQueryBuilder();
+                    $upQb->update('archive_file_grants')
+                         ->set('permissions', $upQb->createNamedParameter((int)$existing['permissions'] | $permissions))
+                         ->where($upQb->expr()->eq('id', $upQb->createNamedParameter((int)$existing['id'])));
+                    $upQb->executeStatement();
+                }
+            } else {
+                $insQb = $this->db->getQueryBuilder();
+                $insQb->insert('archive_file_grants')
+                      ->values([
+                          'file_id' => $insQb->createNamedParameter($fileId),
+                          'grantee_type' => $insQb->createNamedParameter('group'),
+                          'grantee_id' => $insQb->createNamedParameter($groupId),
+                          'granted_by' => $insQb->createNamedParameter('admin'),
+                          'permissions' => $insQb->createNamedParameter($permissions),
+                          'created_at' => $insQb->createNamedParameter(time()),
+                      ]);
+                $insQb->executeStatement();
+            }
+        } catch (\Throwable $t) {
+            $this->logger->warning("archive_autotag: syncGroupGrant error: " . $t->getMessage());
         }
     }
 
@@ -938,7 +1035,7 @@ class FolderRequestService {
             }
 
             if (!($groupBase instanceof Folder)) {
-                return $folders;
+                $groupBase = $this->getOrCreateGroupBaseFolder($archiveRoot, $groupId);
             }
             if (!($groupBase instanceof Folder)) {
                 return $folders;
