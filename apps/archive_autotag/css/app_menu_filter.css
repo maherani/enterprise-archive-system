@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap');
-/* Enterprise Archive System - Comprehensive Global Obsidian & Orange Theming */
-/* Theme: Obsidian & Industrial Orange (مشکی و نارنجی سازمانی) */
+/* Enterprise Archive System - Presentation / UI Shell Sanitization */
+/* Band 1: Complete Removal of Nextcloud Appearance and Visual Elements */
 
 /* -------------------------------------------------------------------------
    1. Root Variables & System-Wide Color Tokens Override
@@ -40,7 +40,7 @@ body[theme="dark"],
 }
 
 /* -------------------------------------------------------------------------
-   2. Global Canvas & Body Reset (Eliminate Blue Background & 3D Wallpaper)
+   2. Global Canvas & Body Reset
    ------------------------------------------------------------------------- */
 html,
 body,
@@ -62,7 +62,7 @@ body,
 }
 
 #content.app-archive_autotag {
-    margin-top: 50px !important;
+    margin-top: 52px !important;
     margin-right: 0 !important;
     margin-bottom: 0 !important;
     margin-left: 0 !important;
@@ -73,66 +73,254 @@ body,
 }
 
 /* -------------------------------------------------------------------------
-   3. Top Enterprise Header Bar (#header) - Complete Overhaul
+   3. Top Enterprise Header Bar (#header) - Nextcloud UI Elements Elimination
    ------------------------------------------------------------------------- */
 #header {
     background: #0d1117 !important;
     background-color: #0d1117 !important;
     border-bottom: 1px solid #202632 !important;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6) !important;
-    height: 50px !important;
+    height: 52px !important;
+    min-height: 52px !important;
     z-index: 2000 !important;
-}
-
-/* Header Start & Bank Maskan Brand Logo */
-#header .header-start {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-#header #nextcloud,
-#header .header-appname-container,
-#header .logo,
-.header-menu__logo {
+    padding: 0 16px !important;
     display: flex !important;
+    justify-content: space-between !important;
     align-items: center !important;
 }
 
-#header #nextcloud .logo,
-#header .header-appname-container .logo,
-#header .logo,
-.header-menu__logo {
-    background-image: url('/custom_branding/logoheader.svg') !important;
-    background-repeat: no-repeat !important;
-    background-position: right center !important;
-    background-size: contain !important;
-    min-width: 145px !important;
-    width: 145px !important;
-    height: 38px !important;
-    filter: drop-shadow(0 0 6px rgba(249, 115, 22, 0.4)) !important;
+/* Hide default app-menu on archive page */
+.app-archive_autotag #header .app-menu,
+#header .app-menu {
+    display: none !important;
 }
 
-#body-login .logo {
-    background-image: url('/custom_branding/logo.svg') !important;
-    background-repeat: no-repeat !important;
-    background-position: center !important;
-    background-size: contain !important;
-    width: 160px !important;
-    height: 190px !important;
-    margin: 0 auto 20px auto !important;
-    filter: drop-shadow(0 0 16px rgba(249, 115, 22, 0.45)) !important;
+/* Header End Container - Alignment and Spacing */
+#header .header-end {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    margin-left: auto !important;
+    flex-shrink: 0 !important;
 }
 
-/* Eliminate all Nextcloud text references & footers */
+/* Top Header Enterprise Brand - Situated in header-end directly next to Notification Bell */
+.ea-header-brand-top {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    text-align: right !important;
+    direction: rtl !important;
+    margin-inline-end: 22px !important;
+    user-select: none !important;
+    line-height: 1.3 !important;
+}
+
+.ea-header-brand-top .ea-header-brand-text {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    text-align: right !important;
+}
+
+.ea-header-brand-top .ea-brand-title {
+    font-family: 'Vazirmatn', 'Shabnam', system-ui, sans-serif !important;
+    font-size: 0.95rem !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.01em !important;
+    margin: 0 !important;
+    color: #f8fafc !important;
+    line-height: 1.25 !important;
+    white-space: nowrap !important;
+}
+
+.ea-header-brand-top .ea-brand-subtitle {
+    font-family: 'Vazirmatn', 'Shabnam', system-ui, sans-serif !important;
+    font-size: 0.68rem !important;
+    color: #94a3b8 !important;
+    margin-top: 1px !important;
+    white-space: nowrap !important;
+    line-height: 1.2 !important;
+}
+
+.ea-header-brand-top .ea-brand-user-name {
+    color: #fb923c !important;
+    font-weight: 600 !important;
+}
+
+@media (max-width: 768px) {
+    .ea-header-brand-top {
+        margin-inline-end: 12px !important;
+    }
+    .ea-header-brand-top .ea-brand-title {
+        font-size: 0.82rem !important;
+    }
+    .ea-header-brand-top .ea-brand-subtitle {
+        font-size: 0.60rem !important;
+        max-width: 210px !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+}
+
+
+/* Animated Delicate Bank Maskan Watermark Banner in Header */
+.ea-header-animated-banner {
+    position: relative !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 42px !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+    user-select: none !important;
+    display: flex !important;
+    align-items: center !important;
+    flex: 1 1 auto !important;
+}
+
+.ea-faint-watermark-item {
+    position: absolute !important;
+    top: 50% !important;
+    left: -280px;
+    transform: translateY(-50%) !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    direction: rtl !important;
+    opacity: 0.38 !important;
+    user-select: none !important;
+    pointer-events: none !important;
+    white-space: nowrap !important;
+    animation: eaBannerGlideLoop 20s linear infinite !important;
+    will-change: left !important;
+}
+
+.ea-faint-watermark-item .ea-faint-logo-svg {
+    width: 26px !important;
+    height: 26px !important;
+    flex-shrink: 0 !important;
+    filter: drop-shadow(0 0 6px rgba(249, 115, 22, 0.5)) !important;
+}
+
+.ea-faint-watermark-item .ea-faint-logo-label {
+    font-family: 'Vazirmatn', 'Shabnam', system-ui, sans-serif !important;
+    font-size: 0.88rem !important;
+    font-weight: 600 !important;
+    color: #f97316 !important;
+    letter-spacing: 0.02em !important;
+    white-space: nowrap !important;
+    text-shadow: 0 0 8px rgba(249, 115, 22, 0.25) !important;
+}
+
+@keyframes eaBannerGlideLoop {
+    0% {
+        left: -280px;
+    }
+    4% {
+        left: -280px;
+    }
+    96% {
+        left: 100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ea-faint-watermark-item {
+        animation: none !important;
+        left: 50% !important;
+        transform: translateY(-50%) translateX(-50%) !important;
+        opacity: 0.22 !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .ea-header-animated-banner {
+        display: none !important;
+    }
+}
+
+/* Header Start Container */
+#header .header-start {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    flex: 1 1 auto !important;
+    min-width: 120px !important;
+    height: 100% !important;
+    overflow: hidden !important;
+}
+
+/* Eliminate Nextcloud Logo, Wordmarks and Generic Brand Links */
+#header #nextcloud,
+#nextcloud,
+.header-menu__logo,
+#header:not(.header-guest) .logo,
+.header-appname-container .logo,
+.ea-header-brand-link {
+    display: none !important;
+    visibility: hidden !important;
+    background-image: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    pointer-events: none !important;
+}
+
+/* Eliminate Nextcloud Waffle Menu (App Switcher) & Generic Apps Grid */
+.app-menu__waffle,
+.dots-grid-icon,
+[data-cy-app-menu],
+.app-menu__popover,
+.app-menu__grid,
+.app-menu-main {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+/* Clean App Identifier in Top Header Bar */
+.app-menu__current-app {
+    cursor: default !important;
+    pointer-events: none !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font-weight: 700 !important;
+    font-size: 0.95rem !important;
+    color: #f97316 !important;
+    padding: 0 8px !important;
+}
+
+/* Eliminate Nextcloud Contacts Button from Header */
+#contactsmenu,
+.contactsmenu,
+[data-id="contactsmenu"],
+[aria-label*="contacts" i],
+[aria-label*="مخاطبین"] {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+/* Eliminate Nextcloud text references & footers */
 .logo-claim,
 .theming-logo-claim,
 #nextcloud-footer,
 .footer-text,
 [data-id="firstrunwizard_about"],
 a[href*="nextcloud.com"],
-a[href*="docs.nextcloud.com"] {
+a[href*="docs.nextcloud.com"],
+footer a[href*="nextcloud"],
+#footer a[href*="nextcloud"] {
     display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
 }
 
 /* Header Navigation Links */
@@ -166,11 +354,7 @@ a[href*="docs.nextcloud.com"] {
     font-weight: 700 !important;
 }
 
-/* -------------------------------------------------------------------------
-   Header Unified Search Bar
-   Temporarily concealed globally across all pages and users as per user request.
-   Preserved completely so it can be re-enabled at any time.
-   ------------------------------------------------------------------------- */
+/* Conceal Unified Search Bar globally */
 #unified-search,
 .unified-search,
 .unified-search-menu,
@@ -190,40 +374,9 @@ a[href*="docs.nextcloud.com"] {
     overflow: hidden !important;
 }
 
-/* Original Search Bar Styling (Preserved for future re-enablement)
-#unified-search input,
-.unified-search input,
-.unified-search__input {
-    background: #181d27 !important;
-    border: 1px solid #2d3647 !important;
-    color: #f8fafc !important;
-    border-radius: 20px !important;
-    padding: 6px 16px !important;
-    transition: all 0.2s ease !important;
-}
-
-#unified-search input:focus,
-.unified-search input:focus,
-.unified-search__input:focus {
-    border-color: #f97316 !important;
-    background: #1f2533 !important;
-    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.28) !important;
-    color: #ffffff !important;
-}
-
-#unified-search input::placeholder,
-.unified-search__input::placeholder {
-    color: #64748b !important;
-}
-*/
-
-/* Header End (Notifications, Contacts, User Profile) */
-#header-end {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
+/* User Avatar & Menu Styling */
+#user-menu button,
+#user-menu .header-menu__trigger,
 #header-end button,
 #header-end a,
 #header-end .header-menu__trigger {
@@ -232,22 +385,21 @@ a[href*="docs.nextcloud.com"] {
     border-radius: 8px !important;
 }
 
+#user-menu button:hover,
 #header-end button:hover,
-#header-end a:hover,
-#header-end .header-menu__trigger:hover {
+#header-end a:hover {
     background: #181d27 !important;
     color: #f97316 !important;
 }
 
-/* User Avatar Ring */
-#header-end .avatardiv,
-#user-menu .avatardiv {
+#user-menu .avatardiv,
+.avatardiv {
     border: 1.5px solid #f97316 !important;
     box-shadow: 0 0 8px rgba(249, 115, 22, 0.35) !important;
 }
 
 /* -------------------------------------------------------------------------
-   4. Popover Menus, Waffle Dropdowns & Modals
+   4. Popover Menus, User Settings Dropdown & Modals
    ------------------------------------------------------------------------- */
 .popover__wrapper,
 .app-menu,
@@ -255,7 +407,8 @@ a[href*="docs.nextcloud.com"] {
 .menu__list,
 .modal-container,
 .modal-content,
-.user-status-menu-configuration {
+.user-status-menu-configuration,
+.header-menu__wrapper {
     background: #11141b !important;
     border: 1px solid #202632 !important;
     box-shadow: 0 14px 40px rgba(0, 0, 0, 0.85) !important;
@@ -267,7 +420,9 @@ a[href*="docs.nextcloud.com"] {
 .popover__wrapper button,
 .menu a,
 .menu button,
-.app-menu a {
+.app-menu a,
+.header-menu__wrapper a,
+.header-menu__wrapper button {
     color: #cbd5e1 !important;
 }
 
@@ -275,9 +430,46 @@ a[href*="docs.nextcloud.com"] {
 .popover__wrapper button:hover,
 .menu a:hover,
 .menu button:hover,
-.app-menu a:hover {
+.app-menu a:hover,
+.header-menu__wrapper a:hover,
+.header-menu__wrapper button:hover {
     background: #181d27 !important;
     color: #f97316 !important;
+}
+
+/* Eliminate Nextcloud specific items from User Dropdown Menu */
+#user-menu #firstrunwizard_about,
+#user-menu #help,
+#user-menu #core_apps,
+#user-menu #accessibility_settings,
+#user-menu [aria-label*="mobile app login" i],
+#user-menu a[href*="user-status"],
+#user-menu .account-menu__user-status,
+[class*="userStatusMenuItem"],
+[class*="userStatus"],
+[class*="account-menu__user-status"],
+.avatardiv__user-status,
+[data-id="firstrunwizard_about"],
+#firstrunwizard_about,
+[data-id="help"],
+#help,
+[data-id="core_apps"],
+#core_apps,
+[data-id="appstore"],
+#appstore,
+[aria-label*="mobile app login" i],
+.user-status-online-button,
+#user-status-menu,
+a[id="set-status"],
+a[href*="user-status"],
+#accessibility_settings,
+a[href*="settings/apps"],
+a[href*="apps.nextcloud.com"],
+a[href*="docs.nextcloud.com"],
+a[href*="help.nextcloud.com"] {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
 }
 
 /* -------------------------------------------------------------------------
@@ -349,7 +541,7 @@ body.ea-non-admin .app-menu-entry:not([data-id="archive_autotag"]):not(:has(a[hr
 }
 
 /* -------------------------------------------------------------------------
-   7. Login Page (#body-login) Theming
+   7. Login Page (#body-login) Theming & Nextcloud Elimination
    ------------------------------------------------------------------------- */
 #body-login {
     background: #090b0e !important;
@@ -377,6 +569,17 @@ body.ea-non-admin .app-menu-entry:not([data-id="archive_autotag"]):not(:has(a[hr
     border-radius: 8px !important;
 }
 
+
+#body-login button,
+#body-login button:hover,
+#body-login button:active,
+#body-login .button-vue,
+#body-login .button-vue:hover,
+#body-login .button-vue:active {
+    transform: none !important;
+    transition: none !important;
+}
+
 #body-login button[type="submit"]:hover,
 #body-login #submit-form:hover {
     box-shadow: 0 6px 22px rgba(249, 115, 22, 0.5) !important;
@@ -395,6 +598,58 @@ body.ea-non-admin .app-menu-entry:not([data-id="archive_autotag"]):not(:has(a[hr
 #body-login input[type="password"]:focus {
     border-color: #f97316 !important;
     box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.28) !important;
+}
+
+/* Eliminate Nextcloud Logo, Headlines, Footers & Slogans on Login */
+#body-login .login-form__headline,
+#body-login h1.hidden-visually,
+#body-login .header-guest,
+#body-login #header.header-guest {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    height: auto !important;
+    min-height: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    margin-bottom: 20px !important;
+    padding: 0 !important;
+}
+
+#body-login #header.header-guest .logo,
+#body-login .logo {
+    display: block !important;
+    visibility: visible !important;
+    width: 72px !important;
+    height: 72px !important;
+    min-width: 72px !important;
+    min-height: 72px !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 119.24 119.24'%3E%3Cpath fill-rule='evenodd' fill='%23f97316' d='M102.2014008,17.0287781H17.0359039v85.1729126h85.1654968V17.0287781z M119.2376099,0 H0v119.2378845h119.2376099V0z'/%3E%3Cpolygon fill-rule='evenodd' fill='%23f97316' points='98.9226074,76.647583 98.9226074,58.3074951 59.6188049,42.5828857 20.3150024,58.3074951 20.3150024,76.647583 59.6188049,60.9306946'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: center !important;
+    background-size: contain !important;
+    margin: 0 auto !important;
+    filter: drop-shadow(0 4px 16px rgba(249, 115, 22, 0.45)) !important;
+}
+
+#body-login footer,
+.body-login footer,
+#body-login #header-footer,
+#body-login .logo-claim,
+#body-login .theming-logo-claim,
+#body-login .footer-text,
+#body-login #nextcloud-footer,
+#body-login [data-id="firstrunwizard_about"],
+#body-login a[href*="nextcloud.com"],
+#body-login a[href*="docs.nextcloud.com"] {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background-image: none !important;
 }
 
 /* App Store and Non-Archive App Elimination Rule Set */
@@ -428,8 +683,7 @@ html.ea-non-admin #firstrunwizard {
 }
 
 /* -------------------------------------------------------------------------
-   9. Universal Button Styling & Interactive Effects (All Pages, All Users)
-   Harmonized with Industrial Obsidian & Orange Theme
+   9. Universal Button Styling & Interactive Effects
    ------------------------------------------------------------------------- */
 button,
 .button,
@@ -523,50 +777,6 @@ button.primary:active,
 button[type="submit"]:active,
 #body-login button[type="submit"]:active {
     transform: translateY(0px) scale(0.98) !important;
-}
-/* -------------------------------------------------------------------------
-   Bank Maskan Top Bar Header Brand Logo & App Icon Customization
-   ------------------------------------------------------------------------- */
-.ea-header-brand-link {
-    display: inline-flex !important;
-    align-items: center !important;
-    text-decoration: none !important;
-    height: 100% !important;
-    padding: 0 12px !important;
-    margin-inline-end: 8px !important;
-    flex-shrink: 0 !important;
-    cursor: pointer !important;
-    transition: opacity 0.2s ease !important;
-}
-
-.ea-header-brand-link:hover {
-    opacity: 0.85 !important;
-}
-
-.ea-header-brand-img {
-    height: 32px !important;
-    max-height: 32px !important;
-    width: auto !important;
-    max-width: 145px !important;
-    object-fit: contain !important;
-    filter: drop-shadow(0 0 6px rgba(249, 115, 22, 0.4)) !important;
-    display: block !important;
-}
-
-/* Force Bank Maskan icon inside header app switcher button */
-#header-start__appmenu [data-id="archive_autotag"] .app-icon,
-#header-start__appmenu a[href*="archive_autotag"] .app-icon,
-.header-appmenu [data-id="archive_autotag"] .app-icon,
-#header [data-id="archive_autotag"] .app-icon,
-#header-start__appmenu [data-id="archive_autotag"] svg,
-#header [data-id="archive_autotag"] svg,
-#header-start__appmenu [data-id="archive_autotag"] img,
-#header [data-id="archive_autotag"] img {
-    background-image: url('/apps/archive_autotag/img/archive.svg') !important;
-    background-repeat: no-repeat !important;
-    background-position: center !important;
-    background-size: contain !important;
-    filter: drop-shadow(0 0 4px rgba(249, 115, 22, 0.3)) !important;
 }
 
 /* Hide table reset button across all views */

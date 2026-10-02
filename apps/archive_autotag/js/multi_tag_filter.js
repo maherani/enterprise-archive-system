@@ -572,11 +572,11 @@
         var rowsHtml = data.files.map(function (file) {
             var icon = file.is_dir ? '📁' : '📄';
 
-            var displayPath = file.is_dir ? file.path : (file.parent_dir || file.path);
+            var rawDisplay = file.display_path || (file.is_dir ? file.path : (file.parent_dir || file.path)) || '';
+            var displayPath = formatArchiveDisplayPath(rawDisplay);
             if (!displayPath || displayPath === '.' || displayPath === '/') {
-                displayPath = 'Enterprise_Archive';
+                displayPath = '/';
             }
-            displayPath = displayPath.replace(/^\/+/g, '');
 
             var targetDir = file.target_dir || (file.is_dir ? ('/' + file.path.replace(/^\/+/g, '')) : ('/' + (file.parent_dir || '').replace(/^\/+/g, '')));
             targetDir = targetDir.replace(/\/+/g, '/');
@@ -591,9 +591,7 @@
                     '<a class="archive-action-btn archive-download-btn" href="' + escapeHtml(file.download_url) + '" download title="دانلود">⬇️ دانلود</a>';
             }
 
-            if (state.userRole && state.userRole.is_admin) {
-                actionButtonsHtml += (actionButtonsHtml ? ' ' : '') + '<button type="button" class="archive-action-btn archive-share-btn" data-file-id="' + file.id + '" data-file-name="' + escapeHtml(file.name) + '" title="اشتراک با گروه">👥 اشتراک با گروه</button>';
-            }
+
 
             return '<tr class="' + (file.is_dir ? 'archive-folder-row' : 'archive-file-row') + '" data-is-dir="' + (file.is_dir ? 'true' : 'false') + '" data-target-dir="' + escapeHtml(targetDir) + '" data-web-url="' + escapeHtml(file.web_url) + '"' + (file.is_dir ? ' style="cursor: pointer;"' : '') + '>' +
                    '<td title="' + escapeHtml(file.name) + '">' +
@@ -641,17 +639,7 @@
             '</table>';
 
 
-        // Attach click listeners to share buttons
-        var shareButtons = container.querySelectorAll('.archive-share-btn');
-        shareButtons.forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                var fileId = btn.getAttribute('data-file-id');
-                var fileName = btn.getAttribute('data-file-name');
-                openGroupShareModal(fileId, fileName);
-            });
-        });
+
 
         // Make folder rows clickable to navigate directly into folder
         var folderRows = container.querySelectorAll('tr[data-is-dir="true"]');
@@ -976,6 +964,21 @@
         if (webUrl) {
             window.location.href = webUrl;
         }
+    }
+
+    
+    function formatArchiveDisplayPath(rawPath) {
+        if (!rawPath) return '';
+        var clean = String(rawPath).split('\\').join('/').trim();
+        clean = clean.replace(/^\/?[^\/]+\/files(?:\/|$)/, '');
+        clean = clean.replace(/^\/+/, '');
+        if (clean === 'Enterprise_Archive') {
+            return '';
+        }
+        if (clean.indexOf('Enterprise_Archive/') === 0) {
+            clean = clean.substring('Enterprise_Archive/'.length);
+        }
+        return clean.replace(/^\/+/, '');
     }
 
     function escapeHtml(str) {

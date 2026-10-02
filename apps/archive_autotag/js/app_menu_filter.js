@@ -22,9 +22,7 @@
             if (window.OC && typeof window.OC.isUserAdmin === 'function') {
                 return window.OC.isUserAdmin();
             }
-        } catch (e) {
-            // fallback
-        }
+        } catch (e) {}
         return false;
     }
 
@@ -44,7 +42,6 @@
 
     function isAppStoreItem(el) {
         if (!el) return false;
-        // Never treat files app action buttons (+ / new / upload / folders) as app store!
         if (el.closest && el.closest('#app-content, #controls, #app-navigation, .files-new-action-menu, .new-file-menu, #app-content-files')) {
             return false;
         }
@@ -61,83 +58,190 @@
         return false;
     }
 
-    function applyBankMaskanBranding() {
+    function sanitizeNextcloudShell() {
         try {
-            // 1. Ensure official Bank Maskan brand logo in top header bar (.header-start)
-            const header = document.getElementById('header');
-            if (header) {
-                const headerStart = header.querySelector('.header-start') || header;
-                let brandLink = document.getElementById('ea-header-bank-maskan-brand');
-                if (!brandLink) {
-                    brandLink = document.createElement('a');
-                    brandLink.id = 'ea-header-bank-maskan-brand';
-                    brandLink.href = '/index.php/apps/archive_autotag/';
-                    brandLink.title = 'بانک مسکن - سامانه بایگانی اسناد سازمانی';
-                    brandLink.className = 'ea-header-brand-link';
-                    brandLink.innerHTML = '<img src="/custom_branding/logoheader.svg" alt="بانک مسکن" class="ea-header-brand-img">';
-                    headerStart.insertBefore(brandLink, headerStart.firstChild);
+            // Remove any legacy injected Bank Maskan logo link (strictly deferred to Band 2)
+            const legacyBrand = document.getElementById('ea-header-bank-maskan-brand');
+            if (legacyBrand) {
+                legacyBrand.remove();
+            }
+
+            // Remove broken custom_branding images if present
+            document.querySelectorAll('img[src*="/custom_branding/"]').forEach(img => {
+                img.remove();
+            });
+
+            // Sanitize page title
+            if (document.title && document.title.toLowerCase().includes('nextcloud')) {
+                document.title = document.title.replace(/Nextcloud/gi, 'سامانه بایگانی اسناد سازمانی');
+            }
+
+            // Login Page Sanitization (#body-login) - Bank Maskan Branding
+            if (document.body && (document.body.id === 'body-login' || document.body.classList.contains('body-login') || document.querySelector('#body-login'))) {
+                const hiddenVisually = document.querySelector('h1.hidden-visually');
+                if (hiddenVisually) {
+                    hiddenVisually.style.setProperty('display', 'none', 'important');
+                }
+                const loginHeadline = document.querySelector('.login-form__headline');
+                if (loginHeadline) {
+                    loginHeadline.textContent = 'ورود به سامانه بایگانی اسناد سازمانی';
+                    loginHeadline.style.setProperty('direction', 'rtl', 'important');
+                    loginHeadline.style.setProperty('text-align', 'center', 'important');
+                    loginHeadline.style.setProperty('font-family', "'Vazirmatn', 'Shabnam', system-ui, sans-serif", 'important');
+                    loginHeadline.style.setProperty('color', '#f8fafc', 'important');
+                    loginHeadline.style.setProperty('font-size', '1.15rem', 'important');
+                    loginHeadline.style.setProperty('margin-bottom', '18px', 'important');
+                }
+                const headerGuest = document.querySelector('.header-guest');
+                if (headerGuest) {
+                    headerGuest.style.setProperty('display', 'flex', 'important');
+                    headerGuest.style.setProperty('justify-content', 'center', 'important');
+                    headerGuest.style.setProperty('align-items', 'center', 'important');
+                    headerGuest.style.setProperty('height', 'auto', 'important');
+                    headerGuest.style.setProperty('min-height', '0', 'important');
+                    headerGuest.style.setProperty('background', 'transparent', 'important');
+                    headerGuest.style.setProperty('border', 'none', 'important');
+                    headerGuest.style.setProperty('box-shadow', 'none', 'important');
+                    headerGuest.style.setProperty('margin-bottom', '16px', 'important');
+                    headerGuest.style.setProperty('padding', '0', 'important');
+                }
+                const loginLogo = document.querySelector('#body-login .logo, .body-login .logo, .header-guest .logo');
+                if (loginLogo) {
+                    loginLogo.style.setProperty('display', 'block', 'important');
+                    loginLogo.style.setProperty('visibility', 'visible', 'important');
+                    loginLogo.style.setProperty('background-image', "url('data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 119.24 119.24'%3E%3Cpath fill-rule='evenodd' fill='%23f97316' d='M102.2014008,17.0287781H17.0359039v85.1729126h85.1654968V17.0287781z M119.2376099,0 H0v119.2378845h119.2376099V0z'/%3E%3Cpolygon fill-rule='evenodd' fill='%23f97316' points='98.9226074,76.647583 98.9226074,58.3074951 59.6188049,42.5828857 20.3150024,58.3074951 20.3150024,76.647583 59.6188049,60.9306946'/%3E%3C/svg%3E')", 'important');
+                    loginLogo.style.setProperty('background-repeat', 'no-repeat', 'important');
+                    loginLogo.style.setProperty('background-position', 'center', 'important');
+                    loginLogo.style.setProperty('background-size', 'contain', 'important');
+                    loginLogo.style.setProperty('width', '72px', 'important');
+                    loginLogo.style.setProperty('height', '72px', 'important');
+                    loginLogo.style.setProperty('margin', '0 auto', 'important');
+                    loginLogo.style.setProperty('filter', 'drop-shadow(0 4px 16px rgba(249, 115, 22, 0.5))', 'important');
+                    loginLogo.title = 'بانک مسکن';
+                }
+                const loginFooter = document.querySelector('#body-login footer, .body-login footer, #footer, #header-footer');
+                if (loginFooter) {
+                    loginFooter.style.display = 'none';
+                    loginFooter.style.setProperty('display', 'none', 'important');
                 }
             }
 
-            // 2. Ensure app button icon in header displays Bank Maskan icon
-            const navIcons = document.querySelectorAll(
-                '#header-start__appmenu [data-id="archive_autotag"] img, ' +
-                '#header-start__appmenu a[href*="archive_autotag"] img, ' +
-                '.header-appmenu [data-id="archive_autotag"] img, ' +
-                '#header [data-id="archive_autotag"] img'
-            );
-            navIcons.forEach(img => {
-                if (!img.src.includes('archive.svg') && !img.src.includes('logo')) {
-                    img.src = '/apps/archive_autotag/img/archive.svg';
-                    img.alt = 'بانک مسکن';
+            // Favicon Sanitization to Bank Maskan Brand
+            document.querySelectorAll('link[rel*="icon"]').forEach(function(l) {
+                if (l.href && !l.href.includes('archive.svg')) {
+                    l.href = '/custom_apps/archive_autotag/img/archive.svg';
                 }
             });
 
-            // 3. Other logos and branding
-            const logos = document.querySelectorAll('#header .logo img, #nextcloud img, .header-menu__logo img, #body-login .logo img');
-            logos.forEach(img => {
-                if (!img.src.includes('logoheader.svg') && !img.src.includes('logo.svg')) {
-                    img.src = '/custom_branding/logoheader.svg';
-                    img.alt = 'بانک مسکن';
-                }
-            });
-
-            const favicons = document.querySelectorAll('link[rel*="icon"]');
-            favicons.forEach(fav => {
-                if (!fav.href.includes('/custom_branding/favicon')) {
-                    fav.href = '/custom_branding/favicon.png';
-                }
-            });
-
-            if (document.title && document.title.includes('Nextcloud')) {
-                document.title = document.title.replace(/Nextcloud/g, 'بانک مسکن');
+            // Header Shell Sanitization
+            const ncLogo = document.getElementById('nextcloud');
+            if (ncLogo) {
+                ncLogo.style.display = 'none';
+                ncLogo.style.setProperty('display', 'none', 'important');
             }
-        } catch (e) {}
-    }
 
-    function applyAppMenuFilter() {
-        applyBankMaskanBranding();
-        
-        // Conceal Unified Search Bar globally across all pages for all users (Preserved for future re-enablement)
-        try {
+            const waffleBtn = document.querySelector('.app-menu__waffle');
+            if (waffleBtn) {
+                waffleBtn.style.display = 'none';
+                waffleBtn.style.setProperty('display', 'none', 'important');
+            }
+
+            if (document.body.classList.contains('app-archive_autotag') || window.location.pathname.includes('archive_autotag')) {
+                const currentAppBtn = document.querySelector('.app-menu__current-app');
+                if (currentAppBtn) {
+                    currentAppBtn.style.display = 'none';
+                    currentAppBtn.style.setProperty('display', 'none', 'important');
+                }
+            }
+
+            const wafflePopover = document.querySelector('.app-menu__popover, .app-menu__grid');
+            if (wafflePopover) {
+                wafflePopover.style.display = 'none';
+                wafflePopover.style.setProperty('display', 'none', 'important');
+            }
+
+            // Header contacts button
+            const contactsBtn = document.querySelector('#contactsmenu, .contactsmenu, [data-id="contactsmenu"], [aria-label*="contacts" i], [aria-label*="مخاطبین"]');
+            if (contactsBtn) {
+                contactsBtn.style.display = 'none';
+                contactsBtn.style.setProperty('display', 'none', 'important');
+            }
+
+            // Conceal Unified Search Bar globally
             const searchEls = document.querySelectorAll('#unified-search, .unified-search, .unified-search-menu, .local-unified-search');
             searchEls.forEach(el => {
                 el.style.display = 'none';
                 el.style.setProperty('display', 'none', 'important');
             });
+
+            // User dropdown menu sanitization: suppress Nextcloud specific links
+            const ncMenuItems = document.querySelectorAll(
+                '#user-menu #firstrunwizard_about, [data-id="firstrunwizard_about"], ' +
+                '#user-menu #help, [data-id="help"], ' +
+                '#user-menu #core_apps, [data-id="core_apps"], ' +
+                '#user-menu #accessibility_settings, [data-id="accessibility_settings"], ' +
+                '#user-menu [aria-label*="mobile app login" i], ' +
+                '#user-menu [aria-label*="User status" i], ' +
+                '#user-menu a[href*="user-status"], ' +
+                '#user-menu .account-menu__user-status, ' +
+                '[class*="userStatusMenuItem"], ' +
+                '[class*="userStatus"], ' +
+                'a[id="set-status"]'
+            );
+            ncMenuItems.forEach(item => {
+                item.style.display = 'none';
+                item.style.setProperty('display', 'none', 'important');
+            });
+
+            
+            // Mount Animated Delicate Bank Maskan Watermark Banner in Header Start
+            const header = document.getElementById('header');
+            if (header && !document.body.classList.contains('body-login') && document.body.id !== 'body-login') {
+                let headerStart = header.querySelector('.header-start');
+                if (!headerStart) {
+                    headerStart = document.createElement('div');
+                    headerStart.className = 'header-start';
+                    header.insertBefore(headerStart, header.firstChild);
+                }
+
+                let banner = document.getElementById('ea-header-animated-banner');
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'ea-header-animated-banner';
+                    banner.className = 'ea-header-animated-banner';
+                    banner.setAttribute('aria-hidden', 'true');
+                    banner.innerHTML = [
+                        '<div class="ea-faint-watermark-item">',
+                        '  <svg width="26" height="26" viewBox="0 0 119.24 119.24" class="ea-faint-logo-svg"><path fill-rule="evenodd" fill="#f97316" d="M102.2014008,17.0287781H17.0359039v85.1729126h85.1654968V17.0287781z M119.2376099,0 H0v119.2378845h119.2376099V0z"/><polygon fill-rule="evenodd" fill="#f97316" points="98.9226074,76.647583 98.9226074,58.3074951 59.6188049,42.5828857 20.3150024,58.3074951 20.3150024,76.647583 59.6188049,60.9306946"/></svg>',
+                        '  <span class="ea-faint-logo-label">اداره کل امنیت و زیرساخت</span>',
+                        '</div>'
+                    ].join('\n');
+                    headerStart.appendChild(banner);
+                }
+            }
+
+            // Suppress external Nextcloud links and footers
+            const externalFooters = document.querySelectorAll('.logo-claim, .theming-logo-claim, #nextcloud-footer, .footer-text, a[href*="nextcloud.com"], a[href*="docs.nextcloud.com"]');
+            externalFooters.forEach(el => {
+                el.style.display = 'none';
+                el.style.setProperty('display', 'none', 'important');
+            });
+
         } catch (e) {}
+    }
+
+    function applyAppMenuFilter() {
+        sanitizeNextcloudShell();
+
         const isAdmin = isCurrentUserAdmin();
         if (isAdmin) {
-            // Admin users see all apps normally (including App store)
             return;
         }
 
-        if (!isAdmin) {
-            // Back-Office Guard: /apps/files is strictly reserved for Admin users
-            if (window.location.pathname.includes('/apps/files')) {
-                window.location.replace('/index.php/apps/archive_autotag/');
-                return;
-            }
+        // Non-admin user: Back-Office Guard: /apps/files is strictly reserved for Admin users
+        if (window.location.pathname.includes('/apps/files')) {
+            window.location.replace('/index.php/apps/archive_autotag/');
+            return;
         }
 
         // Non-admin user: Mark html & body with isolation class
@@ -172,36 +276,8 @@
             }
         } catch (err) {}
 
-        // 2. Filter App Switcher Waffle Menu (.app-menu, .app-menu-main, [data-cy-app-menu])
+        // 2. Air-Gapped Isolation: Purge External Links, Help, and FirstRunWizard
         try {
-            const menuContainers = document.querySelectorAll(
-                '#header-start__appmenu, .app-menu-main, [data-cy-app-menu], .header-appmenu, #appmenu'
-            );
-            menuContainers.forEach(container => {
-                // Skip if container is inside files app content or controls
-                if (container.closest && container.closest('#app-content, #controls, #app-navigation, #app-content-files')) {
-                    return;
-                }
-                const elements = container.querySelectorAll('li, a, div.app-menu-entry, button');
-                elements.forEach(item => {
-                    if (isArchiveItem(item)) {
-                        return;
-                    }
-                    if (isAppStoreItem(item)) {
-                        item.style.display = 'none';
-                        item.style.setProperty('display', 'none', 'important');
-                        return;
-                    }
-                    const href = item.getAttribute('href') || '';
-                    const dataId = item.getAttribute('data-id') || '';
-                    if (href || dataId || item.classList.contains('app-menu-entry')) {
-                        item.style.display = 'none';
-                        item.style.setProperty('display', 'none', 'important');
-                    }
-                });
-            });
-
-            // 3. Air-Gapped Isolation: Purge External Links, Help, and FirstRunWizard
             const externalLinks = document.querySelectorAll('a[href^="http://"], a[href^="https://"]');
             externalLinks.forEach(link => {
                 const href = link.getAttribute('href') || '';
@@ -218,7 +294,6 @@
                 item.style.setProperty('display', 'none', 'important');
             });
 
-            // Specifically search by text or link for "App store" across app elements (excluding files content)
             const appStoreItems = document.querySelectorAll('.app-item--outlined, [data-id="core_apps"], [data-id="appstore"], a[href*="/settings/apps"], a[href*="apps.nextcloud.com"]');
             appStoreItems.forEach(el => {
                 el.style.display = 'none';
@@ -227,15 +302,7 @@
         } catch (err) {}
     }
 
-    // Legacy purge function alias for backwards compatibility and test verification
-    function purgeNonAdminApps() {
-        // Purge outlined '+' app store buttons (.app-item--outlined)
-        // Purge external apps.nextcloud.com links
-        // Purge /settings/apps
-        // Purge translated App store / فروشگاه labels
-        applyAppMenuFilter();
-    }
-    window.purgeNonAdminApps = purgeNonAdminApps;
+    window.purgeNonAdminApps = applyAppMenuFilter;
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', applyAppMenuFilter);
@@ -243,9 +310,8 @@
         applyAppMenuFilter();
     }
 
-    // Observe dynamic changes made by Vue router or popover toggles
     const observer = new MutationObserver(() => {
-        applyAppMenuFilter();
+        sanitizeNextcloudShell();
     });
 
     observer.observe(document.documentElement, {

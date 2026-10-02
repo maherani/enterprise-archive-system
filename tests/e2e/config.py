@@ -24,7 +24,7 @@ SWAGGER_URL = f"{BASE_URL}/index.php/apps/archive_autotag/api/docs"
 FILES_URL = f"{BASE_URL}/index.php/apps/files/"
 
 # Timeouts (milliseconds)
-DEFAULT_TIMEOUT = 12000
+DEFAULT_TIMEOUT = 30000
 NAVIGATION_TIMEOUT = 15000
 ACTION_TIMEOUT = 8000
 

@@ -49,25 +49,39 @@ class TagFilterController extends Controller {
      * 4. Private user files outside Enterprise_Archive remain unmodified.
      * 5. The output path must never have a leading slash (matching $relPath convention).
      */
-    private function normalizeArchiveDisplayPath(string $fullPath, string $userFolderPath): string {
+        /**
+     * Normalize a node's full physical path to a clean, logical archive display path.
+     *
+     * Rules:
+     * 1. If path is within current user's folder ($userFolderPath), strip that prefix.
+     * 2. Strip any /<user>/files/ prefix if present (e.g. from admin or cross-user shares).
+     * 3. Strip leading slash.
+     * 4. If path begins with 'Enterprise_Archive/' or is 'Enterprise_Archive', strip it.
+     *    (Only exact root segment match, preserving folders like 'my Enterprise_Archive folder').
+     * 5. If path is outside Enterprise_Archive, preserve relative path without leading slash.
+     * 6. Preserve Persian names, spaces, unicode, and multi-level folder structures.
+     */
+    private function normalizeArchiveDisplayPath(string $fullPath, string $userFolderPath = ''): string {
         $cleanFull = trim(str_replace('\\', '/', $fullPath));
 
-        // 1. If path is within current user's home folder, preserve current relative path behavior
+        // 1. Strip userFolderPath if path starts with it
         if ($userFolderPath !== '' && str_starts_with($cleanFull, $userFolderPath)) {
-            return ltrim(substr($cleanFull, strlen($userFolderPath)), '/');
+            $cleanFull = substr($cleanFull, strlen($userFolderPath));
+        } elseif (preg_match('#^/?[^/]+/files(?:/(.*))?$#u', $cleanFull, $m)) {
+            $cleanFull = $m[1] ?? '';
         }
 
-        // 2 & 3. If path contains /files/Enterprise_Archive/... or starts with files/Enterprise_Archive/...,
-        // strip everything before Enterprise_Archive
-        if (preg_match('#(?:^|/)files/Enterprise_Archive(?:/.*)?$#', $cleanFull)) {
-            $eaPos = strpos($cleanFull, 'Enterprise_Archive');
-            if ($eaPos !== false) {
-                return ltrim(substr($cleanFull, $eaPos), '/');
-            }
+        $cleanFull = ltrim($cleanFull, '/');
+
+        // 2. Strip root 'Enterprise_Archive' segment (only exact segment match)
+        if ($cleanFull === 'Enterprise_Archive') {
+            return '';
+        }
+        if (str_starts_with($cleanFull, 'Enterprise_Archive/')) {
+            return ltrim(substr($cleanFull, strlen('Enterprise_Archive/')), '/');
         }
 
-        // 4 & 5. Private user files outside Enterprise_Archive or non-archive paths: preserve as-is without leading slash
-        return ltrim($cleanFull, '/');
+        return $cleanFull;
     }
 
 
@@ -246,22 +260,38 @@ class TagFilterController extends Controller {
                 }
 
                 $fullPath = $node->getPath();
-                $relPath = $this->normalizeArchiveDisplayPath($fullPath, $userFolderPath);
+                $cleanFull = trim(str_replace('\\', '/', $fullPath));
 
-                $isDir = $node->getType() === FileInfo::TYPE_FOLDER;
-                $parentDir = dirname($relPath);
-                if ($parentDir === '.') {
-                    $parentDir = '';
+                // Storage-relative path for Nextcloud filesystem navigation (preserves target_dir, folder_url, web_url)
+                if ($userFolderPath !== '' && str_starts_with($cleanFull, $userFolderPath)) {
+                    $internalRelPath = ltrim(substr($cleanFull, strlen($userFolderPath)), '/');
+                } elseif (preg_match('#(?:^|/)files/Enterprise_Archive(?:/.*)?$#', $cleanFull)) {
+                    $eaPos = strpos($cleanFull, 'Enterprise_Archive');
+                    $internalRelPath = ($eaPos !== false) ? ltrim(substr($cleanFull, $eaPos), '/') : ltrim($cleanFull, '/');
+                } else {
+                    $internalRelPath = ltrim($cleanFull, '/');
                 }
 
-                $targetDir = '/' . ltrim($isDir ? $relPath : $parentDir, '/');
+                $isDir = $node->getType() === FileInfo::TYPE_FOLDER;
+                $internalParentDir = dirname($internalRelPath);
+                if ($internalParentDir === '.') {
+                    $internalParentDir = '';
+                }
+
+                $targetDir = '/' . ltrim($isDir ? $internalRelPath : $internalParentDir, '/');
                 $targetDir = preg_replace('#/+#', '/', $targetDir);
 
                 $encodedTargetDir = str_replace('%2F', '/', rawurlencode($targetDir));
                 $folderUrl = '/index.php/apps/files/files?dir=' . $encodedTargetDir;
                 $webUrl = $folderUrl;
 
-                $isDir = $node->getType() === FileInfo::TYPE_FOLDER;
+                // Normalized Logical Archive Display Path (strips internal system root 'Enterprise_Archive/')
+                $displayPath = $this->normalizeArchiveDisplayPath($fullPath, $userFolderPath);
+                $parentDisplayPath = dirname($displayPath);
+                if ($parentDisplayPath === '.') {
+                    $parentDisplayPath = '';
+                }
+
                 $nodeName = $node->getName();
                 if ($isDir) {
                     $nodeName = $this->resolveCanonicalFolderName($fileId, $nodeName, $uid);
@@ -270,8 +300,10 @@ class TagFilterController extends Controller {
                 $filesResult[] = [
                     'id' => $fileId,
                     'name' => $nodeName,
-                    'path' => $relPath,
-                    'parent_dir' => $parentDir,
+                    'path' => $displayPath,
+                    'display_path' => $displayPath,
+                    'parent_dir' => $parentDisplayPath,
+                    'parent_display_path' => $parentDisplayPath,
                     'target_dir' => $targetDir,
                     'size' => $node->getSize(),
                     'human_size' => $this->formatBytes($node->getSize()),
@@ -328,9 +360,13 @@ class TagFilterController extends Controller {
                 return strnatcasecmp($a['name'], $b['name']);
             });
 
+            $displayDir = $this->normalizeArchiveDisplayPath($cleanDir, $userFolderPath);
+            $displayDir = '/' . ltrim($displayDir, '/');
+
             return new DataResponse([
                 'status' => 'success',
-                'dir' => '/' . $cleanDir,
+                'dir' => $displayDir,
+                'target_dir' => '/' . $cleanDir,
                 'files' => $filesResult,
                 'total' => count($filesResult),
             ]);
@@ -524,14 +560,40 @@ class TagFilterController extends Controller {
             /** @var \OCP\Files\Node $node */
             $node = $nodes[0];
             $fullPath = $node->getPath();
-            $relPath = $this->normalizeArchiveDisplayPath($fullPath, $userFolderPath);
+            $cleanFull = trim(str_replace('\\', '/', $fullPath));
+
+            // Storage-relative path for Nextcloud filesystem navigation (preserves target_dir, folder_url, web_url)
+            if ($userFolderPath !== '' && str_starts_with($cleanFull, $userFolderPath)) {
+                $internalRelPath = ltrim(substr($cleanFull, strlen($userFolderPath)), '/');
+            } elseif (preg_match('#(?:^|/)files/Enterprise_Archive(?:/.*)?$#', $cleanFull)) {
+                $eaPos = strpos($cleanFull, 'Enterprise_Archive');
+                $internalRelPath = ($eaPos !== false) ? ltrim(substr($cleanFull, $eaPos), '/') : ltrim($cleanFull, '/');
+            } else {
+                $internalRelPath = ltrim($cleanFull, '/');
+            }
+
+            $isDir = $node->getType() === FileInfo::TYPE_FOLDER;
+            $internalParentDir = dirname($internalRelPath);
+            if ($internalParentDir === '.') {
+                $internalParentDir = '';
+            }
+
+            $targetDir = '/' . ltrim($isDir ? $internalRelPath : $internalParentDir, '/');
+            $targetDir = preg_replace('#/+#', '/', $targetDir);
+
+            // Canonical Nextcloud Files directory navigation link
+            $encodedTargetDir = str_replace('%2F', '/', rawurlencode($targetDir));
+            $folderUrl = '/index.php/apps/files/files?dir=' . $encodedTargetDir;
+            $webUrl = $folderUrl;
+
+            // Normalized Logical Archive Display Path (strips internal system root 'Enterprise_Archive/')
+            $displayPath = $this->normalizeArchiveDisplayPath($fullPath, $userFolderPath);
+            $parentDisplayPath = dirname($displayPath);
+            if ($parentDisplayPath === '.') {
+                $parentDisplayPath = '';
+            }
 
             $fileMeta = $metadataMap[$fileId] ?? null;
-
-            $parentDir = dirname($relPath);
-            if ($parentDir === '.') {
-                $parentDir = '';
-            }
 
             // Build tags list for this file (only include tags visible to user)
             $fileTagIds = $tagMappings[$fileId] ?? [];
@@ -558,7 +620,7 @@ class TagFilterController extends Controller {
                 $metaDesc = (string)($fileMeta['description'] ?? '');
 
                 $haystackParts = array_merge(
-                    [$nodeName, $relPath, $metaSubj, $metaNum, $metaIss, $metaDesc],
+                    [$nodeName, $displayPath, $internalRelPath, $metaSubj, $metaNum, $metaIss, $metaDesc],
                     $fileTagNames
                 );
                 $normalizedHaystack = $this->normalizeSearchText(implode(' ', $haystackParts));
@@ -577,15 +639,6 @@ class TagFilterController extends Controller {
                 }
             }
 
-            $isDir = $node->getType() === FileInfo::TYPE_FOLDER;
-            $targetDir = '/' . ltrim($isDir ? $relPath : $parentDir, '/');
-            $targetDir = preg_replace('#/+#', '/', $targetDir);
-
-            // Canonical Nextcloud Files directory navigation link
-            $encodedTargetDir = str_replace('%2F', '/', rawurlencode($targetDir));
-            $folderUrl = '/index.php/apps/files/files?dir=' . $encodedTargetDir;
-            $webUrl = $folderUrl;
-
             $nodeName = $node->getName();
             if ($isDir) {
                 $nodeName = $this->resolveCanonicalFolderName($fileId, $nodeName, $uid);
@@ -594,8 +647,10 @@ class TagFilterController extends Controller {
             $filesResult[] = [
                 'id' => $fileId,
                 'name' => $nodeName,
-                'path' => $relPath,
-                'parent_dir' => $parentDir,
+                'path' => $displayPath,
+                'display_path' => $displayPath,
+                'parent_dir' => $parentDisplayPath,
+                'parent_display_path' => $parentDisplayPath,
                 'target_dir' => $targetDir,
                 'size' => $node->getSize(),
                 'human_size' => $this->formatBytes($node->getSize()),

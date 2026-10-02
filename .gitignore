@@ -13,3 +13,9 @@ __pycache__/
 # Test report artifacts
 artifacts/e2e_reports/screenshots/*.png
 artifacts/e2e_reports/traces/*.zip
+
+# Runtime and testing backup artifacts
+backups/
+nextcloud-before-clean-test/
+db-before-clean-test/
+scratch/

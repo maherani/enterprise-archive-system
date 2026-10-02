@@ -8,7 +8,7 @@
 
 :root {
   --ea-font-family: 'Vazirmatn', 'Shabnam', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  
+
   /* Accent: Enterprise Industrial Orange */
   --ea-primary: #f97316;
   --ea-primary-hover: #ea580c;
@@ -226,18 +226,6 @@ body[theme="dark"] :root,
   white-space: nowrap;
 }
 
-.ea-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.ea-header-actions::-webkit-scrollbar {
-  display: none;
-}
-
 /* Universal Button System - Harmonized with Industrial Obsidian & Orange Theme */
 .ea-workflow-actions {
   display: flex;
@@ -256,6 +244,11 @@ body[theme="dark"] :root,
 }
 .ea-header-actions::-webkit-scrollbar {
   display: none;
+}
+.ea-header-actions:empty,
+.ea-header-actions:not(:has(button)),
+.ea-workflow-actions:empty {
+  display: none !important;
 }
 
 .ea-btn,
@@ -2850,4 +2843,255 @@ button.ea-drawer-close {
   justify-content: center !important;
   font-size: 14px !important;
   font-family: var(--ea-font-family) !important;
+}
+
+
+/* =========================================================================
+   Band 3: Dedicated Enterprise Welcome Screen (Modern & Air-Gapped)
+   ========================================================================= */
+.ea-welcome-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 40%, #151b28 0%, #090b0e 85%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  direction: rtl;
+  font-family: var(--ea-font-family, system-ui, -apple-system, sans-serif);
+  padding: 24px;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.45s ease;
+  user-select: none;
+}
+
+.ea-welcome-overlay.ea-fade-out {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.ea-welcome-card {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  background: rgba(17, 20, 27, 0.94);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  border-radius: 24px;
+  box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.85),
+              0 0 35px rgba(249, 115, 22, 0.14),
+              inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  padding: 44px 36px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transform: translateY(0) scale(1);
+  transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ea-welcome-overlay.ea-fade-out .ea-welcome-card {
+  transform: translateY(-10px) scale(0.98);
+}
+
+.ea-welcome-icon-wrap {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.18) 0%, rgba(234, 88, 12, 0.06) 100%);
+  border: 1px solid rgba(249, 115, 22, 0.38);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+  box-shadow: 0 12px 28px -6px rgba(249, 115, 22, 0.28);
+}
+
+.ea-welcome-icon {
+  width: 44px;
+  height: 44px;
+}
+
+.ea-welcome-title {
+  margin: 0 0 12px 0;
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: -0.02em;
+  line-height: 1.4;
+}
+
+.ea-welcome-greeting {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+
+.ea-welcome-user-name {
+  color: #fb923c;
+  font-weight: 700;
+}
+
+.ea-welcome-subtitle {
+  font-size: 0.88rem;
+  color: #94a3b8;
+  margin: 0 0 28px 0;
+  line-height: 1.6;
+}
+
+.ea-welcome-status-box {
+  width: 100%;
+  background: rgba(10, 13, 18, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ea-welcome-progress-track {
+  width: 100%;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.ea-welcome-progress-bar {
+  height: 100%;
+  width: 35%;
+  background: linear-gradient(90deg, #f97316, #fbbf24);
+  border-radius: 9999px;
+  transition: width 0.3s ease, background 0.3s ease;
+  animation: eaProgressIndeterminate 1.8s infinite ease-in-out;
+}
+
+@keyframes eaProgressIndeterminate {
+  0% {
+    margin-right: 0%;
+    width: 20%;
+  }
+  50% {
+    margin-right: 40%;
+    width: 50%;
+  }
+  100% {
+    margin-right: 80%;
+    width: 20%;
+  }
+}
+
+.ea-welcome-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.ea-welcome-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(249, 115, 22, 0.3);
+  border-top-color: #f97316;
+  border-radius: 50%;
+  animation: eaSpin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes eaSpin {
+  to { transform: rotate(360deg); }
+}
+
+.ea-welcome-status-text {
+  font-size: 0.84rem;
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+.ea-welcome-error-box {
+  width: 100%;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.ea-welcome-error-msg {
+  font-size: 0.88rem;
+  color: #fca5a5;
+  line-height: 1.6;
+}
+
+.ea-welcome-retry-btn {
+  background: #f97316;
+  color: #ffffff;
+  border: none;
+  padding: 7px 20px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.15s ease;
+  font-family: inherit;
+}
+
+.ea-welcome-retry-btn:hover {
+  background: #ea580c;
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ea-welcome-overlay,
+  .ea-welcome-card,
+  .ea-welcome-progress-bar,
+  .ea-welcome-spinner {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+/* Management Workflow Actions Bar (Above Search Box, Right-Aligned in RTL) */
+.ea-workflow-actions-bar {
+  display: flex !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  width: 100% !important;
+  margin-bottom: 8px !important;
+  margin-top: 2px !important;
+}
+
+.ea-workflow-actions-bar:not(:has(button)),
+.ea-workflow-actions-bar:empty {
+  display: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 0 !important;
+}
+
+.ea-workflow-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+}
+
+.ea-workflow-actions:empty,
+.ea-workflow-actions:not(:has(button)) {
+  display: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 0 !important;
 }

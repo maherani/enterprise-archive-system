@@ -28,6 +28,21 @@
     };
 
     // Helper: Escape HTML to prevent XSS
+
+    function formatArchiveDisplayPath(rawPath) {
+        if (!rawPath) return '';
+        var clean = String(rawPath).split('\\').join('/').trim();
+        clean = clean.replace(/^\/?[^\/]+\/files(?:\/|$)/, '');
+        clean = clean.replace(/^\/+/, '');
+        if (clean === 'Enterprise_Archive') {
+            return '';
+        }
+        if (clean.indexOf('Enterprise_Archive/') === 0) {
+            clean = clean.substring('Enterprise_Archive/'.length);
+        }
+        return clean.replace(/^\/+/, '');
+    }
+
     function escapeHtml(str) {
         if (!str) return '';
         return String(str)
@@ -181,9 +196,9 @@
     }
 
     // API: Fetch Tags
-    function fetchTags() {
+    function fetchTags(isBackground) {
         state.isLoadingTags = true;
-        renderApp();
+        renderTagBar();
 
         fetch('/index.php/apps/archive_autotag/api/tags', {
             headers: { 'requesttoken': getCsrfToken(), 'Accept': 'application/json' },
@@ -195,13 +210,15 @@
             if (data && data.status === 'success') {
                 state.allTags = data.tags || [];
             }
-            renderApp();
-            fetchFiles();
+            renderTagBar();
+            if (!isBackground && !state.isFolderView) {
+                fetchFiles();
+            }
         })
         .catch(function (err) {
             state.isLoadingTags = false;
             console.error('Failed to fetch tags', err);
-            renderApp();
+            renderTagBar();
         });
     }
 
@@ -237,7 +254,7 @@
 
         var url = '/index.php/apps/archive_autotag/api/filter?' + params.toString();
 
-        fetch(url, {
+        return fetch(url, {
             headers: { 'requesttoken': getCsrfToken(), 'Accept': 'application/json' },
             credentials: 'same-origin'
         })
@@ -255,12 +272,14 @@
             }
             renderDocumentList();
             renderStatsAndRibbon();
+            return data;
         })
         .catch(function (err) {
             state.isLoadingFiles = false;
             console.error('Failed to fetch files', err);
             renderDocumentList();
             renderStatsAndRibbon();
+            throw err;
         });
     }
 
@@ -364,7 +383,7 @@
     // -------------------------------------------------------------------------
     // In-Portal Folder Navigation & Breadcrumb Management
     // -------------------------------------------------------------------------
-    function openFolderInPortal(targetDir, highlightFileId) {
+    function openFolderInPortal(targetDir, highlightFileId, isPush) {
         state.isFolderView = true;
         state.viewMode = 'table';
         state.selectedTagIds.clear();
@@ -373,7 +392,11 @@
 
         try {
             var newUrl = window.location.pathname + (targetDir && targetDir !== '/' ? ('?dir=' + encodeURIComponent(targetDir)) : '');
-            window.history.pushState({ dir: targetDir }, '', newUrl);
+            if (isPush) {
+                window.history.pushState({ dir: targetDir }, '', newUrl);
+            } else {
+                window.history.replaceState({ dir: targetDir }, '', newUrl);
+            }
         } catch (e) {}
 
         var gridBtn = document.getElementById('ea-view-grid-btn');
@@ -389,7 +412,7 @@
         if (clearBtn) clearBtn.style.display = 'none';
 
         renderTagBar();
-        navigateToFolder(targetDir, highlightFileId);
+        return navigateToFolder(targetDir, highlightFileId);
     }
 
     function navigateToFolder(targetDir, highlightFileId) {
@@ -405,7 +428,7 @@
         renderStatsAndRibbon();
 
         var url = '/index.php/apps/archive_autotag/api/folder-files?dir=' + encodeURIComponent(cleanDir);
-        fetch(url, {
+        return fetch(url, {
             headers: { 'requesttoken': getCsrfToken(), 'Accept': 'application/json' },
             credentials: 'same-origin'
         })
@@ -437,6 +460,7 @@
             state.files = [];
             renderDocumentList();
             renderStatsAndRibbon();
+            throw err;
         });
     }
 
@@ -453,47 +477,84 @@
 
     window._eaNavigateToFolder = openFolderInPortal;
 
+    function renderTopHeaderBrand(userDisplay) {
+        var headerEnd = document.querySelector('#header .header-end');
+        if (!headerEnd) return;
+
+        var headerStart = document.querySelector('#header .header-start');
+        if (headerStart) {
+            var defaultAppMenu = headerStart.querySelector('.app-menu');
+            if (defaultAppMenu) {
+                defaultAppMenu.style.display = 'none';
+            }
+
+            // Decorative Faint Bank Maskan Animated Banner/Watermark in Header Start
+            var existingBanner = document.getElementById('ea-header-animated-banner');
+            if (!existingBanner) {
+                existingBanner = document.createElement('div');
+                existingBanner.id = 'ea-header-animated-banner';
+                existingBanner.className = 'ea-header-animated-banner';
+                existingBanner.setAttribute('aria-hidden', 'true');
+                existingBanner.innerHTML = [
+                    '<div class="ea-faint-watermark-item">',
+                    '  <svg width="26" height="26" viewBox="0 0 119.24 119.24" class="ea-faint-logo-svg"><path fill-rule="evenodd" fill="#f97316" d="M102.2014008,17.0287781H17.0359039v85.1729126h85.1654968V17.0287781z M119.2376099,0 H0v119.2378845h119.2376099V0z"/><polygon fill-rule="evenodd" fill="#f97316" points="98.9226074,76.647583 98.9226074,58.3074951 59.6188049,42.5828857 20.3150024,58.3074951 20.3150024,76.647583 59.6188049,60.9306946"/></svg>',
+                    '  <span class="ea-faint-logo-label">اداره کل امنیت و زیرساخت</span>',
+                    '</div>'
+        ].join('\n');
+                headerStart.appendChild(existingBanner);
+            }
+        }
+
+        var existingBrand = document.getElementById('ea-header-brand-top');
+        if (!existingBrand) {
+            existingBrand = document.createElement('div');
+            existingBrand.id = 'ea-header-brand-top';
+            existingBrand.className = 'ea-header-brand-top';
+        }
+
+        var notif = document.getElementById('notifications');
+        if (notif && notif.parentNode === headerEnd) {
+            if (existingBrand.nextElementSibling !== notif || existingBrand.parentNode !== headerEnd) {
+                headerEnd.insertBefore(existingBrand, notif);
+            }
+        } else {
+            var userMenu = document.getElementById('user-menu');
+            if (userMenu && userMenu.parentNode === headerEnd) {
+                if (existingBrand.nextElementSibling !== userMenu || existingBrand.parentNode !== headerEnd) {
+                    headerEnd.insertBefore(existingBrand, userMenu);
+                }
+            } else if (existingBrand.parentNode !== headerEnd) {
+                headerEnd.appendChild(existingBrand);
+            }
+        }
+
+        existingBrand.innerHTML = [
+            '<div class="ea-header-brand-text">',
+            '  <h1 class="ea-brand-title">سامانه بایگانی اسناد سازمانی</h1>',
+            '  <div class="ea-brand-subtitle">پورتال دسترسی سریع، فیلتر چندتگی و جستجوی اسناد • <span class="ea-brand-user-name">' + escapeHtml(userDisplay) + '</span></div>',
+            '</div>'
+        ].join('\n');
+    }
+
     // Render: Header & Search Ribbon
     function renderApp() {
         var root = document.getElementById('archive-portal-root');
         if (!root) return;
 
         var userDisplay = root.getAttribute('data-user-display') || 'کاربر سازمانی';
+        renderTopHeaderBrand(userDisplay);
 
         root.innerHTML = [
             '<div class="ea-container">',
-            '  <!-- Sticky Top Controls Section (Header, Search, Multi-Tag Filter & Breadcrumbs) -->',
+            '  <!-- Sticky Top Controls Section (Management Actions, Search, Multi-Tag Filter & Breadcrumbs) -->',
             '  <div class="ea-sticky-top-section" id="ea-sticky-top-section">',
-            '    <!-- Header -->',
-            '    <header class="ea-portal-header">',
-            '    <div class="ea-header-brand">',
-            '      <div class="ea-brand-icon" title="بانک مسکن">',
-            '        <svg width="22" height="22" viewBox="0 0 119.24 119.24"><path fill-rule="evenodd" fill="#f97316" d="M102.2014008,17.0287781H17.0359039v85.1729126h85.1654968V17.0287781z M119.2376099,0 H0v119.2378845h119.2376099V0z"/><polygon fill-rule="evenodd" fill="#f97316" points="98.9226074,76.647583 98.9226074,58.3074951 59.6188049,42.5828857 20.3150024,58.3074951 20.3150024,76.647583 59.6188049,60.9306946"/></svg>',
-            '      </div>',
-            '      <div>',
-            '        <h1 class="ea-brand-title">سامانه بایگانی اسناد سازمانی</h1>',
-            '        <div class="ea-brand-subtitle">پورتال دسترسی سریع، فیلتر چندتگی و جستجوی اسناد • ' + escapeHtml(userDisplay) + '</div>',
-            '      </div>',
-            '    </div>',
-            '    <div class="ea-header-actions">',
-            '      <button id="ea-upload-btn" class="ea-btn ea-btn-primary" title="بارگذاری سند جدید همراه با ثبت متادیتا">',
-            '        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
-            '        <span>بارگذاری سند</span>',
-            '      </button>',
+            '    <!-- Management Workflow Actions (Above Search Box, Right-Aligned in RTL) -->',
+            '    <div id="ea-workflow-actions-bar" class="ea-workflow-actions-bar">',
             '      <div id="ea-workflow-actions" class="ea-workflow-actions"></div>',
-            '      <button id="ea-refresh-btn" class="ea-btn" title="تازه سازی اطلاعات">',
-            '        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
-            '        <span>به‌روزرسانی</span>',
-            '      </button>',
-            '      <button type="button" id="ea-folder-view-btn" class="ea-btn" title="مشاهده و مرور ساختار درختی پوشه‌ها در همین صفحه">',
-            '        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
-            '        <span>نمای پوشه‌ها</span>',
-            '      </button>',
             '    </div>',
-            '  </header>',
             '',
-            '  <!-- Search Hero -->',
-            '  <section class="ea-search-hero">',
+            '    <!-- Search Hero -->',
+            '    <section class="ea-search-hero">',
             '    <div class="ea-search-box">',
             '      <span class="ea-search-icon">',
             '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
@@ -557,32 +618,6 @@
 
     // Attach Event Listeners
     function attachEventListeners() {
-        var uploadBtn = document.getElementById('ea-upload-btn');
-        if (uploadBtn) {
-            uploadBtn.addEventListener('click', function () {
-                openUploadModal();
-            });
-        }
-
-        var refreshBtn = document.getElementById('ea-refresh-btn');
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', function () {
-                if (state.isFolderView) {
-                    navigateToFolder(state.currentFolderDir || '/');
-                } else {
-                    fetchTags();
-                }
-            });
-        }
-
-        var folderViewBtn = document.getElementById('ea-folder-view-btn');
-        if (folderViewBtn) {
-            folderViewBtn.addEventListener('click', function (e) {
-                e.preventDefault();
-                openFolderInPortal('/', null);
-            });
-        }
-
         var searchInput = document.getElementById('ea-search-input');
         var clearBtn = document.getElementById('ea-search-clear');
         if (searchInput) {
@@ -795,7 +830,8 @@
                 if (state.isLoadingFiles) {
                     summary.innerHTML = 'در حال دریافت محتوای پوشه...';
                 } else {
-                    var folderDisplay = state.currentFolderDir || '/';
+                    var folderDisplay = formatArchiveDisplayPath(state.currentFolderDir);
+                    folderDisplay = folderDisplay ? ('/' + folderDisplay) : '/';
                     summary.innerHTML = '📁 مسیر پوشه: <strong>' + escapeHtml(folderDisplay) + '</strong> (' + toPersianDigits(state.files.length) + ' سند و پوشه)';
                 }
             }
@@ -825,8 +861,8 @@
         if (!ribbon) return;
 
         if (state.isFolderView) {
-            var currentPath = state.currentFolderDir || '/';
-            var parts = currentPath.split('/').filter(Boolean);
+            var normPath = formatArchiveDisplayPath(state.currentFolderDir);
+            var parts = normPath ? normPath.split('/').filter(Boolean) : [];
             var breadcrumbsHtml = [
                 '<div class="ea-folder-breadcrumb-bar">',
                 '  <div class="ea-breadcrumb-path">',
@@ -859,7 +895,7 @@
             );
 
             if (parts.length > 0) {
-                var parentDir = '/' + parts.slice(0, -1).join('/');
+                var parentDir = parts.length > 1 ? ('/' + parts.slice(0, -1).join('/')) : '/';
                 breadcrumbsHtml.push(
                     '    <button type="button" id="ea-folder-up-btn" class="ea-btn ea-btn-sm" data-parent-dir="' + escapeHtml(parentDir) + '" title="رفتن به پوشه بالایی">',
                     '      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>',
@@ -889,7 +925,7 @@
             ribbon.querySelectorAll('[data-folder-dir]').forEach(function (btn) {
                 btn.addEventListener('click', function () {
                     var target = btn.getAttribute('data-folder-dir');
-                    openFolderInPortal(target, null);
+                    openFolderInPortal(target, null, true);
                 });
             });
 
@@ -897,7 +933,7 @@
             if (upBtn) {
                 upBtn.addEventListener('click', function () {
                     var parent = upBtn.getAttribute('data-parent-dir') || '/';
-                    openFolderInPortal(parent, null);
+                    openFolderInPortal(parent, null, true);
                 });
             }
 
@@ -1095,18 +1131,18 @@
                 '  <div class="ea-card-footer">',
                 '    <span class="ea-card-date">' + formatDate(file.mtime) + '</span>',
                 '    <div class="ea-card-actions">',
-                (isFolder ? 
+                (isFolder ?
                 '      <button type="button" class="ea-icon-btn ea-folder-open-action" data-folder-path="' + escapeHtml(file.path) + '" title="ورود به پوشه">' +
                 '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' +
                 '      </button>' : ''),
                 '      <button type="button" class="ea-icon-btn ea-action-preview" data-file-id="' + file.id + '" title="مشاهده سریع جزئیات">',
                 '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
                 '      </button>',
-                (state.userRole && state.userRole.is_admin ? 
+                (state.userRole && state.userRole.is_admin ?
                 '      <button type="button" class="ea-icon-btn ea-card-delete ea-btn-danger-icon" data-file-id="' + file.id + '" data-file-name="' + escapeHtml(file.name) + '" data-is-dir="' + (isFolder ? 'true' : 'false') + '" data-folder-path="' + escapeHtml(file.path) + '" title="حذف دائمی">' +
                 '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>' +
                 '      </button>' : ''),
-                (!isFolder ? 
+                (!isFolder ?
                 '      <a href="' + escapeHtml(file.download_url) + '" class="ea-icon-btn" title="دانلود مستقیم" download>' +
                 '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
                 '      </a>' : ''),
@@ -1124,7 +1160,7 @@
                 var isDir = card.getAttribute('data-is-dir') === 'true';
                 var folderPath = card.getAttribute('data-folder-path');
                 if (isDir && folderPath) {
-                    openFolderInPortal('/' + folderPath.replace(/^\/+/g, ''), null);
+                    openFolderInPortal('/' + folderPath.replace(/^\/+/g, ''), null, true);
                     return;
                 }
                 var fid = parseInt(card.getAttribute('data-file-id'), 10);
@@ -1302,28 +1338,28 @@
                 '      <strong>' + (isFolder ? '📁 ' : '') + escapeHtml(file.name) + '</strong>',
                 (file.metadata && file.metadata.subject ? '      <div class="ea-cell-meta-sub">📋 ' + escapeHtml(file.metadata.subject) + (file.metadata.document_number ? ' (' + escapeHtml(file.metadata.document_number) + ')' : '') + '</div>' : ''),
                 '    </div>',
-                '    <small class="ea-cell-path-sub" title="' + escapeHtml(file.parent_dir || file.path || 'ریشه بایگانی') + '">' + escapeHtml(file.parent_dir || file.path || 'ریشه بایگانی') + '</small>',
+                '    <small class="ea-cell-path-sub" title="' + escapeHtml(formatArchiveDisplayPath(file.parent_dir || file.path) || 'ریشه بایگانی') + '">' + escapeHtml(formatArchiveDisplayPath(file.parent_dir || file.path) || 'ریشه بایگانی') + '</small>',
                 '  </td>',
                 '  <td><div class="ea-cell-tags-wrap">' + (tagsText || '<span style="color:var(--ea-text-subtle); font-size:0.75rem;">—</span>') + '</div></td>',
                 '  <td class="ea-cell-nowrap" style="direction: ltr; text-align: left;">' + sizeDisplay + '</td>',
                 '  <td class="ea-cell-nowrap">' + formatDate(file.mtime) + '</td>',
                 '  <td class="ea-cell-nowrap" style="text-align: left;">',
                 '    <div style="display: flex; gap: 6px; justify-content: flex-end;">',
-
-                (state.userRole && state.userRole.is_admin ? 
-                '      <button type="button" class="ea-icon-btn ea-table-share" data-file-id="' + file.id + '" data-file-name="' + escapeHtml(file.name) + '" title="اشتراک با گروه">' +
-                '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>' +
-                '      </button>' +
-                '      <button type="button" class="ea-icon-btn ea-table-delete ea-btn-danger-icon" data-file-id="' + file.id + '" data-file-name="' + escapeHtml(file.name) + '" data-is-dir="' + (isFolder ? 'true' : 'false') + '" data-folder-path="' + escapeHtml(file.path) + '" title="حذف دائمی">' +
-                '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>' +
-                '      </button>' : ''),
                 '      <button type="button" class="ea-icon-btn ea-table-preview" data-file-id="' + file.id + '" title="مشاهده جزئیات">' +
                 '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>' +
                 '      </button>',
-                (!isFolder ? 
+                (isFolder && state.userRole && state.userRole.is_admin ?
+                '      <button type="button" class="ea-icon-btn ea-table-share" data-file-id="' + file.id + '" data-file-name="' + escapeHtml(file.name) + '" data-is-dir="true" title="اشتراک با گروه">' +
+                '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>' +
+                '      </button>' : ''),
+                (!isFolder ?
                 '      <a href="' + escapeHtml(file.download_url) + '" class="ea-icon-btn" title="دانلود" download>' +
                 '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
                 '      </a>' : ''),
+                (state.userRole && state.userRole.is_admin ?
+                '      <button type="button" class="ea-icon-btn ea-table-delete ea-btn-danger-icon" data-file-id="' + file.id + '" data-file-name="' + escapeHtml(file.name) + '" data-is-dir="' + (isFolder ? 'true' : 'false') + '" data-folder-path="' + escapeHtml(file.path) + '" title="حذف دائمی">' +
+                '        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>' +
+                '      </button>' : ''),
                 '    </div>',
                 '  </td>',
                 '</tr>'
@@ -1403,8 +1439,9 @@
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 var fid = parseInt(btn.getAttribute('data-file-id'), 10);
-                var fname = btn.getAttribute('data-file-name') || ('سند ' + fid);
-                openGroupShareModal(fid, fname, 'file');
+                var fname = btn.getAttribute('data-file-name') || ('پوشه ' + fid);
+                var isDir = btn.getAttribute('data-is-dir') === 'true';
+                openGroupShareModal(fid, fname, isDir ? 'folder' : 'file');
             });
         });
 
@@ -1464,8 +1501,8 @@
             return '<span class="ea-mini-tag" style="background: var(--ea-primary-glow); color: var(--ea-primary); font-size: 0.8rem; padding: 4px 10px; display:inline-flex; align-items:center;">🏷️ ' + escapeHtml(cleanDisplay) + removeBtn + '</span>';
         }).join(' ');
 
-        var targetDir = isFolder 
-            ? ('/' + (file.path || file.name).replace(/^\/+/g, '')) 
+        var targetDir = isFolder
+            ? (file.target_dir || ('/' + (file.path || file.name).replace(/^\/+/g, '')))
             : (file.target_dir || ('/' + (file.parent_dir || '').replace(/^\/+/g, '')));
         targetDir = targetDir.replace(/\/+/g, '/');
         if (!targetDir.startsWith('/')) targetDir = '/' + targetDir;
@@ -1538,7 +1575,7 @@
                 '',
                 '<div class="ea-meta-item">',
                 '  <span class="ea-meta-label">مسیر فایل:</span>',
-                '  <span class="ea-meta-val"><button type="button" class="ea-drawer-path-link-btn" id="ea-drawer-path-btn" title="مشاهده این مسیر در همین صفحه">' + escapeHtml(file.path) + ' ↗</button></span>',
+                '  <span class="ea-meta-val"><button type="button" class="ea-drawer-path-link-btn" id="ea-drawer-path-btn" title="مشاهده این مسیر در همین صفحه">' + escapeHtml(formatArchiveDisplayPath(file.display_path || file.path) || '/') + ' ↗</button></span>',
                 '</div>',
                 '<div class="ea-meta-item">',
                 '  <span class="ea-meta-label">حجم فایل:</span>',
@@ -1647,7 +1684,7 @@
     // -------------------------------------------------------------------------
 
     function fetchUserRole() {
-        fetch('/index.php/apps/archive_autotag/api/user-role', {
+        return fetch('/index.php/apps/archive_autotag/api/user-role', {
             headers: { 'Accept': 'application/json' }
         })
         .then(function (res) { return res.json(); })
@@ -1660,6 +1697,10 @@
                     renderWorkflowActions();
                 }
                 renderDocumentList();
+                var rootEl = document.getElementById('archive-portal-root');
+                var uName = (rootEl && rootEl.getAttribute('data-user-display')) || data.role.user_id || 'کاربر سازمانی';
+                renderTopHeaderBrand(uName);
+            return data;
             }
         })
         .catch(function () {});
@@ -3997,6 +4038,65 @@
     }
 
     // Auto-Initialization when DOM is ready
+    // =========================================================================
+    // Band 3: Dedicated Enterprise Welcome Screen Controller & Transition
+    // =========================================================================
+    function dismissWelcomeScreen(overlay) {
+        if (!overlay) return;
+        var progressBar = document.getElementById('ea-welcome-progress-bar');
+        var statusText = document.getElementById('ea-welcome-status-text');
+        if (progressBar) {
+            progressBar.style.animation = 'none';
+            progressBar.style.width = '100%';
+            progressBar.style.background = '#10b981';
+        }
+        if (statusText) {
+            statusText.textContent = 'محیط کاری آماده شد';
+        }
+
+        var root = document.getElementById('archive-portal-root');
+        var userId = root ? root.getAttribute('data-user-id') : '';
+        if (userId) {
+            try {
+                sessionStorage.setItem('ea_welcome_completed_' + userId, '1');
+            } catch (e) {}
+        }
+
+        setTimeout(function () {
+            overlay.classList.add('ea-fade-out');
+            setTimeout(function () {
+                if (overlay && overlay.parentNode) {
+                    overlay.parentNode.removeChild(overlay);
+                }
+            }, 460);
+        }, 250);
+    }
+
+    function showWelcomeError(overlay, retryFn) {
+        if (!overlay) return;
+        var statusBox = document.getElementById('ea-welcome-status-box');
+        var errorBox = document.getElementById('ea-welcome-error-box');
+        var retryBtn = document.getElementById('ea-welcome-retry-btn');
+        if (statusBox) statusBox.style.display = 'none';
+        if (errorBox) errorBox.style.display = 'flex';
+        if (retryBtn) {
+            retryBtn.onclick = function () {
+                if (errorBox) errorBox.style.display = 'none';
+                if (statusBox) statusBox.style.display = 'flex';
+                var progressBar = document.getElementById('ea-welcome-progress-bar');
+                if (progressBar) {
+                    progressBar.style.animation = 'eaProgressIndeterminate 1.8s infinite ease-in-out';
+                    progressBar.style.width = '35%';
+                    progressBar.style.background = 'linear-gradient(90deg, #f97316, #fbbf24)';
+                }
+                var statusText = document.getElementById('ea-welcome-status-text');
+                if (statusText) statusText.textContent = 'در حال آماده‌سازی محیط بایگانی شما...';
+                if (typeof retryFn === 'function') retryFn();
+            };
+        }
+    }
+
+    // Auto-Initialization when DOM is ready
     function init() {
         setupKeyboardListeners();
         setupGlobalDragAndDrop();
@@ -4004,21 +4104,89 @@
             var urlParams = new URLSearchParams(window.location.search);
             var dirParam = urlParams.get('dir');
             if (dirParam) {
-                openFolderInPortal(dirParam, null);
+                openFolderInPortal(dirParam, null, false);
             } else if (state.isFolderView) {
-                exitFolderMode();
+                var root = document.getElementById('archive-portal-root');
+                var initialDir = root ? root.getAttribute('data-initial-dir') : null;
+                if (initialDir) {
+                    openFolderInPortal(initialDir, null, false);
+                } else {
+                    exitFolderMode();
+                }
+            }
+        });
+
+        // BFCache safety: if restored from browser back/forward cache, ensure welcome overlay is not stuck
+        window.addEventListener('pageshow', function (event) {
+            var root = document.getElementById('archive-portal-root');
+            var userId = root ? root.getAttribute('data-user-id') : '';
+            if (userId) {
+                try {
+                    if (sessionStorage.getItem('ea_welcome_completed_' + userId) === '1') {
+                        var ov = document.getElementById('ea-welcome-overlay');
+                        if (ov && ov.parentNode) {
+                            ov.parentNode.removeChild(ov);
+                        }
+                    }
+                } catch (e) {}
             }
         });
 
         var root = document.getElementById('archive-portal-root');
         if (root) {
-            fetchUserRole();
-            var urlParams = new URLSearchParams(window.location.search);
-            var dirParam = urlParams.get('dir');
-            if (dirParam) {
-                openFolderInPortal(dirParam, null);
+            var welcomeOverlay = document.getElementById('ea-welcome-overlay');
+            var showWelcome = root.getAttribute('data-show-welcome') === '1' && welcomeOverlay !== null;
+
+            renderApp();
+
+            if (showWelcome && welcomeOverlay) {
+                // Minimum pleasant display duration (700ms) so user can read the greeting without visual jarring
+                var minTimePromise = new Promise(function (resolve) {
+                    setTimeout(resolve, 700);
+                });
+
+                var rolePromise = fetchUserRole();
+                fetchTags(true);
+
+                var urlParams = new URLSearchParams(window.location.search);
+                var dirParam = urlParams.get('dir');
+                var initialDir = dirParam || root.getAttribute('data-initial-dir');
+                var filesPromise = initialDir
+                    ? openFolderInPortal(initialDir, null, false)
+                    : fetchFiles();
+
+                function executeReadiness() {
+                    Promise.all([rolePromise, filesPromise, minTimePromise])
+                        .then(function () {
+                            dismissWelcomeScreen(welcomeOverlay);
+                        })
+                        .catch(function (err) {
+                            console.error('Archive portal initialization error:', err);
+                            showWelcomeError(welcomeOverlay, function () {
+                                rolePromise = fetchUserRole();
+                                filesPromise = initialDir
+                                    ? openFolderInPortal(initialDir, null, false)
+                                    : fetchFiles();
+                                executeReadiness();
+                            });
+                        });
+                }
+                executeReadiness();
             } else {
-                fetchTags();
+                // Refresh or normal in-session view: proceed directly to portal without welcome
+                if (welcomeOverlay && welcomeOverlay.parentNode) {
+                    welcomeOverlay.parentNode.removeChild(welcomeOverlay);
+                }
+                fetchUserRole();
+                fetchTags(true);
+                var urlParams = new URLSearchParams(window.location.search);
+                var dirParam = urlParams.get('dir');
+                var initialDir = dirParam || root.getAttribute('data-initial-dir');
+                if (initialDir) {
+                    openFolderInPortal(initialDir, null, false);
+                } else {
+                    fetchFiles();
+                }
             }
         }
     }

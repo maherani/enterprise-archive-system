@@ -195,9 +195,16 @@ class NavigationController extends Controller {
             ];
         }
 
+        $highest = $this->computeHighestAccessibleDir($items, $isAdmin);
+
         return new DataResponse([
             'status' => 'success',
             'root_folder' => 'Enterprise_Archive',
+            'highest_accessible_dir' => $highest['dir'],
+            'highest_accessible_display_dir' => $highest['display_dir'],
+            'initial_dir' => $highest['dir'],
+            'initial_display_dir' => $highest['display_dir'],
+            'accessible_departments_count' => $highest['count'],
             'items' => $items,
             'user' => [
                 'uid' => $userId,
@@ -211,5 +218,45 @@ class NavigationController extends Controller {
                 }, $userGroups),
             ]
         ]);
+    }
+
+    public function computeHighestAccessibleDir(array $items, bool $isAdmin): array {
+        if ($isAdmin) {
+            return [
+                'dir' => '/Enterprise_Archive',
+                'display_dir' => '/',
+                'count' => 1,
+                'is_admin' => true,
+            ];
+        }
+
+        $departments = array_values(array_filter($items, fn($it) => ($it['type'] ?? '') === 'department'));
+        if (count($departments) === 1) {
+            $rawPath = '/' . ltrim((string)$departments[0]['path'], '/');
+            $displayName = '/' . ltrim((string)($departments[0]['name'] ?? $departments[0]['display_name'] ?? ''), '/');
+            return [
+                'dir' => $rawPath,
+                'display_dir' => $displayName,
+                'count' => 1,
+                'is_admin' => false,
+            ];
+        }
+
+        return [
+            'dir' => '/',
+            'display_dir' => '/',
+            'count' => count($departments),
+            'is_admin' => false,
+        ];
+    }
+
+    public function getHighestAccessibleDir(?string $userId = null): array {
+        $res = $this->getResources();
+        $data = $res->getData();
+        return [
+            'dir' => $data['highest_accessible_dir'] ?? '/',
+            'display_dir' => $data['highest_accessible_display_dir'] ?? '/',
+            'count' => $data['accessible_departments_count'] ?? 0,
+        ];
     }
 }
