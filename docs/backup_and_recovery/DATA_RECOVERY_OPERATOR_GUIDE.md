@@ -52,8 +52,67 @@ Instance Data Backup (instance_data)
 | **اتصال به Baseline** | خود تشکیل‌دهنده System Baseline است | دارای Reference دقیق به `system_backup_id` و Git | درون‌بسته (Self-contained) |
 | **قفل نگهداری (Lock)** | صفر ثانیه (بدون وقفه عملیاتی) | قفل موقت Maintenance Mode حین اسنپ‌شات | قفل موقت Maintenance Mode حین اسنپ‌شات |
 | **دستور ایجاد در خط فرمان** | `./deploy/manage_backup.sh backup-system` | `./deploy/manage_backup.sh backup-data` | `./deploy/manage_backup.sh run` |
-| **دستور آزمون در سندباکس** | `./deploy/manage_backup.sh test-system` | `./deploy/manage_backup.sh test-data` | `./deploy/manage_backup.sh test` |
-| **دستور آزمون و اعتبارسنجی** | `./deploy/test_system_backup.sh` | `./deploy/test_restore.sh` |
+| **دستور آزمون در سندباکس** | `./deploy/manage_backup.sh test-system` | `./deploy/manage_backup.sh test-data` (BR-03) | `./deploy/manage_backup.sh test` |
+| **دستور آزمون و اعتبارسنجی** | `./deploy/test_system_backup.sh` | `./deploy/test_instance_data_backup.sh` | `./deploy/test_restore.sh` |
+
+
+---
+
+## ۲.۱. قابلیت BR-03 — آزمون بازیابی واقعی در محیط سندباکس (Sandbox Restore Verification)
+
+در این فاز، آزمون نسخه‌های پشتیبان داده‌های عملیاتی (`instance_data`) فراتر از اعتبارسنجی ساده آرشیو رفته و یک **Restore واقعی و کامل در یک محیط کاملاً ایزوله سندباکس** را به نمایش می‌گذارد.
+
+> [!IMPORTANT]
+> **تفکیک قطعی BR-03 از BR-04 (عدم تغییر سامانه عملیاتی):**  
+> آزمون BR-03 منحصراً در محیط سندباکس موقت اجرا می‌شود و **اکیداً هیچ اثری بر سامانه عملیاتی (Production) ندارد**:
+> * پایگاه داده اصلی `nextcloud` هیچ‌گونه Drop یا تغییر داده نمی‌شود.
+> * فایل‌های ذخیره‌شده کاربران در `/var/www/html/data` به هیچ وجه تغییر نمی‌کنند.
+> * کانتینرهای پروداکشن ری‌استارت نمی‌شوند و سامانه وارد حالت تعمیرات (Maintenance Mode) نمی‌شود.
+> * **بازیابی بر روی محیط عملیاتی (Production Restore) منحصراً متعلق به فاز آتی (BR-04) است.**
+
+### معماری موتور سندباکس BR-03:
+
+```text
+Production Instance (دست‌نخورده، بدون داون‌تایم)
+       │
+       ▼
+instance_data Backup (.tar.gz + .sha256)
+       │
+       ▼
+Sandbox ایزوله موقت
+ ┌────────────────────────────────────────────────────────┐
+ │ 1. Sidecar SHA-256 Checksum Verification               │
+ │ 2. Negative Assertions (عدم تکرار سورس و کانفیگ)        │
+ │ 3. Manifest & System Baseline Integrity                │
+ │ 4. ساخت دیتابیس موقت: nextcloud_instance_restore_sandbox│
+ │ 5. بازیابی کامل دیتابیس با ON_ERROR_STOP=1              │
+ │ 6. ممیزی ۱۲ جدول حیاتی سامانه آرشیو و شِمای داده       │
+ │ 7. تطابق قطعی شمارش‌ها (Users, Groups, Tags, Docs)    │
+ │ 8. استخراج واقعی داده‌های کاربری در مسیر ایزوله موقت    │
+ │ 9. اعتبارسنجی انطباق دوطرفه DB State ↔ Filesystem      │
+ │    • هر فایل در oc_filecache ──> فایل فیزیکی موجود باشد │
+ │    • هر سند آرشیو روی دیسک ──> رکورد متناظر در DB باشد  │
+ │ 10. پاکسازی قطعی دیتابیس و فایل‌های موقت سندباکس (Trap)│
+ └────────────────────────────────────────────────────────┘
+       │
+       ▼
+نتیجه ممیزی: PASS (تضمین ۱۰۰٪ قابلیت بازنشانی بدون دستکاری پروداکشن)
+```
+
+### روش‌های اجرای آزمون سندباکس:
+1. **از طریق خط فرمان (CLI):**
+   ```bash
+   # آزمون آخرین نسخه پشتیبان instance_data
+   ./deploy/manage_backup.sh test-data
+
+   # یا تشخیص خودکار نوع نسخه
+   ./deploy/manage_backup.sh test latest_instance_data_backup.tar.gz
+   ```
+2. **از طریق پنل وب مدیریت ارشد (Admin Web UI):**
+   * در جدول کاتالوگ نسخه‌ها، برای ردیف‌های «داده‌های سازمانی»، دکمه **🧪 تست Restore در Sandbox** فعال است.
+   * تولتیپ دکمه: *«بازسازی آزمایشی Database و فایل‌های این نسخه در محیط کاملاً ایزوله؛ بدون هیچ تغییر در سامانه عملیاتی»*
+   * پس از اتمام آزمون، نشان **✅ Sandbox Restore PASS 📋** نمایش داده شده و با کلیک بر روی آن، کارنامه کامل ۱۶ شاخص ممیزی به همراه لاگ فرآیند سندباکس قابل مشاهده است.
+   * دکمه بازیابی پروداکشن برای این نسخه‌ها تا پیاده‌سازی BR-04 در حالت Disabled باقی می‌ماند.
 
 ## ۳. روش‌های اجرای عملیات (Execution Channels)
 

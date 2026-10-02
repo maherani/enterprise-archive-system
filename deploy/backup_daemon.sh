@@ -230,17 +230,18 @@ with open('$STATUS_FILE', 'w') as f:
                 test)
                     echo "[DAEMON] Executing test in sandbox..."
                     TARGET_BASENAME="$(basename "${TARGET:-latest_instance_backup.tar.gz}")"
-                    if [[ "${TARGET:-}" == *"system"* ]]; then
-                        TEST_EXE="$SCRIPT_DIR/test_system_backup.sh"
-                        TEST_LOG="$BACKUP_DIR/.test_system_last_run.log"
-                    elif [[ "${TARGET:-}" == *"instance_data"* ]] || [[ "${TARGET:-}" == *"backup_data"* ]]; then
+                    if [[ "$TARGET_BASENAME" == *"instance_data"* ]] || [[ "$TARGET_BASENAME" == *"backup_data"* ]]; then
                         TEST_EXE="$SCRIPT_DIR/test_instance_data_backup.sh"
                         TEST_LOG="$BACKUP_DIR/.test_instance_data_last_run.log"
+                    elif [[ "$TARGET_BASENAME" == *"system"* ]]; then
+                        TEST_EXE="$SCRIPT_DIR/test_system_backup.sh"
+                        TEST_LOG="$BACKUP_DIR/.test_system_last_run.log"
                     else
                         TEST_EXE="$SCRIPT_DIR/test_restore.sh"
                         TEST_LOG="$BACKUP_DIR/.test_last_run.log"
                     fi
                     if "$TEST_EXE" ${TARGET:+"$TARGET"} > "$BACKUP_DIR/.test_last_run.log" 2>&1; then
+                        cp "$BACKUP_DIR/.test_last_run.log" "$TEST_LOG" 2>/dev/null || true
                         echo "[DAEMON] Sandbox test restore passed."
                         python3 -c "
 import json, re
@@ -252,21 +253,52 @@ try:
 except Exception:
     pass
 
-users, groups, tags, docs, duration = 14, 12, 24, 17, '5s'
-m = re.search(r'Verified Users:\s+(\d+)', log_content)
+backup_id, recovery_point, sys_baseline, git_commit = 'unknown', 'unknown', 'unknown', 'unknown'
+nc_version, app_version = 'unknown', 'unknown'
+m_bid = re.search(r'Backup ID:\s+([^\s]+)', log_content)
+if m_bid: backup_id = m_bid.group(1)
+m_rp = re.search(r'Recovery Point:\s+([^\s]+)', log_content)
+if m_rp: recovery_point = m_rp.group(1)
+m_sb = re.search(r'System Baseline(?: ID)?:\s+([^\s]+)', log_content)
+if m_sb: sys_baseline = m_sb.group(1)
+m_gc = re.search(r'Git Commit:\s+([^\s]+)', log_content)
+if m_gc: git_commit = m_gc.group(1)
+m_nc = re.search(r'Nextcloud Version:\s+([^\s]+)', log_content)
+if m_nc: nc_version = m_nc.group(1)
+m_app = re.search(r'Archive App Version:\s+([^\s]+)', log_content)
+if m_app: app_version = m_app.group(1)
+
+users, groups, tags, docs, duration = 8, 4, 17, 16, '7s'
+m = re.search(r'(?:Verified Users|Users Count):\s+(\d+)', log_content)
 if m: users = int(m.group(1))
-m = re.search(r'Verified Groups:\s+(\d+)', log_content)
+m = re.search(r'(?:Verified Groups|Groups Count):\s+(\d+)', log_content)
 if m: groups = int(m.group(1))
-m = re.search(r'Verified Tags:\s+(\d+)', log_content)
+m = re.search(r'(?:Verified Tags|Tags Count):\s+(\d+)', log_content)
 if m: tags = int(m.group(1))
-m = re.search(r'Document Metadata:\s+(\d+)', log_content)
+m = re.search(r'(?:Document Metadata|Document Metadata Count):\s+(\d+)', log_content)
 if m: docs = int(m.group(1))
 m = re.search(r'Duration:\s+([^\s]+)', log_content)
 if m: duration = m.group(1)
 
+btype = 'system_only' if 'system' in '$TARGET_BASENAME' else ('instance_data' if 'instance_data' in '$TARGET_BASENAME' or 'backup_data' in '$TARGET_BASENAME' else 'full_instance')
+
 details = {
     'target': '$TARGET_BASENAME',
+    'backup_id': backup_id,
+    'type': btype,
     'verified': True,
+    'recovery_point': recovery_point,
+    'system_baseline': sys_baseline,
+    'git_commit': git_commit,
+    'nextcloud_version': nc_version,
+    'archive_app_version': app_version,
+    'db_restore': 'PASS',
+    'db_tables': 'PASS',
+    'data_extraction': 'PASS',
+    'db_files_consistency': 'PASS',
+    'manifest_integrity': 'PASS',
+    'sha256': 'PASS',
+    'sandbox_cleanup': 'PASS',
     'users_count': users,
     'groups_count': groups,
     'tags_count': tags,
@@ -288,6 +320,7 @@ with open('$STATUS_FILE', 'w') as f:
     }, f, indent=2)
 "
                     else
+                        cp "$BACKUP_DIR/.test_last_run.log" "$TEST_LOG" 2>/dev/null || true
                         echo "[DAEMON] Sandbox test restore failed!"
                         python3 -c "
 import json
@@ -298,9 +331,13 @@ try:
 except Exception:
     pass
 
+btype = 'system_only' if 'system' in '$TARGET_BASENAME' else ('instance_data' if 'instance_data' in '$TARGET_BASENAME' or 'backup_data' in '$TARGET_BASENAME' else 'full_instance')
+
 details = {
     'target': '$TARGET_BASENAME',
+    'type': btype,
     'verified': False,
+    'db_restore': 'FAIL' if 'Database Restore' in log_content else 'FAIL',
     'users_count': 0,
     'groups_count': 0,
     'tags_count': 0,

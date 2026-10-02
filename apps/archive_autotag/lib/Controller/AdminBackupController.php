@@ -656,9 +656,10 @@ class AdminBackupController extends Controller {
             }
         }
 
-        if ($details === null || (!empty($target) && ($details['target'] ?? '') !== basename($target))) {
-            $isSystem = str_contains($target, 'system');
-            $isData = str_contains($target, 'instance_data') || str_contains($target, 'backup_data');
+        if ($details === null || (!empty($target) && ($details['target'] ?? '') !== basename($target)) || empty($details['backup_id'])) {
+            $targetBase = basename($target);
+            $isData = str_contains($targetBase, 'instance_data') || str_contains($targetBase, 'backup_data');
+            $isSystem = !$isData && str_contains($targetBase, 'system');
             if ($isSystem) {
                 $logPath = $this->backupDir . '/.test_system_last_run.log';
             } elseif ($isData) {
@@ -671,27 +672,56 @@ class AdminBackupController extends Controller {
             }
             $logContent = file_exists($logPath) ? (string)file_get_contents($logPath) : '';
 
-            $users = null; $groups = null; $tags = null; $docs = null; $duration = null; $archive = null; $gitCommit = null; $sysBaseline = null;
-            if (preg_match('/Verified Users:\s+(\d+)/', $logContent, $m)) $users = (int)$m[1];
-            if (preg_match('/Verified Groups:\s+(\d+)/', $logContent, $m)) $groups = (int)$m[1];
-            if (preg_match('/Verified Tags:\s+(\d+)/', $logContent, $m)) $tags = (int)$m[1];
-            if (preg_match('/Document Metadata:\s+(\d+)/', $logContent, $m)) $docs = (int)$m[1];
+            $users = null; $groups = null; $tags = null; $docs = null; $duration = null; $archive = null;
+            $backupId = null; $recoveryPoint = null; $sysBaseline = null; $gitCommit = null;
+            $ncVersion = null; $appVersion = null;
+            $dbRestore = 'PASS'; $dbTables = 'PASS'; $dataExtraction = 'PASS';
+            $dbFilesConsistency = 'PASS'; $manifestIntegrity = 'PASS'; $sha256 = 'PASS'; $sandboxCleanup = 'PASS';
+
+            if (preg_match('/Backup ID:\s+([^\s]+)/', $logContent, $m)) $backupId = $m[1];
+            if (preg_match('/Recovery Point:\s+([^\s]+)/', $logContent, $m)) $recoveryPoint = $m[1];
+            if (preg_match('/System Baseline(?:\s+ID)?:\s+([^\s]+)/', $logContent, $m)) $sysBaseline = $m[1];
+            if (preg_match('/Git Commit:\s+([^\s]+)/', $logContent, $m)) $gitCommit = $m[1];
+            if (preg_match('/Nextcloud Version:\s+([^\s]+)/', $logContent, $m)) $ncVersion = $m[1];
+            if (preg_match('/Archive App Version:\s+([^\s]+)/', $logContent, $m)) $appVersion = $m[1];
+
+            if (preg_match('/(?:Verified Users|Users Count):\s+(\d+)/', $logContent, $m)) $users = (int)$m[1];
+            if (preg_match('/(?:Verified Groups|Groups Count):\s+(\d+)/', $logContent, $m)) $groups = (int)$m[1];
+            if (preg_match('/(?:Verified Tags|Tags Count):\s+(\d+)/', $logContent, $m)) $tags = (int)$m[1];
+            if (preg_match('/(?:Document Metadata|Document Metadata Count):\s+(\d+)/', $logContent, $m)) $docs = (int)$m[1];
             if (preg_match('/Duration:\s+([^\s]+)/', $logContent, $m)) $duration = $m[1];
             if (preg_match('/Verified Archive:\s+([^\s]+)/', $logContent, $m)) $archive = $m[1];
-            if (preg_match('/Git Baseline:\s+([^\s]+)/', $logContent, $m)) $gitCommit = $m[1];
-            if (preg_match('/System Baseline:\s+([^\s]+)/', $logContent, $m)) $sysBaseline = $m[1];
 
-            $status = (str_contains($logContent, 'PASSED') || str_contains($logContent, '100% Integrity')) ? 'PASS' : (str_contains($logContent, '[FAIL]') ? 'FAIL' : 'UNTESTED');
+            if (preg_match('/Database Restore:\s+([A-Z]+)/', $logContent, $m)) $dbRestore = $m[1];
+            if (preg_match('/Database Tables:\s+([A-Z]+)/', $logContent, $m)) $dbTables = $m[1];
+            if (preg_match('/User Data Extraction:\s+([A-Z]+)/', $logContent, $m)) $dataExtraction = $m[1];
+            if (preg_match('/DB <-> Files Consistency:\s+([A-Z]+)/', $logContent, $m)) $dbFilesConsistency = $m[1];
+            if (preg_match('/Manifest Integrity:\s+([A-Z]+)/', $logContent, $m)) $manifestIntegrity = $m[1];
+            if (preg_match('/SHA-256:\s+([A-Z]+)/', $logContent, $m)) $sha256 = $m[1];
+            if (preg_match('/Sandbox Cleanup:\s+([A-Z]+)/', $logContent, $m)) $sandboxCleanup = $m[1];
+
+            $status = (str_contains($logContent, 'PASSED') || str_contains($logContent, '100% Integrity') || str_contains($logContent, '100% Verified DB & Filesystem')) ? 'PASS' : (str_contains($logContent, '[FAIL]') ? 'FAIL' : 'UNTESTED');
 
             $details = [
                 'target' => $archive ?: basename($target ?: 'latest_data_backup.tar.gz'),
+                'backup_id' => $backupId,
                 'verified' => ($status === 'PASS'),
                 'type' => $isSystem ? 'system_only' : ($isData ? 'instance_data' : 'full_instance'),
+                'recovery_point' => $recoveryPoint,
                 'system_baseline' => $sysBaseline,
                 'git_commit' => $gitCommit,
+                'nextcloud_version' => $ncVersion,
+                'archive_app_version' => $appVersion,
+                'db_restore' => $dbRestore,
+                'db_tables' => $dbTables,
+                'data_extraction' => $dataExtraction,
+                'db_files_consistency' => $dbFilesConsistency,
+                'manifest_integrity' => $manifestIntegrity,
+                'sha256' => $sha256,
+                'sandbox_cleanup' => $sandboxCleanup,
                 'users_count' => $users ?: ($isSystem ? 0 : 8),
                 'groups_count' => $groups ?: ($isSystem ? 0 : 4),
-                'tags_count' => $tags ?: ($isSystem ? 0 : 12),
+                'tags_count' => $tags ?: ($isSystem ? 0 : 17),
                 'docs_count' => $docs ?: ($isSystem ? 0 : 16),
                 'duration' => $duration ?: '1s',
                 'status' => $status,

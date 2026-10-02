@@ -249,10 +249,14 @@ for f in files:
 
     test)
         target="${1:-}"
-        if [ -n "$target" ] && [[ "$target" == *"system"* ]]; then
-            "$SCRIPT_DIR/test_system_backup.sh" "$target"
-        elif [ -n "$target" ] && ([[ "$target" == *"instance_data"* ]] || [[ "$target" == *"backup_data"* ]]); then
+        if [ -n "$target" ] && [ ! -f "$target" ] && [ -f "$BACKUP_DIR/$target" ]; then
+            target="$BACKUP_DIR/$target"
+        fi
+        target_base="$(basename "${target:-}")"
+        if [ -n "$target" ] && ([[ "$target_base" == *"instance_data"* ]] || [[ "$target_base" == *"backup_data"* ]]); then
             "$SCRIPT_DIR/test_instance_data_backup.sh" "$target"
+        elif [ -n "$target" ] && [[ "$target_base" == *"system"* ]]; then
+            "$SCRIPT_DIR/test_system_backup.sh" "$target"
         else
             "$SCRIPT_DIR/test_restore.sh" ${target:+"$target"}
         fi
@@ -260,11 +264,17 @@ for f in files:
 
     test-data|test-instance-data)
         target="${1:-}"
+        if [ -n "$target" ] && [ ! -f "$target" ] && [ -f "$BACKUP_DIR/$target" ]; then
+            target="$BACKUP_DIR/$target"
+        fi
         "$SCRIPT_DIR/test_instance_data_backup.sh" ${target:+"$target"}
         ;;
 
     test-system)
         target="${1:-}"
+        if [ -n "$target" ] && [ ! -f "$target" ] && [ -f "$BACKUP_DIR/$target" ]; then
+            target="$BACKUP_DIR/$target"
+        fi
         "$SCRIPT_DIR/test_system_backup.sh" ${target:+"$target"}
         ;;
 

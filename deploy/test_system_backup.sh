@@ -22,6 +22,10 @@ if [ -z "$TARGET_BACKUP" ]; then
     fi
 fi
 
+if [ ! -f "$TARGET_BACKUP" ] && [ -f "$BACKUP_DIR/$TARGET_BACKUP" ]; then
+    TARGET_BACKUP="$BACKUP_DIR/$TARGET_BACKUP"
+fi
+
 if [ ! -f "$TARGET_BACKUP" ]; then
     echo "[ERROR] Target system backup file not found: $TARGET_BACKUP"
     exit 1
