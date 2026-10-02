@@ -15,5 +15,19 @@
     "notifications": {
         "on_failure": true,
         "on_success": false
+    },
+    "system_backup": {
+        "enabled": true,
+        "cron_expression": "0 1 * * *",
+        "description": "System Software & Configuration Backup before baseline changes",
+        "max_backups_count": 14,
+        "retention_days": 30
+    },
+    "instance_data_backup": {
+        "enabled": true,
+        "cron_expression": "0 3 * * *",
+        "description": "Operational Database & User Data Backup",
+        "max_backups_count": 14,
+        "retention_days": 30
     }
 }

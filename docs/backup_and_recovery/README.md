@@ -16,12 +16,38 @@
 │ پشتیبان سیستم             │ Software State + Required Configuration + Identity Keys     │
 │ (system_only - BR-01)    │ • سورس‌کد، کامیت گیت، داکر و کانفیگ لبه وب Nginx           │
 │                          │ • تنظیمات هسته (config.php) و کلیدهای هویتی (salt, secret) │
-│                          │ • فاقد هرگونه داده دیتابیس یا اسناد و فایل‌های کاربران       │
+│                          │ • اکیداً فاقد داده دیتابیس و اسناد کاربران (حجم ~250KB)    │
 ├──────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ پشتیبان جامع سازمانی     │ System State + Full Operational Instance Data               │
-│ (full_instance)          │ • کل دیتابیس اتمیک PostgreSQL، اسناد، متادیتا و لاگ‌ها     │
-│                          │ • کلیه محتویات بسته system_only + فایل‌های فیزیکی data      │
+│ پشتیبان داده‌های سازمانی │ Operational Database + User Data + Instance State           │
+│ (instance_data - BR-02)  │ • کل دیتابیس اتمیک PostgreSQL + اسناد کاربران (data.tar.gz) │
+│                          │ • اتصال شفاف به System Baseline (شناسه و کامیت سیستم مرجع) │
+│                          │ • فاقد تکرار کدهای برنامه و کانفیگ سیستم (عدم ذخیره مجدد) │
+├──────────────────────────┼─────────────────────────────────────────────────────────────┤
+│ پشتیبان جامع سازمانی     │ Legacy/Compatibility Package (Combined Disaster Recovery)   │
+│ (full_instance)          │ • بسته ترکیبی تک‌فایلی شامل دیتابیس، اسناد، کدهای سفارشی و   │
+│                          │   کانفیگ کل سیستم جهت سازگاری و ریکاوری یکپارچه گذشته        │
 └──────────────────────────┴─────────────────────────────────────────────────────────────┘
+```
+
+### معماری نهایی تفکیک پشتیبان و چرخه بازیابی (DR Architecture)
+
+```text
+       ┌────────────────────────┐
+       │     System Backup      │  (Software + Required Config + Identity Keys)
+       │    (system_only)       │  ID: SYS-123 | Git: ABCDEF
+       └───────────┬────────────┘
+                   │
+                   ▼ (System Baseline Binding Reference)
+       ┌────────────────────────┐
+       │  Instance Data Backup  │  (PostgreSQL Database Dump + User Data Files)
+       │    (instance_data)     │  ID: DATA-456 | Baseline Ref: SYS-123
+       └───────────┬────────────┘  Recovery Point: 2026-10-02T15:00
+                   │
+                   ▼
+       ┌────────────────────────┐
+       │   Disaster Recovery    │  قابلیت کامل بازگردانی سامانه بر پایه
+       │   (BR-03 Roadmap)      │  System Baseline منطبق + Instance Data Point
+       └────────────────────────┘
 ```
 
 ---

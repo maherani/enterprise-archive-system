@@ -5874,10 +5874,11 @@
         // 2. Action Bar
         html.push('<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:12px;">');
         html.push('  <div style="font-weight:bold;font-size:1rem;color:var(--ea-text-main);">فهرست نسخه‌های پشتیبان معتبر پایگاه داده و فایل‌ها</div>');
-        html.push('  <div style="display:flex;gap:10px;">');
+        html.push('  <div style="display:flex;gap:10px;flex-wrap:wrap;">');
         html.push('    <button id="ea-backup-refresh-btn" class="ea-btn ea-btn-sm" title="بازخوانی لیست">🔄 بازخوانی</button>');
+        html.push('    <button id="ea-backup-run-data-btn" class="ea-btn ea-btn-sm" ' + (isTaskRunning ? 'disabled' : '') + ' style="background:#0284c7;color:#fff;border-color:#0369a1;" title="تهیه پشتیبان داده‌های عملیاتی: پایگاه داده + اسناد کاربران (متصل به Baseline سیستم)">📦 تهیه پشتیبان داده‌های Instance</button>');
         html.push('    <button id="ea-backup-run-system-btn" class="ea-btn ea-btn-sm" ' + (isTaskRunning ? 'disabled' : '') + ' style="background:#6366f1;color:#fff;border-color:#4f46e5;" title="پشتیبان مستقل از داده: کدهای برنامه، کانفیگ، کلیدها - فاقد دیتابیس و اسناد">💻 تهیه پشتیبان سیستم (System Backup)</button>');
-        html.push('    <button id="ea-backup-run-instant-btn" class="ea-btn ea-btn-primary ea-btn-sm" ' + (isTaskRunning ? 'disabled' : '') + ' style="background:#059669;border-color:#047857;" title="پشتیبان جامع Disaster Recovery: شامل کل دیتابیس، اسناد و کانفیگ">📦 تهیه پشتیبان جامع (Full Instance Backup)</button>');
+        html.push('    <button id="ea-backup-run-instant-btn" class="ea-btn ea-btn-primary ea-btn-sm" ' + (isTaskRunning ? 'disabled' : '') + ' style="background:#059669;border-color:#047857;" title="پشتیبان جامع Disaster Recovery: شامل کل دیتابیس، اسناد و کانفیگ">🗄️ تهیه پشتیبان جامع (Full Instance Backup)</button>');
         html.push('  </div>');
         html.push('</div>');
 
@@ -5936,13 +5937,24 @@
                 var downloadUrl = '/index.php/apps/archive_autotag/api/admin/backup/download?filename=' + encodeURIComponent(b.filename);
 
                 var isSys = (b.type === 'system_only');
-                var typeBadge = isSys
-                    ? '<span style="background:rgba(99,102,241,0.18);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);padding:2px 6px;border-radius:4px;font-size:0.75rem;font-weight:600;" title="پشتیبان مستقل از داده: کدهای برنامه، کانفیگ، کلیدها">💻 سیستم</span>'
-                    : '<span style="background:rgba(16,185,129,0.18);color:#6ee7b7;border:1px solid rgba(16,185,129,0.35);padding:2px 6px;border-radius:4px;font-size:0.75rem;font-weight:600;" title="پشتیبان جامع سازمانی: دیتابیس، اسناد، کانفیگ">📦 جامع</span>';
+                var isData = (b.type === 'instance_data');
+                var typeBadge;
+                if (isSys) {
+                    typeBadge = '<span style="background:rgba(99,102,241,0.18);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);padding:2px 6px;border-radius:4px;font-size:0.75rem;font-weight:600;" title="پشتیبان مستقل از داده: کدهای برنامه، کانفیگ، کلیدها">💻 سیستم</span>';
+                } else if (isData) {
+                    typeBadge = '<span style="background:rgba(2,132,199,0.18);color:#38bdf8;border:1px solid rgba(2,132,199,0.35);padding:2px 6px;border-radius:4px;font-size:0.75rem;font-weight:600;" title="پشتیبان داده‌های سازمانی: دیتابیس + فایل‌های کاربران (متصل به Baseline)">📦 داده‌های سازمانی</span>';
+                } else {
+                    typeBadge = '<span style="background:rgba(16,185,129,0.18);color:#6ee7b7;border:1px solid rgba(16,185,129,0.35);padding:2px 6px;border-radius:4px;font-size:0.75rem;font-weight:600;" title="پشتیبان جامع سازمانی: دیتابیس، اسناد، کانفیگ">🗄️ جامع</span>';
+                }
 
-                var restoreBtn = isSys
-                    ? '<button class="ea-btn ea-btn-sm" disabled style="opacity:0.4;cursor:not-allowed;color:var(--ea-text-muted);" title="بازیابی اختصاصی System Backup در فاز بعدی فعال می‌شود (BR-01)">⚠️ بازیابی</button>'
-                    : '<button class="ea-btn ea-btn-sm ea-btn-restore-prod" data-file="' + escapeHtml(b.filename) + '" ' + (isTaskRunning ? 'disabled' : '') + ' style="color:#ef4444;border-color:rgba(239,68,68,0.4);" title="بازیابی کامل سامانه از این نسخه">⚠️ بازیابی</button>';
+                var restoreBtn;
+                if (isSys) {
+                    restoreBtn = '<button class="ea-btn ea-btn-sm" disabled style="opacity:0.4;cursor:not-allowed;color:var(--ea-text-muted);" title="بازیابی اختصاصی System Backup در فاز بعدی فعال می‌شود (BR-01)">⚠️ بازیابی</button>';
+                } else if (isData) {
+                    restoreBtn = '<button class="ea-btn ea-btn-sm" disabled style="opacity:0.4;cursor:not-allowed;color:var(--ea-text-muted);" title="بازیابی اختصاصی Instance Data Backup در فاز بعدی فعال می‌شود (BR-03)">⚠️ بازیابی</button>';
+                } else {
+                    restoreBtn = '<button class="ea-btn ea-btn-sm ea-btn-restore-prod" data-file="' + escapeHtml(b.filename) + '" ' + (isTaskRunning ? 'disabled' : '') + ' style="color:#ef4444;border-color:rgba(239,68,68,0.4);" title="بازیابی کامل سامانه از این نسخه">⚠️ بازیابی</button>';
+                }
 
                 html.push('      <tr style="border-bottom:1px solid var(--ea-border-light, rgba(255,255,255,0.05));">');
                 html.push('        <td style="padding:8px 12px;font-family:monospace;font-size:0.83rem;direction:ltr;text-align:left;overflow:hidden;">');
@@ -5976,6 +5988,9 @@
         // Wire event handlers
         var refreshBtn = document.getElementById('ea-backup-refresh-btn');
         if (refreshBtn) refreshBtn.onclick = function () { loadBackupOverview(); };
+
+        var dataBtn = document.getElementById('ea-backup-run-data-btn');
+        if (dataBtn) dataBtn.onclick = function () { triggerDataBackup(); };
 
         var systemBtn = document.getElementById('ea-backup-run-system-btn');
         if (systemBtn) systemBtn.onclick = function () { triggerSystemBackup(); };
@@ -6145,8 +6160,86 @@
         body.innerHTML = html;
     }
 
+    function triggerDataBackup() {
+        if (!confirm('آیا از تهیه پشتیبان مستقل داده‌های سازمانی (Instance Data Backup) اطمینان دارید؟\nاین عملیات شامل پایگاه داده و اسناد بوده و به آخرین System Baseline متصل می‌گردد.')) return;
+
+        var banner = document.getElementById('ea-backup-running-banner');
+        if (banner) {
+            banner.style.display = 'flex';
+            var title = document.getElementById('ea-backup-running-title');
+            var msg = document.getElementById('ea-backup-running-msg');
+            if (title) title.textContent = 'عملیات در حال پردازش: پشتیبان‌گیری داده‌های سازمانی';
+            if (msg) msg.textContent = 'درخواست در صف دیمن قرار گرفت...';
+        }
+
+        var dataBtn = document.getElementById('ea-backup-run-data-btn');
+        if (dataBtn) dataBtn.disabled = true;
+
+        fetch('/index.php/apps/archive_autotag/api/admin/backup/run', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'OCS-APIRequest': 'true',
+                'requesttoken': (window.OC && window.OC.requestToken) || ''
+            },
+            body: JSON.stringify({ backup_type: 'instance_data' })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            if (res.status === 'success') {
+                setupBackupPolling('backup_data', res.task_id);
+            } else {
+                alert('خطا در ثبت درخواست پشتیبان‌گیری: ' + (res.message || 'نامشخص'));
+                if (dataBtn) dataBtn.disabled = false;
+            }
+        })
+        .catch(function (err) {
+            alert('خطای ارتباط با سرور: ' + err.message);
+            if (dataBtn) dataBtn.disabled = false;
+        });
+    }
+
+    function triggerSystemBackup() {
+        if (!confirm('آیا از تهیه نسخه پشتیبان مستقل سیستم (System Backup) اطمینان دارید؟\nاین عملیات شامل کدهای برنامه، پیکربندی و کلیدها بوده و فاقد اطلاعات دیتابیس و اسناد است.')) return;
+
+        var banner = document.getElementById('ea-backup-running-banner');
+        if (banner) {
+            banner.style.display = 'flex';
+            var title = document.getElementById('ea-backup-running-title');
+            var msg = document.getElementById('ea-backup-running-msg');
+            if (title) title.textContent = 'عملیات در حال پردازش: پشتیبان‌گیری سیستم';
+            if (msg) msg.textContent = 'درخواست در صف دیمن قرار گرفت...';
+        }
+
+        var systemBtn = document.getElementById('ea-backup-run-system-btn');
+        if (systemBtn) systemBtn.disabled = true;
+
+        fetch('/index.php/apps/archive_autotag/api/admin/backup/run', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'OCS-APIRequest': 'true',
+                'requesttoken': (window.OC && window.OC.requestToken) || ''
+            },
+            body: JSON.stringify({ backup_type: 'system_only' })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            if (res.status === 'success') {
+                setupBackupPolling('backup_system', res.task_id);
+            } else {
+                alert('خطا در ثبت درخواست پشتیبان‌گیری سیستم: ' + (res.message || 'نامشخص'));
+                if (systemBtn) systemBtn.disabled = false;
+            }
+        })
+        .catch(function (err) {
+            alert('خطای ارتباط با سرور: ' + err.message);
+            if (systemBtn) systemBtn.disabled = false;
+        });
+    }
+
     function triggerInstantBackup() {
-        if (!confirm('آیا از تهیه فوری نسخه پشتیبان از پایگاه داده و فایل‌های سامانه اطمینان دارید؟')) return;
+        if (!confirm('آیا از تهیه فوری نسخه پشتیبان جامع (Full Instance Backup) اطمینان دارید؟')) return;
 
         var banner = document.getElementById('ea-backup-running-banner');
         if (banner) {

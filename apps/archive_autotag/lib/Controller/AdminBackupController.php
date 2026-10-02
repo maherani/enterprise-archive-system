@@ -128,6 +128,24 @@ class AdminBackupController extends Controller {
             ];
         }
 
+        $latestInstanceData = null;
+        $latestDataPath = $this->backupDir . '/latest_instance_data_backup.tar.gz';
+        if (file_exists($latestDataPath)) {
+            $shaFile = $latestDataPath . '.sha256';
+            $sha = file_exists($shaFile) ? trim(explode(' ', (string)file_get_contents($shaFile))[0]) : 'N/A';
+            $sz = filesize($latestDataPath);
+            $szHuman = $sz < 1048576 ? (round($sz / 1024, 0) . 'K') : (round($sz / 1048576, 1) . 'M');
+            $latestInstanceData = [
+                'filename' => 'latest_instance_data_backup.tar.gz',
+                'size_bytes' => $sz,
+                'size_human' => $szHuman,
+                'mtime' => filemtime($latestDataPath),
+                'date_iso' => date('c', filemtime($latestDataPath)),
+                'sha256' => $sha,
+                'type' => 'instance_data',
+            ];
+        }
+
         $taskStatus = [
             'status' => 'IDLE',
             'message' => 'سرویس آماده پذیرش دستور است.',
@@ -164,6 +182,7 @@ class AdminBackupController extends Controller {
                 'backups_count' => $backupsCount,
                 'latest_backup' => $latest,
                 'latest_system_backup' => $latestSystem,
+                'latest_instance_data_backup' => $latestInstanceData,
                 'config' => $config,
                 'latest' => $latest,
                 'task_status' => $taskStatus,
@@ -217,11 +236,16 @@ class AdminBackupController extends Controller {
             }
 
             $isSystem = str_contains($filename, 'system');
-            $type = $isSystem ? 'system_only' : 'full_instance';
+            $isInstanceData = str_contains($filename, 'instance_data') || str_contains($filename, 'backup_data');
+            $type = $isSystem ? 'system_only' : ($isInstanceData ? 'instance_data' : 'full_instance');
 
-            $testStatus = $isSystem
-                ? ($testLog[$filename] ?? ($testLog['latest_system_backup.tar.gz'] ?? 'UNTESTED'))
-                : ($testLog[$filename] ?? ($testLog['latest_instance_backup.tar.gz'] ?? ($testLog['latest_data_backup.tar.gz'] ?? 'UNTESTED')));
+            if ($isSystem) {
+                $testStatus = $testLog[$filename] ?? ($testLog['latest_system_backup.tar.gz'] ?? 'UNTESTED');
+            } elseif ($isInstanceData) {
+                $testStatus = $testLog[$filename] ?? ($testLog['latest_instance_data_backup.tar.gz'] ?? 'UNTESTED');
+            } else {
+                $testStatus = $testLog[$filename] ?? ($testLog['latest_instance_backup.tar.gz'] ?? ($testLog['latest_data_backup.tar.gz'] ?? 'UNTESTED'));
+            }
 
             $sz = filesize($file);
             $szHuman = $sz < 1048576 ? (round($sz / 1024, 0) . 'K') : (round($sz / 1048576, 1) . 'M');
@@ -270,7 +294,7 @@ class AdminBackupController extends Controller {
 
         $body = $this->request->getParams();
         $backupType = (string)($body['backup_type'] ?? $this->request->getParam('backup_type', 'full_instance'));
-        if (!in_array($backupType, ['full_instance', 'system_only'], true)) {
+        if (!in_array($backupType, ['full_instance', 'system_only', 'instance_data'], true)) {
             $backupType = 'full_instance';
         }
 
@@ -285,13 +309,20 @@ class AdminBackupController extends Controller {
 
         file_put_contents($this->queueFile, json_encode($queueData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
-        $msg = ($backupType === 'system_only')
-            ? 'درخواست تهیه نسخه پشتیبان سیستم (System Backup) در صف اجرا قرار گرفت...'
-            : 'عملیات پشتیبان‌گیری جامع در صف اجرا قرار گرفت...';
+        if ($backupType === 'system_only') {
+            $msg = 'درخواست تهیه نسخه پشتیبان سیستم (System Backup) در صف اجرا قرار گرفت...';
+            $action = 'backup_system';
+        } elseif ($backupType === 'instance_data') {
+            $msg = 'درخواست تهیه نسخه پشتیبان داده‌های سازمانی (Instance Data Backup) در صف اجرا قرار گرفت...';
+            $action = 'backup_data';
+        } else {
+            $msg = 'عملیات پشتیبان‌گیری جامع در صف اجرا قرار گرفت...';
+            $action = 'backup';
+        }
 
         file_put_contents($this->statusFile, json_encode([
             'status' => 'IN_PROGRESS',
-            'action' => ($backupType === 'system_only') ? 'backup_system' : 'backup',
+            'action' => $action,
             'backup_type' => $backupType,
             'started_at' => date('c'),
             'message' => $msg,
@@ -627,13 +658,20 @@ class AdminBackupController extends Controller {
 
         if ($details === null || (!empty($target) && ($details['target'] ?? '') !== basename($target))) {
             $isSystem = str_contains($target, 'system');
-            $logPath = $isSystem ? ($this->backupDir . '/.test_system_last_run.log') : ($this->backupDir . '/.test_last_run.log');
+            $isData = str_contains($target, 'instance_data') || str_contains($target, 'backup_data');
+            if ($isSystem) {
+                $logPath = $this->backupDir . '/.test_system_last_run.log';
+            } elseif ($isData) {
+                $logPath = $this->backupDir . '/.test_instance_data_last_run.log';
+            } else {
+                $logPath = $this->backupDir . '/.test_last_run.log';
+            }
             if (!file_exists($logPath) && file_exists($this->backupDir . '/.test_last_run.log')) {
                 $logPath = $this->backupDir . '/.test_last_run.log';
             }
             $logContent = file_exists($logPath) ? (string)file_get_contents($logPath) : '';
 
-            $users = null; $groups = null; $tags = null; $docs = null; $duration = null; $archive = null; $gitCommit = null;
+            $users = null; $groups = null; $tags = null; $docs = null; $duration = null; $archive = null; $gitCommit = null; $sysBaseline = null;
             if (preg_match('/Verified Users:\s+(\d+)/', $logContent, $m)) $users = (int)$m[1];
             if (preg_match('/Verified Groups:\s+(\d+)/', $logContent, $m)) $groups = (int)$m[1];
             if (preg_match('/Verified Tags:\s+(\d+)/', $logContent, $m)) $tags = (int)$m[1];
@@ -641,13 +679,15 @@ class AdminBackupController extends Controller {
             if (preg_match('/Duration:\s+([^\s]+)/', $logContent, $m)) $duration = $m[1];
             if (preg_match('/Verified Archive:\s+([^\s]+)/', $logContent, $m)) $archive = $m[1];
             if (preg_match('/Git Baseline:\s+([^\s]+)/', $logContent, $m)) $gitCommit = $m[1];
+            if (preg_match('/System Baseline:\s+([^\s]+)/', $logContent, $m)) $sysBaseline = $m[1];
 
             $status = (str_contains($logContent, 'PASSED') || str_contains($logContent, '100% Integrity')) ? 'PASS' : (str_contains($logContent, '[FAIL]') ? 'FAIL' : 'UNTESTED');
 
             $details = [
                 'target' => $archive ?: basename($target ?: 'latest_data_backup.tar.gz'),
                 'verified' => ($status === 'PASS'),
-                'type' => $isSystem ? 'system_only' : 'full_instance',
+                'type' => $isSystem ? 'system_only' : ($isData ? 'instance_data' : 'full_instance'),
+                'system_baseline' => $sysBaseline,
                 'git_commit' => $gitCommit,
                 'users_count' => $users ?: ($isSystem ? 0 : 8),
                 'groups_count' => $groups ?: ($isSystem ? 0 : 4),

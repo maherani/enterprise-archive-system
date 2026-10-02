@@ -69,6 +69,39 @@ with open('$STATUS_FILE', 'w') as f:
                     fi
                     ;;
 
+                backup_data)
+                    echo "[DAEMON] Executing backup_instance_data.sh..."
+                    if "$SCRIPT_DIR/backup_instance_data.sh" > "$BACKUP_DIR/.backup_data_last_run.log" 2>&1; then
+                        echo "[DAEMON] Instance data backup completed successfully."
+                        python3 -c "
+import json
+with open('$STATUS_FILE', 'w') as f:
+    json.dump({
+        'status': 'SUCCESS',
+        'action': 'backup_data',
+        'backup_type': 'instance_data',
+        'task_id': '$TASK_ID',
+        'progress': 100,
+        'message': 'پشتیبان‌گیری داده‌های سازمانی (Instance Data Backup) با موفقیت تکمیل گردید.'
+    }, f, indent=2)
+"
+                    else
+                        echo "[DAEMON] Instance data backup failed!"
+                        python3 -c "
+import json
+with open('$STATUS_FILE', 'w') as f:
+    json.dump({
+        'status': 'FAILED',
+        'action': 'backup_data',
+        'backup_type': 'instance_data',
+        'task_id': '$TASK_ID',
+        'progress': 0,
+        'message': 'خطا در اجرای پشتیبان‌گیری داده‌های سازمانی.'
+    }, f, indent=2)
+"
+                    fi
+                    ;;
+
                 backup)
                     BACKUP_TYPE=$(python3 -c "import json; q=json.load(open('$QUEUE_FILE')); print(q.get('backup_type', 'full_instance'))" 2>/dev/null || echo "full_instance")
                     if [ "$BACKUP_TYPE" = "system_only" ]; then
@@ -97,6 +130,37 @@ with open('$STATUS_FILE', 'w') as f:
         'task_id': '$TASK_ID',
         'progress': 0,
         'message': 'خطا در اجرای پشتیبان‌گیری سیستم.'
+    }, f, indent=2)
+"
+                        fi
+                    elif [ "$BACKUP_TYPE" = "instance_data" ]; then
+                        echo "[DAEMON] Executing backup_instance_data.sh..."
+                        if "$SCRIPT_DIR/backup_instance_data.sh" > "$BACKUP_DIR/.backup_data_last_run.log" 2>&1; then
+                            echo "[DAEMON] Instance data backup completed successfully."
+                            python3 -c "
+import json
+with open('$STATUS_FILE', 'w') as f:
+    json.dump({
+        'status': 'SUCCESS',
+        'action': 'backup_data',
+        'backup_type': 'instance_data',
+        'task_id': '$TASK_ID',
+        'progress': 100,
+        'message': 'پشتیبان‌گیری داده‌های سازمانی (Instance Data Backup) با موفقیت تکمیل گردید.'
+    }, f, indent=2)
+"
+                        else
+                            echo "[DAEMON] Instance data backup failed!"
+                            python3 -c "
+import json
+with open('$STATUS_FILE', 'w') as f:
+    json.dump({
+        'status': 'FAILED',
+        'action': 'backup_data',
+        'backup_type': 'instance_data',
+        'task_id': '$TASK_ID',
+        'progress': 0,
+        'message': 'خطا در اجرای پشتیبان‌گیری داده‌های سازمانی.'
     }, f, indent=2)
 "
                         fi
@@ -164,12 +228,17 @@ with open('$STATUS_FILE', 'w') as f:
                     ;;
 
                 test)
-                    echo "[DAEMON] Executing test_restore.sh in sandbox..."
+                    echo "[DAEMON] Executing test in sandbox..."
                     TARGET_BASENAME="$(basename "${TARGET:-latest_instance_backup.tar.gz}")"
                     if [[ "${TARGET:-}" == *"system"* ]]; then
                         TEST_EXE="$SCRIPT_DIR/test_system_backup.sh"
+                        TEST_LOG="$BACKUP_DIR/.test_system_last_run.log"
+                    elif [[ "${TARGET:-}" == *"instance_data"* ]] || [[ "${TARGET:-}" == *"backup_data"* ]]; then
+                        TEST_EXE="$SCRIPT_DIR/test_instance_data_backup.sh"
+                        TEST_LOG="$BACKUP_DIR/.test_instance_data_last_run.log"
                     else
                         TEST_EXE="$SCRIPT_DIR/test_restore.sh"
+                        TEST_LOG="$BACKUP_DIR/.test_last_run.log"
                     fi
                     if "$TEST_EXE" ${TARGET:+"$TARGET"} > "$BACKUP_DIR/.test_last_run.log" 2>&1; then
                         echo "[DAEMON] Sandbox test restore passed."

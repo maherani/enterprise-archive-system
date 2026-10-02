@@ -382,3 +382,36 @@ latest_data_backup.tar.gz.sha256
 4. **`deploy/manage_backup.sh` (جدید):** رابط خط فرمان یکپارچه برای مدیران در شل و تسک‌های زمان‌بندی‌شده Cron.
 5. **`deploy/test_restore.sh` (جدید):** موتور آزمون بازیابی ایزوله در دیتابیس سندباکس.
 6. **`deploy/backup_db.sh` و `deploy/restore_db.sh` (ارتقا و مقاوم‌سازی):** افزودن Maintenance Mode، تولید مانیفست استاندارد JSON، و پشتیبانی از فراخوانی هم از طریق وب و هم از طریق ترمینال.
+---
+
+## ۳. قابلیت اختصاصی BR-02: پشتیبان‌گیری داده‌های سازمانی (Instance Data Backup)
+
+در چارچوب نقشه راه Disaster Recovery، قابلیت **Instance Data Backup (`instance_data`)** به عنوان سطح مکمل و مستقل از System Backup پیاده‌سازی شده است:
+
+```text
+System Backup (system_only)
+    +
+Instance Data Backup (instance_data)
+    =
+قابلیت کامل Disaster Recovery
+```
+
+### ۳.۱. مشخصات فنی بسته پشتیبان `instance_data`:
+1. **پایگاه داده عملیاتی (PostgreSQL Database Dump):**
+   - دامپ کامل، سازگار و اتمیک با نام `database.sql`.
+   - شامل کاربران، گروه‌ها، عضویت‌ها، درخت پوشه‌ها، فراداده اسناد، کش فایل‌ها، اشتراک‌ها، تگ‌های سیستمی، جداول اختصاصی آرشیو و لاگ‌های ممیزی.
+2. **فایل‌های کاربران (User Data Files):**
+   - فشرده‌سازی دایرکتوری واقعی اسناد `/var/www/html/data` با نام `data.tar.gz`.
+3. **محتوای اکیداً مستثنی‌شده (Excluded System State):**
+   - جلوگیری از هرگونه تکرار کدهای پروژه، مخزن گیت، `docker-compose.yml`، `config.tar.gz` و `custom_apps.tar.gz`.
+4. **اتصال ساختاری به System Baseline (System Baseline Binding):**
+   - ثبت شناسه یکتای نسخه سیستم مرجع (`system_backup_id`).
+   - ثبت هش SHA-256 نسخه سیستم مرجع.
+   - ثبت هش کامیت گیت (`git_commit`) و شاخه (`git_branch`).
+   - ثبت نسخه‌های نرم‌افزاری (`nextcloud_version` و `archive_app_version`).
+5. **یکپارچگی و سلامت داده‌ها (Data Integrity):**
+   - تولید شناسنامه ماشین‌خوان `manifest.json` و متنی `manifest.txt`.
+   - فایل چک‌سام جانبی `*.tar.gz.sha256`.
+   - هش ترکیبی دترمینستیک مؤلفه‌ها (`components_digest_sha256 = sha256(db_sha + "\n" + data_sha)`).
+6. **اسکریپت اعتبارسنجی سندباکس (`deploy/test_instance_data_backup.sh`):**
+   - بررسی هش سایدکار، عدم نشت کدهای سیستمی، استخراج سندباکس، ایمپورت موقت دیتابیس با `ON_ERROR_STOP=1` و تست ۱۰ جدول اختصاصی بدون کوچک‌ترین مداخله در دیتابیس Production.

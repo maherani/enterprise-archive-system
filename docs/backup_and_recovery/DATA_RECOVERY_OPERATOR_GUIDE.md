@@ -31,23 +31,28 @@
 
 ---
 
-## ۲. معماری دوگانه پشتیبان‌گیری: سیستم در برابر نمونه جامع (System Backup vs. Full Instance)
+## ۲. معماری سه‌گانه سطوح پشتیبان‌گیری (System Backup vs. Instance Data vs. Full Instance)
 
-سامانه دو نوع پشتیبان استاندارد با تفکیک دقیق داده و نرم‌افزار ارائه می‌دهد:
+سامانه از سه نوع پشتیبان با تفکیک دقیق داده، نرم‌افزار و بسته‌های ترکیبی پشتیبانی می‌کند:
 
-| مؤلفه ارزیابی | پشتیبان سیستم (`system_only` - مایلستون BR-01) | پشتیبان جامع سازمانی (`full_instance`) |
-| :--- | :--- | :--- |
-| **محتوای نرم‌افزاری** | کامیت گیت، سورس ماژول‌ها، تعاریف کانتینرها | همانند پشتیبان سیستم |
-| **پیکربندی و کلیدها** | `config.tar.gz`، `config_keys.json` (`instanceid`, `salt`, `secret`) | همانند پشتیبان سیستم |
-| **پایگاه داده عملیاتی** | **اکیداً فاقد دیتابیس** (فاقد `database.sql`) | دامپ اتمیک کامل PostgreSQL با تمام رکوردها |
-| **اسناد و فایل‌های کاربران** | **اکیداً فاقد فایل‌های کاربران** (فاقد `data.tar.gz`) | آرشیو کامل دایرکتوری داده‌های اسناد |
-| **توقف سرویس (Downtime)** | **صفر ثانیه** (بدون نیاز به قفل نگهداری) | قفل موقت Maintenance Mode در طول اسنپ‌شات |
-| **حجم تقریبی آرشیو** | حدود ۲۵۰ کیلوبایت (بسیار سبک و سریع) | متناسب با حجم اسناد و دیتابیس (مثلاً ۶۵+ مگابایت) |
-| **دستور خط فرمان** | `./deploy/manage_backup.sh backup-system` | `# تهیه پشتیبان سیستم مستقل از داده (Software + Config + Identity):
-./deploy/manage_backup.sh backup-system
+```text
+System Backup (system_only)
+    +
+Instance Data Backup (instance_data)
+    =
+قابلیت کامل Disaster Recovery
+```
 
-# تهیه پشتیبان جامع سازمانی (Full Instance):
-./deploy/manage_backup.sh run` |
+| مؤلفه ارزیابی | پشتیبان سیستم (`system_only` - BR-01) | پشتیبان داده‌های عملیاتی (`instance_data` - BR-02) | پشتیبان جامع سازمانی (`full_instance` - سازگاری) |
+| :--- | :--- | :--- | :--- |
+| **تعریف و کارکرد** | وضعیت نرم‌افزار، تنظیمات اصلی و کلیدهای هویتی | وضعیت داده‌های عملیاتی در یک Recovery Point مشخص | بسته ترکیبی تک‌فایلی شامل کلیه لایه‌ها |
+| **پایگاه داده عملیاتی** | **اکیداً فاقد دیتابیس** (فاقد `database.sql`) | دامپ اتمیک کامل PostgreSQL با تمام رکوردها | دامپ اتمیک کامل PostgreSQL با تمام رکوردها |
+| **اسناد و فایل‌های کاربران** | **اکیداً فاقد فایل‌های کاربران** (فاقد `data.tar.gz`) | آرشیو کامل اسناد کاربران (`data.tar.gz`) | آرشیو کامل اسناد کاربران (`data.tar.gz`) |
+| **پیکربندی و سورس‌کد** | آرشیو `config.tar.gz` و `custom_apps.tar.gz` | **اکیداً فاقد سورس و کانفیگ سیستم** (عدم تکرار) | شامل `config.tar.gz` و `custom_apps.tar.gz` |
+| **اتصال به Baseline** | خود تشکیل‌دهنده System Baseline است | دارای Reference دقیق به `system_backup_id` و Git | درون‌بسته (Self-contained) |
+| **قفل نگهداری (Lock)** | صفر ثانیه (بدون وقفه عملیاتی) | قفل موقت Maintenance Mode حین اسنپ‌شات | قفل موقت Maintenance Mode حین اسنپ‌شات |
+| **دستور ایجاد در خط فرمان** | `./deploy/manage_backup.sh backup-system` | `./deploy/manage_backup.sh backup-data` | `./deploy/manage_backup.sh run` |
+| **دستور آزمون در سندباکس** | `./deploy/manage_backup.sh test-system` | `./deploy/manage_backup.sh test-data` | `./deploy/manage_backup.sh test` |
 | **دستور آزمون و اعتبارسنجی** | `./deploy/test_system_backup.sh` | `./deploy/test_restore.sh` |
 
 ## ۳. روش‌های اجرای عملیات (Execution Channels)
