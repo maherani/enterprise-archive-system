@@ -5,10 +5,22 @@
         return window.location.origin + '/';
     }
 
+    function isLoginPage() {
+        return window.location.pathname.includes('/login') ||
+               window.location.pathname.includes('/index.php/login') ||
+               (document.body && (document.body.id === 'body-login' || document.body.classList.contains('body-login'))) ||
+               !!document.querySelector('#body-login');
+    }
+
+    // Intercept History API calls made by Vue Router or Nextcloud navigation
+    const originalPushState = history.pushState;
+    const originalReplaceState = history.replaceState;
+
     function maskAddressBar() {
         try {
-            // Never mask if user is navigating in Files app or has active dir query
-            if (window.location.search.includes('dir=') || 
+            // Never mask on login page, in Files app navigation, or with active dir/fileid query
+            if (isLoginPage() ||
+                window.location.search.includes('dir=') || 
                 window.location.search.includes('fileid=') ||
                 window.location.pathname.includes('/apps/files')) {
                 return;
@@ -22,17 +34,13 @@
                     sessionStorage.setItem('ea_last_route', fullCurrentPath);
                 }
 
-                // Smoothly replace state in address bar to origin root without reload
-                window.history.replaceState(window.history.state, document.title, getTargetUrl());
+                // Smoothly replace state in address bar to origin root without reload using original API
+                originalReplaceState.call(window.history, window.history.state, document.title, getTargetUrl());
             }
         } catch (err) {
             // Silently ignore any security or cross-origin restrictions
         }
     }
-
-    // Intercept History API calls made by Vue Router or Nextcloud navigation
-    const originalPushState = history.pushState;
-    const originalReplaceState = history.replaceState;
 
     history.pushState = function() {
         originalPushState.apply(this, arguments);
@@ -55,6 +63,6 @@
         maskAddressBar();
     }
 
-    // Periodic check for asynchronous SPA / dynamic router transitions
-    setInterval(maskAddressBar, 150);
+    // Periodic check for asynchronous SPA / dynamic router transitions (avoid on login)
+    setInterval(maskAddressBar, 500);
 })();

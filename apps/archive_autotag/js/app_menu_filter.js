@@ -79,11 +79,11 @@
             // Login Page Sanitization (#body-login) - Bank Maskan Branding
             if (document.body && (document.body.id === 'body-login' || document.body.classList.contains('body-login') || document.querySelector('#body-login'))) {
                 const hiddenVisually = document.querySelector('h1.hidden-visually');
-                if (hiddenVisually) {
+                if (hiddenVisually && hiddenVisually.style.display !== 'none') {
                     hiddenVisually.style.setProperty('display', 'none', 'important');
                 }
                 const loginHeadline = document.querySelector('.login-form__headline');
-                if (loginHeadline) {
+                if (loginHeadline && loginHeadline.textContent !== 'ورود به سامانه بایگانی اسناد سازمانی') {
                     loginHeadline.textContent = 'ورود به سامانه بایگانی اسناد سازمانی';
                     loginHeadline.style.setProperty('direction', 'rtl', 'important');
                     loginHeadline.style.setProperty('text-align', 'center', 'important');
@@ -93,7 +93,8 @@
                     loginHeadline.style.setProperty('margin-bottom', '18px', 'important');
                 }
                 const headerGuest = document.querySelector('.header-guest');
-                if (headerGuest) {
+                if (headerGuest && !headerGuest.classList.contains('ea-guest-branded')) {
+                    headerGuest.classList.add('ea-guest-branded');
                     headerGuest.style.setProperty('display', 'flex', 'important');
                     headerGuest.style.setProperty('justify-content', 'center', 'important');
                     headerGuest.style.setProperty('align-items', 'center', 'important');
@@ -106,10 +107,11 @@
                     headerGuest.style.setProperty('padding', '0', 'important');
                 }
                 const loginLogo = document.querySelector('#body-login .logo, .body-login .logo, .header-guest .logo');
-                if (loginLogo) {
+                if (loginLogo && !loginLogo.classList.contains('ea-logo-branded')) {
+                    loginLogo.classList.add('ea-logo-branded');
                     loginLogo.style.setProperty('display', 'block', 'important');
                     loginLogo.style.setProperty('visibility', 'visible', 'important');
-                    loginLogo.style.setProperty('background-image', "url('data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 119.24 119.24'%3E%3Cpath fill-rule='evenodd' fill='%23f97316' d='M102.2014008,17.0287781H17.0359039v85.1729126h85.1654968V17.0287781z M119.2376099,0 H0v119.2378845h119.2376099V0z'/%3E%3Cpolygon fill-rule='evenodd' fill='%23f97316' points='98.9226074,76.647583 98.9226074,58.3074951 59.6188049,42.5828857 20.3150024,58.3074951 20.3150024,76.647583 59.6188049,60.9306946'/%3E%3C/svg%3E')", 'important');
+                    loginLogo.style.setProperty('background-image', "url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 119.24 119.24\'%3E%3Cpath fill-rule=\'evenodd\' fill=\'%23f97316\' d=\'M102.2014008,17.0287781H17.0359039v85.1729126h85.1654968V17.0287781z M119.2376099,0 H0v119.2378845h119.2376099V0z\'/%3E%3Cpolygon fill-rule=\'evenodd\' fill=\'%23f97316\' points=\'98.9226074,76.647583 98.9226074,58.3074951 59.6188049,42.5828857 20.3150024,58.3074951 20.3150024,76.647583 59.6188049,60.9306946\'/%3E%3C/svg%3E')", 'important');
                     loginLogo.style.setProperty('background-repeat', 'no-repeat', 'important');
                     loginLogo.style.setProperty('background-position', 'center', 'important');
                     loginLogo.style.setProperty('background-size', 'contain', 'important');
@@ -120,7 +122,7 @@
                     loginLogo.title = 'بانک مسکن';
                 }
                 const loginFooter = document.querySelector('#body-login footer, .body-login footer, #footer, #header-footer');
-                if (loginFooter) {
+                if (loginFooter && loginFooter.style.display !== 'none') {
                     loginFooter.style.display = 'none';
                     loginFooter.style.setProperty('display', 'none', 'important');
                 }
@@ -310,8 +312,26 @@
         applyAppMenuFilter();
     }
 
+    // Safe, throttled MutationObserver to avoid runaway microtask starvation on SPA transitions
+    let isSanitizing = false;
+    let scheduledSanitize = null;
+
+    function scheduleSanitize() {
+        if (scheduledSanitize) return;
+        scheduledSanitize = (window.requestAnimationFrame || window.setTimeout)(() => {
+            scheduledSanitize = null;
+            if (isSanitizing) return;
+            isSanitizing = true;
+            try {
+                sanitizeNextcloudShell();
+            } finally {
+                isSanitizing = false;
+            }
+        }, 16);
+    }
+
     const observer = new MutationObserver(() => {
-        sanitizeNextcloudShell();
+        scheduleSanitize();
     });
 
     observer.observe(document.documentElement, {
