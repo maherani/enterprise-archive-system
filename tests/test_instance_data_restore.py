@@ -66,6 +66,17 @@ PG_USER = "nextcloud_user"
 PG_DB = "nextcloud"
 
 
+def get_maint_status():
+    res = subprocess.run(
+        ["docker", "exec", "archive_app", "php", "occ", "status"],
+        capture_output=True, text=True
+    )
+    for line in res.stdout.splitlines():
+        if "maintenance:" in line:
+            return line.split()[-1].strip().lower()
+    return "unknown"
+
+
 def query_db(sql):
     cmd = ["docker", "exec", "-e", f"PGPASSWORD={PG_PASSWORD}", "archive_db",
            "psql", "-U", PG_USER, "-d", PG_DB, "-t", "-A", "-c", sql]
@@ -537,6 +548,188 @@ class TestInstanceDataRestore(unittest.TestCase):
             last = json.loads(f.readlines()[-1])
         self.assertEqual(last.get("requested_by"), test_requester, "Audit log must record the exact requesting admin user")
         self.assertNotEqual(last.get("requested_by"), "admin", "Audit log must not be hardcoded to 'admin' when specified")
+
+
+    def test_19_failure_injection_o_health_failure_keeps_maint_on(self):
+        """Failure Injection O: Health Check fails -> Maintenance Mode MUST remain ON, restore FAILED, no SUCCESS."""
+        env = os.environ.copy()
+        env["TEST_SIMULATE_HEALTH_FAIL"] = "1"
+        try:
+            res = subprocess.run(
+                [f"{DEPLOY_DIR}/restore_instance_data.sh", "latest_instance_data_backup.tar.gz"],
+                cwd=REPO_DIR, env=env, capture_output=True, text=True
+            )
+            self.assertNotEqual(res.returncode, 0, "Restore must fail if health check fails")
+            self.assertIn("Post-Restore Health Check FAILED", res.stdout + res.stderr)
+            self.assertIn("remains in protected MAINTENANCE MODE", res.stdout + res.stderr)
+
+            # Assert maintenance mode is STILL ON (CRITICAL REQUIREMENT)
+            maint_status = get_maint_status()
+            self.assertEqual(maint_status, "true", "Maintenance mode MUST remain ON when post-restore health check fails")
+
+            # Assert Audit recorded FAILED, NOT SUCCESS
+            audit_file = os.path.join(BACKUP_DIR, "restore_audit.jsonl")
+            with open(audit_file, "r") as f:
+                last = json.loads(f.readlines()[-1])
+            self.assertEqual(last.get("result"), "FAILED")
+            self.assertEqual(last.get("failure_reason"), "Post-restore health check gate failed")
+
+            # Assert Status file recorded FAILED
+            status_file = os.path.join(BACKUP_DIR, ".backup_status.json")
+            with open(status_file, "r") as f:
+                st = json.load(f)
+            self.assertEqual(st.get("status"), "FAILED")
+            self.assertIn("Maintenance", st.get("message", ""))
+        finally:
+            # Clean up test environment back to normal state
+            subprocess.run(["docker", "exec", "archive_app", "php", "occ", "maintenance:mode", "--off"], capture_output=True)
+
+    def test_20_failure_injection_p_db_prep_failure(self):
+        """Failure Injection P: DB preparation failure -> Restore FAILED, DB recreation NOT continued, safety backup preserved."""
+        env = os.environ.copy()
+        env["TEST_SIMULATE_DB_PREP_FAIL"] = "1"
+        try:
+            res = subprocess.run(
+                [f"{DEPLOY_DIR}/restore_instance_data.sh", "latest_instance_data_backup.tar.gz"],
+                cwd=REPO_DIR, env=env, capture_output=True, text=True
+            )
+            self.assertNotEqual(res.returncode, 0, "Restore must fail on DB preparation failure")
+            self.assertIn("Failed to disable incoming database connections", res.stdout + res.stderr)
+
+            # Assert DB recreation did NOT continue (existing tables remain intact)
+            chk = subprocess.run(
+                ["docker", "exec", "archive_db", "psql", "-U", "nextcloud_user", "-d", "nextcloud", "-t", "-A", "-c", "SELECT count(*) FROM oc_users;"],
+                capture_output=True, text=True
+            )
+            self.assertEqual(chk.returncode, 0)
+            self.assertGreater(int(chk.stdout.strip()), 0, "Users table must remain intact")
+
+            # Assert Audit recorded FAILED
+            audit_file = os.path.join(BACKUP_DIR, "restore_audit.jsonl")
+            with open(audit_file, "r") as f:
+                last = json.loads(f.readlines()[-1])
+            self.assertEqual(last.get("result"), "FAILED")
+            self.assertIn("Failed to disallow connections", last.get("failure_reason"))
+        finally:
+            subprocess.run(["docker", "exec", "archive_app", "php", "occ", "maintenance:mode", "--off"], capture_output=True)
+
+    def test_21_failure_injection_q_missing_requester_identity(self):
+        """Failure Injection Q: Missing requester identity -> Restore NOT STARTED, Audit FAILED, no synthetic admin."""
+        env = os.environ.copy()
+        env["RESTORE_REQUESTED_BY"] = ""
+        env["USER"] = ""
+        env["SUDO_USER"] = ""
+        res = subprocess.run(
+            [f"{DEPLOY_DIR}/restore_instance_data.sh", "latest_instance_data_backup.tar.gz"],
+            cwd=REPO_DIR, env=env, capture_output=True, text=True
+        )
+        self.assertEqual(res.returncode, 1, "Restore must abort immediately when requester identity is unavailable")
+        self.assertIn("Missing or unavailable requester identity", res.stderr)
+
+        # Assert Audit recorded FAILED with reason 'requester identity unavailable'
+        audit_file = os.path.join(BACKUP_DIR, "restore_audit.jsonl")
+        with open(audit_file, "r") as f:
+            last = json.loads(f.readlines()[-1])
+        self.assertEqual(last.get("result"), "FAILED")
+        self.assertEqual(last.get("failure_reason"), "requester identity unavailable")
+        self.assertNotEqual(last.get("requested_by"), "admin", "Synthetic 'admin' fallback must NOT be used")
+
+    def test_22_failure_injection_r_status_file_permission(self):
+        """Failure Injection R: Status file must NOT be world-writable and authorized actors can update/read."""
+        status_file = os.path.join(BACKUP_DIR, ".backup_status.json")
+        self.assertTrue(os.path.exists(status_file), "Status file must exist")
+        mode = os.stat(status_file).st_mode
+        self.assertFalse(bool(mode & 0o002), "Status file MUST NOT be world-writable (others write bit set)")
+
+        # Verify authorized actors can read
+        with open(status_file, "r") as f:
+            data = json.load(f)
+        self.assertIn("status", data)
+
+        # Test container www-data can write to deploy/backups
+        chk = subprocess.run(
+            ["docker", "exec", "-u", "www-data", "archive_app", "test", "-w", "/var/www/html/deploy/backups/.backup_status.json"],
+            capture_output=True
+        )
+        self.assertEqual(chk.returncode, 0, "Authorized app (www-data) must be able to write status file")
+
+    def test_23_live_production_reversion_test(self):
+        """Section 9: Live Production Reversion Test (Full roundtrip with Pre-Restore Safety Backup rollback)."""
+        # Step 1: Prepare known initial state (Doc 1)
+        subprocess.run([
+            "docker", "exec", "archive_app", "bash", "-c",
+            "rm -f /var/www/html/data/test_user_a/files/Rev_Test_*.txt && "
+            "echo 'State 1 content' > /var/www/html/data/test_user_a/files/Rev_Test_Doc1.txt && "
+            "chown -R www-data:www-data /var/www/html/data/test_user_a/files/ && "
+            "php occ files:scan test_user_a >/dev/null 2>&1"
+        ], check=True)
+
+        # Step 2: Create Instance Data Backup (RP_Rev)
+        rp_rev = subprocess.run(
+            [f"{DEPLOY_DIR}/backup_instance_data.sh"],
+            cwd=REPO_DIR, capture_output=True, text=True
+        )
+        self.assertEqual(rp_rev.returncode, 0, "Backup creation for reversion test failed")
+        archive_rp1 = os.path.join(BACKUP_DIR, "latest_instance_data_backup.tar.gz")
+
+        # Step 3: Modify live production data (create Doc 2)
+        subprocess.run([
+            "docker", "exec", "archive_app", "bash", "-c",
+            "echo 'State 2 content (to be reverted)' > /var/www/html/data/test_user_a/files/Rev_Test_Doc2.txt && "
+            "chown -R www-data:www-data /var/www/html/data/test_user_a/files/ && "
+            "php occ files:scan test_user_a >/dev/null 2>&1"
+        ], check=True)
+
+        # Step 4: Run BR-04 Restore of RP1
+        res_rst = subprocess.run(
+            [f"{DEPLOY_DIR}/restore_instance_data.sh", archive_rp1],
+            cwd=REPO_DIR, capture_output=True, text=True
+        )
+        self.assertEqual(res_rst.returncode, 0, f"Restore failed: {res_rst.stderr}")
+
+        # Step 5: Verify restored state (Doc 1 exists, Doc 2 absent)
+        chk1 = subprocess.run(["docker", "exec", "archive_app", "test", "-f", "/var/www/html/data/test_user_a/files/Rev_Test_Doc1.txt"])
+        chk2 = subprocess.run(["docker", "exec", "archive_app", "test", "-f", "/var/www/html/data/test_user_a/files/Rev_Test_Doc2.txt"])
+        self.assertEqual(chk1.returncode, 0, "Doc 1 must exist after restore")
+        self.assertNotEqual(chk2.returncode, 0, "Doc 2 must be reverted and absent")
+
+        # Step 6: Verify Health PASS
+        h_res = subprocess.run([f"{DEPLOY_DIR}/check_health.sh"], cwd=REPO_DIR, capture_output=True, text=True)
+        self.assertEqual(h_res.returncode, 0, "Health check must PASS")
+
+        # Step 7: Verify Maintenance OFF
+        self.assertEqual(get_maint_status(), "false", "Maintenance mode must be OFF")
+
+        # Step 8: Verify Audit SUCCESS
+        audit_file = os.path.join(BACKUP_DIR, "restore_audit.jsonl")
+        with open(audit_file, "r") as f:
+            last = json.loads(f.readlines()[-1])
+        self.assertEqual(last.get("result"), "SUCCESS")
+
+        # Step 9: Verify normal user access via API
+        r_user = requests.get(f"{BASE_URL}/backup/status", auth=soc_auth, headers=HEADERS)
+        self.assertEqual(r_user.status_code, 403, "Normal user forbidden on admin API")
+
+        # Step 10: Controlled Reversion using Pre-Restore Safety Backup
+        safety_backup = os.path.join(BACKUP_DIR, "latest_instance_data_pre_restore_backup.tar.gz")
+        self.assertTrue(os.path.exists(safety_backup), "Pre-restore safety backup must exist")
+
+        res_rev = subprocess.run(
+            [f"{DEPLOY_DIR}/restore_instance_data.sh", safety_backup],
+            cwd=REPO_DIR, capture_output=True, text=True
+        )
+        self.assertEqual(res_rev.returncode, 0, f"Reversion using pre-restore safety backup failed: {res_rev.stderr}")
+
+        # Verify Doc 2 is RESTORED back!
+        chk2_rev = subprocess.run(["docker", "exec", "archive_app", "test", "-f", "/var/www/html/data/test_user_a/files/Rev_Test_Doc2.txt"])
+        self.assertEqual(chk2_rev.returncode, 0, "Doc 2 must be restored back after pre-restore safety backup rollback")
+
+        # Step 11: Cleanup test files cleanly
+        subprocess.run([
+            "docker", "exec", "archive_app", "bash", "-c",
+            "rm -f /var/www/html/data/test_user_a/files/Rev_Test_*.txt && "
+            "php occ files:scan test_user_a >/dev/null 2>&1"
+        ], check=True)
 
 
 if __name__ == "__main__":

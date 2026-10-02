@@ -26,7 +26,13 @@ echo "[4] Checking Nextcloud Groups..."
 docker exec -u www-data archive_app php occ group:list
 
 echo "[5] Checking Enterprise Archive Folder..."
-docker exec -u www-data archive_app php occ files:scan -p '/admin/files/Enterprise_Archive'
+maint_mode=$(docker exec archive_app php occ status 2>/dev/null | grep -i "maintenance:" | awk '{print $NF}' || echo "false")
+if [ "$maint_mode" = "true" ]; then
+    docker exec archive_app test -d '/var/www/html/data/admin/files/Enterprise_Archive'
+    echo "  [OK] Enterprise Archive folder verified on disk (Maintenance Mode active)."
+else
+    docker exec -u www-data archive_app php occ files:scan -p '/admin/files/Enterprise_Archive'
+fi
 
 echo "=================================================="
 echo " Health check completed successfully."

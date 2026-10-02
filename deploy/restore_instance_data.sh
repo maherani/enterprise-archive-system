@@ -41,7 +41,7 @@ if [ -z "${POSTGRES_DB:-}" ] || [ -z "${POSTGRES_USER:-}" ] || [ -z "${POSTGRES_
     exit 1
 fi
 
-REQUESTED_BY="${RESTORE_REQUESTED_BY:-${2:-cli:${USER:-admin}}}"
+
 
 mkdir -p "$BACKUP_DIR"
 
@@ -63,8 +63,12 @@ for p in ['$STATUS_FILE', '${BACKUP_DIR}/.backup_status.json']:
     try:
         with open(p, 'w') as f:
             json.dump(data, f, indent=2)
-        import os
-        os.chmod(p, 0o666)
+        import os, shutil
+        os.chmod(p, 0o660)
+        try:
+            shutil.chown(p, group='www-data')
+        except Exception:
+            pass
     except Exception:
         pass
 " 2>/dev/null || true
@@ -110,6 +114,20 @@ echo "======================================================================"
 echo " Enterprise Archive System - Production Instance Data Restore (BR-04)"
 echo "======================================================================"
 RESTORE_START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+REQUESTED_BY="${RESTORE_REQUESTED_BY:-${2:-}}"
+if [ -z "$REQUESTED_BY" ] && [ -n "${SUDO_USER:-}" ]; then
+    REQUESTED_BY="cli:${SUDO_USER}"
+elif [ -z "$REQUESTED_BY" ] && [ -n "${USER:-}" ]; then
+    REQUESTED_BY="cli:${USER}"
+fi
+
+if [ -z "$REQUESTED_BY" ]; then
+    echo "[ERROR] Missing or unavailable requester identity. Production restore requires verified requester (Fail-Closed)." >&2
+    update_status "FAILED" 0 "خطا: هویت درخواست‌کننده عملیات بازیابی نامشخص است (Requester identity unavailable)."
+    record_audit "unknown" "unknown" "${CURRENT_GIT_COMMIT:-unknown}" "none" "$RESTORE_START_TIME" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "FAILED" "requester identity unavailable" "unknown"
+    exit 1
+fi
 
 # 0. Check Concurrency Lock
 if [ -f "$LOCK_FILE" ]; then
@@ -387,7 +405,7 @@ on_restore_failure() {
     echo "   ${SCRIPT_DIR}/manage_backup.sh restore-data $PRE_RESTORE_ARCHIVE" >&2
     echo "======================================================================" >&2
     update_status "FAILED" 50 "خطای بحرانی در عملیات بازیابی. سیستم در حالت امن Maintenance باقی مانده است."
-    record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "FAILED" "Failed during destructive execution step"
+    record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "FAILED" "Failed during destructive execution step" "$REQUESTED_BY"
     exit $err_code
 }
 trap on_restore_failure ERR
@@ -401,11 +419,25 @@ update_status "IN_PROGRESS" 60 "مرحله ۶/۹: بازیابی دقیق پای
 
 DB_SQL_FILE="${COMPONENT_DIR}/database.sql"
 
-# Disallow new connections and terminate active connections to prevent drop failure
-docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -U "$POSTGRES_USER" -d postgres -c \
-    "ALTER DATABASE $POSTGRES_DB WITH ALLOW_CONNECTIONS false;" > /dev/null 2>&1 || true
-docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -U "$POSTGRES_USER" -d postgres -c \
-    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$POSTGRES_DB' AND pid <> pg_backend_pid();" > /dev/null 2>&1 || true
+# Disallow new connections and terminate active connections to prevent drop failure (Fail-Closed)
+echo "  - Preparing database for recreation (locking connections)..."
+if [ "${TEST_SIMULATE_DB_PREP_FAIL:-0}" = "1" ] || ! docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -U "$POSTGRES_USER" -d postgres -c \
+    "ALTER DATABASE $POSTGRES_DB WITH ALLOW_CONNECTIONS false;" > /dev/null 2>&1; then
+    echo "[ERROR] Failed to disable incoming database connections on $POSTGRES_DB!" >&2
+    RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    update_status "FAILED" 55 "خطا: آماده‌سازی پایگاه داده با شکست مواجه شد (مسدودسازی اتصالات ناموفق بود)."
+    record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$RESTORE_END_TIME" "FAILED" "Failed to disallow connections on database" "$REQUESTED_BY"
+    exit 1
+fi
+
+if ! docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -U "$POSTGRES_USER" -d postgres -c \
+    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$POSTGRES_DB' AND pid <> pg_backend_pid();" > /dev/null 2>&1; then
+    echo "[ERROR] Failed to terminate existing database connections on $POSTGRES_DB!" >&2
+    RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    update_status "FAILED" 55 "خطا: آماده‌سازی پایگاه داده با شکست مواجه شد (قطع اتصالات فعال ناموفق بود)."
+    record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$RESTORE_END_TIME" "FAILED" "Failed to terminate active connections on database" "$REQUESTED_BY"
+    exit 1
+fi
 
 # Recreate database cleanly with FORCE to guarantee clean drop
 docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS $POSTGRES_DB WITH (FORCE);" > /dev/null
@@ -544,17 +576,30 @@ fi
 echo "  [OK] DB <-> Files consistency verified."
 
 # ==============================================================================
-# Stage 9: Service Recovery & Final Post-Restore Health Check Gate
+# Stage 9: Post-Restore Health Gate & Service Recovery
 # ==============================================================================
 echo ""
-echo "[INFO] [9/9] Returning Service to Normal and Running Health Check Gate..."
-update_status "IN_PROGRESS" 92 "مرحله ۹/۹: غیرفعال‌سازی حالت تعمیرات و بررسی سلامت نهایی..."
+echo "[INFO] [9/9] Running Post-Restore Health Check Gate (Maintenance remains ON)..."
+update_status "IN_PROGRESS" 92 "مرحله ۹/۹: اجرای گیت بررسی سلامت سامانه در حالت Maintenance..."
 
-# Turn maintenance mode OFF
+# Post-Restore Health Check Gate (Strict Gate - Maintenance Mode MUST remain ON)
+echo "[INFO] Executing comprehensive post-restore health check gate..."
+if [ "${TEST_SIMULATE_HEALTH_FAIL:-0}" = "1" ] || ! "${SCRIPT_DIR}/check_health.sh" > "${BACKUP_DIR}/.restore_health_check.log" 2>&1; then
+    echo "[ERROR] Post-Restore Health Check FAILED! System remains in protected MAINTENANCE MODE." >&2
+    RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    update_status "FAILED" 92 "خطا: آزمون سلامت سامانه پس از بازیابی با شکست مواجه شد. سیستم در حالت امن Maintenance باقی مانده است."
+    record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$RESTORE_END_TIME" "FAILED" "Post-restore health check gate failed" "$REQUESTED_BY"
+    exit 1
+fi
+echo "  [OK] Post-restore health check passed with 100% healthy status."
+
+# ONLY AFTER HEALTH CHECK PASSES: Turn maintenance mode OFF
+update_status "IN_PROGRESS" 96 "مرحله ۹/۹: خروج از حالت تعمیرات و اعتبارسنجی نهایی..."
+echo "[INFO] Returning service to normal: Turning maintenance mode OFF..."
 if [ "${TEST_SIMULATE_MAINT_OFF_FAIL:-0}" = "1" ] || ! docker exec archive_app php occ maintenance:mode --off > /dev/null 2>&1; then
     echo "[ERROR] Failed to execute 'occ maintenance:mode --off' command!" >&2
     RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    update_status "FAILED" 92 "خطا: غیرفعال‌سازی حالت تعمیرات با شکست مواجه شد."
+    update_status "FAILED" 96 "خطا: غیرفعال‌سازی حالت تعمیرات با شکست مواجه شد."
     record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$RESTORE_END_TIME" "FAILED" "Failed to disable maintenance mode" "$REQUESTED_BY"
     exit 1
 fi
@@ -564,7 +609,7 @@ MAINT_OFF_VERIFY=$(docker exec archive_app php occ status 2>/dev/null | grep -i 
 if [ "$MAINT_OFF_VERIFY" != "false" ]; then
     echo "[ERROR] Verification failed: Maintenance mode is still ACTIVE (status: $MAINT_OFF_VERIFY)!" >&2
     RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    update_status "FAILED" 92 "خطا: حالت تعمیرات همچنان فعال است و خاموش نشد."
+    update_status "FAILED" 96 "خطا: حالت تعمیرات همچنان فعال است و خاموش نشد."
     record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$RESTORE_END_TIME" "FAILED" "Maintenance mode still active after restore: $MAINT_OFF_VERIFY" "$REQUESTED_BY"
     exit 1
 fi
@@ -572,19 +617,6 @@ echo "  [OK] Maintenance mode successfully disabled and verified (status: false)
 
 # Reset trap
 trap cleanup EXIT
-
-# Post-Restore Health Check Gate (Strict Gate)
-echo "[INFO] Executing comprehensive post-restore health check gate..."
-update_status "IN_PROGRESS" 96 "مرحله ۹/۹: اجرای گیت بررسی جامع سلامت سامانه..."
-
-if [ "${TEST_SIMULATE_HEALTH_FAIL:-0}" = "1" ] || ! "${SCRIPT_DIR}/check_health.sh" > "${BACKUP_DIR}/.restore_health_check.log" 2>&1; then
-    echo "[ERROR] Post-Restore Health Check FAILED! System reported degraded or unhealthy state." >&2
-    RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    update_status "FAILED" 96 "خطا: آزمون سلامت سامانه پس از بازیابی با شکست مواجه شد."
-    record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$RESTORE_END_TIME" "FAILED" "Post-restore health check gate failed" "$REQUESTED_BY"
-    exit 1
-fi
-echo "  [OK] Post-restore health check passed with 100% healthy status."
 
 RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$RESTORE_END_TIME" "SUCCESS" "None" "$REQUESTED_BY"

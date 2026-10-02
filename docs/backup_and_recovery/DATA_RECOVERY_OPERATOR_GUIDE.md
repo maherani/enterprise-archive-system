@@ -151,29 +151,33 @@ deploy/restore_instance_data.sh
        ├── ۳. Create Pre-Restore Safety Backup: تولید خودکار پیش‌پشتیبان اضطراری از وضعیت زنده جاری
        ├── ۴. Validate Pre-Restore Safety Backup: اعتبارسنجی ۱۰۰٪ پیش‌پشتیبان (Fail-Closed)
        ├── ۵. Fail-Closed Maintenance ON: ورود به حالت تعمیرات و اعتبارسنجی قطعی وضعیت با occ status (maintenance=true)
-       ├── ۶. Zero Credential Fallback & DB Restore: اعتبارسنجی متغیرهای .env، ایجاد دیتابیس نو و بازنشانی database.sql با ON_ERROR_STOP=1
+       ├── ۶. Fail-Closed DB Preparation & Restore: آماده‌سازی بدون مسامحه پایگاه‌داده (حذف کامل || true در قطع اتصالات و بستن نشست‌ها)، ایجاد دیتابیس نو و بازنشانی database.sql با ON_ERROR_STOP=1
        ├── ۷. Restore User Data: بازگردانی داده‌های فایل کاربران در /var/www/html/data و احراز هویت دیسک
        ├── ۸. Invalidate Sessions & DB ↔ Files: ابطال سشن‌های قبلی کاربران و ممیزی انطباق دوطرفه
-       └── ۹. Recovery Complete & Strict Health Gate: اجرای تست سلامت check_health.sh، خروج از Maintenance و اعتبارسنجی occ status (maintenance=false) و ثبت Audit با هویت واقعی درخواست‌کننده
+       └── ۹. Strict Health Gate, Maintenance OFF & Audit:
+               ├── ارزیابی کامل سلامت سامانه (check_health.sh) در وضعیت فعال بودن Maintenance Mode (Fail-Closed)
+               ├── در صورت شکست سلامت: عدم اجرای Maintenance OFF، حفظ حالت تعمیرات (Maintenance ON)، ثبت وضعیت FAILED و حفظ پیش‌پشتیبان امنیتی
+               ├── در صورت احراز کامل سلامت: اجرای خروج از Maintenance Mode و اعتبارسنجی occ status (maintenance=false)
+               └── ثبت ممیزی نهایی (Audit SUCCESS) با هویت واقعی و تاییدشده درخواست‌کننده
 ```
 
-### گیت‌های ایمنی و مقاوم‌سازی BR-04 (BR-04 Hardening):
+### گیت‌های ایمنی و مقاوم‌سازی BR-04 (BR-04 Final Hardening):
 موتور اختصاصی بازیابی پروداکشن بر اساس سخت‌گیرانه‌ترین الگوهای Fail-Closed ارتقا یافته است:
 * **Fail-Closed Maintenance Activation:** فعال‌سازی Maintenance Mode یک دروازه قطعی (Safety Gate) است. پس از اجرای دستور، خروجی occ status واکاوی شده و احراز قطعی maintenance: true الزامی است. در صورت شکست، دیتابیس و فایل‌های کاربری دست‌نخورده مانده و بازیابی آغاز نمی‌شود.
+* **Fail-Closed Database Preparation (حذف مسامحه در آماده‌سازی دیتابیس):** کلیه فرامین آماده‌سازی پیش از عملیات تخریبی اعم از قطع دسترسی (`ALTER DATABASE ... ALLOW_CONNECTIONS false`) و بستن نشست‌های فعال (`SELECT pg_terminate_backend(...)`) فاقد هرگونه `|| true` بوده و در صورت بروز کوچکترین خطا، بازسازی مخرب دیتابیس (DROP DATABASE) متوقف، وضعیت FAILED ثبت و پیش‌پشتیبان حفظ می‌گردد.
 * **حذف کامل Fallback رمز عبور:** متغیرهای POSTGRES_DB، POSTGRES_USER و POSTGRES_PASSWORD مستقیماً از فایل امن .env تامین می‌شوند. در صورت غیاب یا خالی بودن هر یک، اسکریپت با خطای امنیتی Fail-Closed متوقف می‌شود. رمزها هرگز در ممیزی یا لاگ درج نمی‌شوند.
-* **ثبت هویت واقعی درخواست‌کننده در لاگ ممیزی (Audit Requester):** درخواست از وب (AdminBackupController) یا CLI هویت کاربر (dmin, $SUDO_USER) را تا لایه موتور بازیابی و فایل deploy/backups/restore_audit.jsonl منتقل می‌کند.
-* **دروازه قطعی ارزیابی سلامت (Health Check as Gate):** گزارش وضعیت غیرعادی توسط check_health.sh فوراً نتیجه عملیات را به FAILED تبدیل می‌کند؛ گزارش موفقیت کاذب اکیداً ناممکن است.
-* **اعتبارسنجی مستقل خروج از Maintenance Mode:** وضعیت غیرفعال بودن Maintenance (maintenance: false) به صورت مستقل با occ status پس از اتمام تایید می‌گردد.
+* **انتقال شناسه واقعی درخواست‌کننده و حذف Fallback مصنوعی (Real Requester Identity):** هویت واقعی درخواست‌کننده از وب (UID کاربری جاری احرازهویت‌شده) یا خط فرمان CLI (`$SUDO_USER` / `$USER`) تا لایه ممیزی بدون تغییر منتقل می‌شود. استفاده از هویت مصنوعی ساختگی `admin` یا fallbackهای پیش‌فرض اکیداً ممنوع بوده و در صورت عدم امکان تعیین هویت واقعی، عملیات به صورت Fail-Closed متوقف شده و با دلیل `requester identity unavailable` ثبت خطا می‌گردد.
+* **مقاوم‌سازی فایل‌های وضعیت (Status Files Hardening):** فایل‌های وضعیت سامانه (`deploy/backups/.backup_status.json` و `/tmp/archive_backup_status.json`) دیگر world-writable نیستند (`chmod 0660` با گروه `www-data`) تا از دستکاری غیرمجاز جلوگیری شود، در حالی که برنامه‌های مجاز وب و دیمن دسترسی کامل دارند.
+* **دروازه قطعی ارزیابی سلامت پیش از خروج از حالت تعمیرات (Strict Health Gate BEFORE Maintenance OFF):** آزمون سلامت سامانه (`check_health.sh`) در زمانی اجرا می‌شود که سامانه هنوز در Maintenance Mode قرار دارد. تا زمان احراز موفقیت قطعی سلامت، خروج از Maintenance Mode اکیداً ممنوع است. در صورت شکست تست سلامت، سامانه در حالت Maintenance Mode باقی می‌ماند، وضعیت FAILED ثبت شده و پیش‌پشتیبان حفظ می‌گردد.
+* **اعتبارسنجی مستقل خروج از Maintenance Mode:** وضعیت غیرفعال بودن Maintenance (maintenance: false) منحصراً پس از پاس شدن ارزیابی سلامت و اجرای دستور با استعلام مستقل occ status تایید می‌گردد.
 * **حفاظت CSRF و Request Token:** کلیه درخواست‌های تغییر وضعیت بکاپ و بازیابی در پورتال وب مستلزم توکن معتبر درخواست هستند.
 
-### آزمون‌های تزریق خرابی جدید (Failure Injections I تا N):
-علاوه بر آزمون‌های A تا H قبلی، سناریوهای خرابی زیر در سوئیت تست `tests/test_instance_data_restore.py` پوشش داده شده‌اند:
-* **تزریق I (Maintenance Activation Failure):** شکست شبیه‌سازی‌شده در فعال‌سازی Maintenance Mode -> عملیات متوقف و بازیابی آغاز نمی‌شود.
-* **تزریق J (Missing POSTGRES_PASSWORD):** فقدان پسورد دیتابیس در `.env` -> توقف پیش از عملیات مخرب و عدم استفاده از هیچ پسورد پیش‌فرض.
-* **تزریق K (Degraded Health):** وضعیت ناسالم پس از بازیابی -> عملیات به عنوان FAILED ثبت و موفقیت گزارش نمی‌شود.
-* **تزریق L (Maintenance OFF Failure):** عدم موفقیت در غیرفعال‌سازی Maintenance Mode -> ثبت وضعیت FAILED.
-* **تزریق M (Invalid/Missing Request Token):** ارسال درخواست بدون توکن CSRF معتبر -> مسدودسازی با خطای ۴۰۳ (CSRF_FAILED).
-* **تزریق N (Audit Requester Identity):** بررسی ثبت دقیق شناسه مدیر ارشد در لاگ‌های ممیزی.
+### آزمون‌های تزریق خرابی جامع (Failure Injections A تا R):
+علاوه بر آزمون‌های A تا N قبلی، سناریوهای خرابی و مقاوم‌سازی نهایی زیر در سوئیت تست `tests/test_instance_data_restore.py` پوشش داده شده‌اند:
+* **تزریق O (Health Failure Must Keep Maintenance ON):** شکست کنترل‌شده در تست سلامت -> سامانه در Maintenance Mode باقی می‌ماند، وضعیت FAILED ثبت می‌شود، پیش‌پشتیبان امنیتی حفظ شده و دستور Maintenance OFF اجرا نمی‌شود.
+* **تزریق P (Database Preparation Failure):** شکست شبیه‌سازی‌شده در قطع اتصالات یا خاتمه سشن‌ها -> توقف فوری قبل از DROP DATABASE، ثبت وضعیت FAILED و حفظ پیش‌پشتیبان امنیتی.
+* **تزریق Q (Missing Requester Identity):** ارسال درخواست بازیابی بدون شناسه معتبر -> عملیات آغاز نمی‌شود (Restore NOT STARTED)، ثبت FAILED در ممیزی با دلیل فقدان هویت، بدون انتساب کاذب به admin.
+* **تزریق R (Status File Permission):** اعتبارسنجی عدم دسترسی عمومی نوشتن (non world-writable بودن فایل با مجوز 0660) و عملکرد صحیح خواندن/نوشتن برای دیمن و وب.
 
 ### سپر امنیتی اضطراری (Pre-Restore Safety Backup):
 پیش از ورود به Maintenance Mode و قبل از هرگونه تغییر روی دیتابیس عملیاتی، سیستم به صورت کاملاً خودکار یک پیش‌پشتیبان از نوع `instance_data` با شناسنامه `backup_purpose = pre_restore_safety` تولید و اعتبارسنجی می‌کند.

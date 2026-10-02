@@ -22,7 +22,7 @@ while true; do
             ACTION=$(python3 -c "import json; q=json.load(open('$QUEUE_FILE')); print(q.get('action', ''))" 2>/dev/null || echo "")
             TARGET=$(python3 -c "import json; q=json.load(open('$QUEUE_FILE')); print(q.get('target', ''))" 2>/dev/null || echo "")
             TASK_ID=$(python3 -c "import json; q=json.load(open('$QUEUE_FILE')); print(q.get('id', ''))" 2>/dev/null || echo "")
-            REQUESTED_BY=$(python3 -c "import json; q=json.load(open('$QUEUE_FILE')); print(q.get('requested_by', 'admin'))" 2>/dev/null || echo "admin")
+            REQUESTED_BY=$(python3 -c "import json; q=json.load(open('$QUEUE_FILE')); print(q.get('requested_by') or '')" 2>/dev/null || echo "")
 
             echo "[DAEMON] Processing task $TASK_ID (Action: $ACTION, Target: $TARGET)..."
 

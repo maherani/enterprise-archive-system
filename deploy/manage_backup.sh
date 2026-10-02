@@ -263,7 +263,14 @@ for f in files:
         echo "================================================================================"
         read -r -p "Type 'RESTORE-CONFIRM' to proceed: " confirm
         if [ "$confirm" = "RESTORE-CONFIRM" ]; then
-            CLI_REQUESTER="${RESTORE_REQUESTED_BY:-cli:${SUDO_USER:-${USER:-admin}}}"
+            CLI_USER="${SUDO_USER:-${USER:-}}"
+        if [ -n "$RESTORE_REQUESTED_BY" ]; then
+            CLI_REQUESTER="$RESTORE_REQUESTED_BY"
+        elif [ -n "$CLI_USER" ]; then
+            CLI_REQUESTER="cli:${CLI_USER}"
+        else
+            CLI_REQUESTER=""
+        fi
             RESTORE_REQUESTED_BY="$CLI_REQUESTER" "$SCRIPT_DIR/restore_instance_data.sh" "$target"
         else
             echo "[ABORTED] Production restore cancelled. Input did not match 'RESTORE-CONFIRM'."

@@ -88,32 +88,48 @@
 
 ---
 
-### مشخصات مقاوم‌سازی امنیتی و گیت‌های ایمنی BR-04 (BR-04 Hardening Specification)
+### مشخصات مقاوم‌سازی نهایی و گیت‌های ایمنی BR-04 (BR-04 Final Hardening Specification)
 
-موتور بازیابی داده‌های سازمانی بر روی سامانه سالم (BR-04) مجهز به ۶ لایه حفاظتی Fail-Closed است:
+موتور بازیابی داده‌های سازمانی بر روی سامانه سالم (BR-04) مجهز به ۸ لایه حفاظتی Fail-Closed است:
 
 1. **گیت ایمنی فعال‌سازی Maintenance Mode (Fail-Closed Maintenance ON):**
    - پیش از هرگونه دستکاری دیتابیس یا فایل‌ها، دستور `occ maintenance:mode --on` اجرا شده و وضعیت حقیقی سامانه با `occ status` اعتبارسنجی می‌شود (`maintenance: true`).
    - در صورت عدم موفقیت ورود به Maintenance Mode، عملیات فوراً لغو، وضعیت `FAILED` ثبت، لاگ ممیزی مستند و پیش‌پشتیبان امنیتی دست‌نخورده حفظ می‌گردد. هیچ عملیات مخربی آغاز نخواهد شد.
 
-2. **حذف قطعی پسوردهای پیش‌فرض و Fallback (Zero Credential Fallback):**
+2. **آماده‌سازی بدون مسامحه پایگاه داده (Fail-Closed Database Preparation):**
+   - حذف کامل هرگونه مسامحه (`|| true`) از عملیات قطع اتصالات (`ALTER DATABASE ... ALLOW_CONNECTIONS false`) و خاتمه‌بخشی نشست‌های فعال (`SELECT pg_terminate_backend(...)`).
+   - در صورت شکست هر یک از این عملیات، عملیات بازسازی مخرب دیتابیس (`DROP DATABASE`) اکیداً ادامه نیافته، بازیابی متوقف، وضعیت `FAILED` ثبت و پیش‌پشتیبان امنیتی بدون دستکاری حفظ می‌شود.
+
+3. **حذف قطعی پسوردهای پیش‌فرض و Fallback (Zero Credential Fallback):**
    - هیچ‌گونه Credential پیش‌فرض یا hardcoded در اسکریپت وجود ندارد. مقادیر `POSTGRES_DB`، `POSTGRES_USER` و `POSTGRES_PASSWORD` صرفاً از فایل امن `.env` استخراج می‌شوند.
    - در صورت فقدان یا خالی بودن هر یک از متغیرهای احراز هویت، عملیات پیش از شروع متوقف می‌شود. رمزهای عبور هرگز در گیت، مانیفست، فایل وضعیت یا لاگ ممیزی ثبت نمی‌شوند.
 
-3. **ثبت شناسه واقعی درخواست‌کننده در زنجیره ممیزی (Audit Requester Identity):**
-   - شناسه کاربر مدیر ارشد از لایه رابط کاربری وب (`AdminBackupController` با متد هویتی کاربر جاری) یا خط فرمان CLI (`$SUDO_USER` / `$USER`) از طریق صف و دیمن تا موتور `deploy/restore_instance_data.sh` و لاگ `deploy/backups/restore_audit.jsonl` منتقل می‌شود.
-   - مقدار ثابت `admin` جایگزین شناسه واقعی نمی‌شود مگر آنکه درخواست‌کننده واقعاً حساب کاربری `admin` باشد.
+4. **ثبت شناسه واقعی درخواست‌کننده و حذف کامل Fallback مصنوعی (Real Requester Identity - No Synthetic Admin):**
+   - شناسه حقیقی کاربر مدیر ارشد از لایه رابط کاربری وب (`AdminBackupController` با متد هویتی کاربر جاری Nextcloud UID) یا خط فرمان CLI (`$SUDO_USER` / `$USER`) بدون تغییر تا موتور بازیابی و لاگ ممیزی `deploy/backups/restore_audit.jsonl` منتقل می‌شود.
+   - جایگزینی مصنوعی هویت با `admin` یا fallback پیش‌فرض اکیداً حذف گردیده است. اگر هویت درخواست‌کننده در دسترس نباشد، سیستم Fail-Closed شده و بازیابی آغاز نمی‌شود (`Restore NOT STARTED`, `Audit = FAILED`, reason: `requester identity unavailable`).
 
-4. **دروازه قطعی ارزیابی سلامت پس از بازیابی (Strict Post-Restore Health Gate):**
-   - موفقیت بازیابی داده‌ها منوط به شرط دوگانه است: `Restore Operations Success AND Post-Restore Health Check PASS`.
-   - اجرای `deploy/check_health.sh` ارزیابی نهایی را رقم می‌زند؛ در صورت هرگونه وضعیت ناسالم یا degraded، نتیجه کلی `FAILED` ثبت شده و از ثبت موفقیت کاذب جلوگیری می‌شود.
+5. **مقاوم‌سازی مجوزهای فایل وضعیت (Status File Hardening - Non World-Writable):**
+   - فایل‌های وضعیت سامانه (`deploy/backups/.backup_status.json` و `/tmp/archive_backup_status.json`) دیگر world-writable نیستند (`chmod 0660` با مالکیت گروه `www-data`).
+   - امنیت فایل وضعیت و صف فرمان تضمین شده و کاربران غیرمجاز سیستم‌عامل امکان دستکاری آن را ندارند؛ در عین حال دیمن پس‌زمینه و برنامه وب به صورت کاملاً مجاز دسترسی خواندن و به‌روزرسانی دارند.
 
-5. **اعتبارسنجی قطعی خروج از Maintenance Mode (Verified Maintenance OFF):**
-   - پس از اتمام بازیابی و موفقیت تست سلامت، خروج از حالت تعمیرات (`occ maintenance:mode --off`) اجرا و با استعلام مستقل `occ status` وضعیت `maintenance: false` احراز می‌گردد.
+6. **دروازه قطعی ارزیابی سلامت پیش از خروج از Maintenance Mode (Strict Health Gate BEFORE Maintenance OFF):**
+   - ترتیب قطعی فرآیند بازیابی:
+     ```text
+     DB Restore → DB Validation → Data Restore → Filesystem Validation → DB ↔ Files Validation → Session Handling → Health Check → Maintenance OFF → Verify Maintenance OFF → Audit SUCCESS → Final SUCCESS
+     ```
+   - تا زمانی که ارزیابی سلامت (`deploy/check_health.sh`) با موفقیت قطعی (`PASS`) تکمیل نشده باشد، وضعیت Maintenance Mode **اکیداً باید روشن (ON) باقی بماند**.
+   - در صورت شکست ارزیابی سلامت: بازیابی `FAILED`، لاگ ممیزی `FAILED`، وضعیت `FAILED`، حالت تعمیرات روشن (`Maintenance = ON`) و پیش‌پشتیبان امنیتی حفظ می‌گردد؛ و دستور `Maintenance OFF` به هیچ وجه اجرا نمی‌شود.
+
+7. **اعتبارسنجی قطعی خروج از Maintenance Mode (Verified Maintenance OFF):**
+   - منحصراً پس از احراز کامل سلامت سامانه، خروج از حالت تعمیرات (`occ maintenance:mode --off`) اجرا شده و وضعیت با استعلام مستقل `occ status` جهت احراز `maintenance: false` اعتبارسنجی می‌گردد.
    - در صورت شکست خروج، عملیات `FAILED` تلقی شده و هشدارهای لازم ثبت می‌گردد.
 
-6. **حفاظت ضد CSRF و اعتبارسنجی توکن درخواست (CSRF & Request Token Audit):**
+8. **حفاظت ضد CSRF و اعتبارسنجی توکن درخواست (CSRF & Request Token Audit):**
    - کلیه متدهای حساس و تغییردهنده وضعیت (`runBackup`, `runRestore`, `runTest`, `saveConfig`) در `AdminBackupController` مجهز به اعتبارسنجی توکن امنیتی Nextcloud CSRF (`CsrfTokenManager`) هستند و درخواست‌های تغییر وضعیت بدون توکن معتبر با خطای ۴۰۳ ریجکت می‌شوند.
+
+> [!NOTE]
+> **وضعیت نیازمندی BR-05 (Full Disaster Recovery on Lost Server):**  
+> این قابلیت مربوط به فازهای آتی نقشه راه بوده و در این مرحله **آغاز نشده است (Status: NOT STARTED)**.
 
 ---
 

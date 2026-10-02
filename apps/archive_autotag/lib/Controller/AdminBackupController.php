@@ -340,11 +340,12 @@ class AdminBackupController extends Controller {
             'backup_type' => $backupType,
             'id' => 'req-' . time() . '-' . bin2hex(random_bytes(3)),
             'requested_at' => date('c'),
-            'requested_by' => ($this->userSession->getUser()?->getUID() ?? 'admin'),
+            'requested_by' => $this->userSession->getUser()?->getUID(),
             'status' => 'PENDING',
         ];
 
         file_put_contents($this->queueFile, json_encode($queueData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        @chmod($this->queueFile, 0660);
 
         if ($backupType === 'system_only') {
             $msg = 'درخواست تهیه نسخه پشتیبان سیستم (System Backup) در صف اجرا قرار گرفت...';
@@ -365,6 +366,7 @@ class AdminBackupController extends Controller {
             'message' => $msg,
             'progress' => 15,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        @chmod($this->statusFile, 0660);
 
         return new DataResponse([
             'status' => 'success',
@@ -469,6 +471,7 @@ class AdminBackupController extends Controller {
         ];
 
         file_put_contents($this->queueFile, json_encode($queueData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        @chmod($this->queueFile, 0660);
 
         $msg = $isData
             ? 'فرآیند بازیابی داده‌های عملیاتی آغاز شد. ایجاد و اعتبارسنجی پیش‌پشتیبان امنیتی اضطراری در حال انجام است...'
@@ -482,6 +485,7 @@ class AdminBackupController extends Controller {
             'message' => $msg,
             'progress' => 15,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        @chmod($this->statusFile, 0660);
 
         return new DataResponse([
             'status' => 'success',
@@ -531,6 +535,7 @@ class AdminBackupController extends Controller {
         ];
 
         file_put_contents($this->queueFile, json_encode($queueData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        @chmod($this->queueFile, 0660);
 
         file_put_contents($this->statusFile, json_encode([
             'status' => 'IN_PROGRESS',
@@ -541,6 +546,7 @@ class AdminBackupController extends Controller {
             'progress' => 20,
             'message' => 'آزمون بازیابی در محیط سندباکس در صف اجرا قرار گرفت...',
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        @chmod($this->statusFile, 0660);
 
         return new DataResponse([
             'status' => 'success',
