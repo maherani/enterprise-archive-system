@@ -22,6 +22,7 @@ while true; do
             ACTION=$(python3 -c "import json; q=json.load(open('$QUEUE_FILE')); print(q.get('action', ''))" 2>/dev/null || echo "")
             TARGET=$(python3 -c "import json; q=json.load(open('$QUEUE_FILE')); print(q.get('target', ''))" 2>/dev/null || echo "")
             TASK_ID=$(python3 -c "import json; q=json.load(open('$QUEUE_FILE')); print(q.get('id', ''))" 2>/dev/null || echo "")
+            REQUESTED_BY=$(python3 -c "import json; q=json.load(open('$QUEUE_FILE')); print(q.get('requested_by', 'admin'))" 2>/dev/null || echo "admin")
 
             echo "[DAEMON] Processing task $TASK_ID (Action: $ACTION, Target: $TARGET)..."
 
@@ -198,7 +199,7 @@ with open('$STATUS_FILE', 'w') as f:
 
                 restore_data)
                     echo "[DAEMON] Executing restore_instance_data.sh..."
-                    if "$SCRIPT_DIR/restore_instance_data.sh" ${TARGET:+"$TARGET"} > "$BACKUP_DIR/.restore_data_last_run.log" 2>&1; then
+                    if RESTORE_REQUESTED_BY="$REQUESTED_BY" "$SCRIPT_DIR/restore_instance_data.sh" ${TARGET:+"$TARGET"} > "$BACKUP_DIR/.restore_data_last_run.log" 2>&1; then
                         echo "[DAEMON] Instance data restore completed successfully."
                         python3 -c "
 import json
@@ -231,7 +232,7 @@ with open('$STATUS_FILE', 'w') as f:
                     TARGET_BASENAME="$(basename "${TARGET:-}")"
                     if [[ "$TARGET_BASENAME" == *"instance_data"* ]] || [[ "$TARGET_BASENAME" == *"pre_restore"* ]]; then
                         echo "[DAEMON] Target is instance_data. Executing dedicated restore_instance_data.sh..."
-                        if "$SCRIPT_DIR/restore_instance_data.sh" ${TARGET:+"$TARGET"} > "$BACKUP_DIR/.restore_data_last_run.log" 2>&1; then
+                        if RESTORE_REQUESTED_BY="$REQUESTED_BY" "$SCRIPT_DIR/restore_instance_data.sh" ${TARGET:+"$TARGET"} > "$BACKUP_DIR/.restore_data_last_run.log" 2>&1; then
                             echo "[DAEMON] Instance data restore completed successfully."
                             python3 -c "
 import json
@@ -306,7 +307,7 @@ with open('$STATUS_FILE', 'w') as f:
                 test)
                     echo "[DAEMON] Executing test in sandbox..."
                     TARGET_BASENAME="$(basename "${TARGET:-latest_instance_backup.tar.gz}")"
-                    if [[ "$TARGET_BASENAME" == *"instance_data"* ]] || [[ "$TARGET_BASENAME" == *"backup_data"* ]]; then
+                    if [[ "$TARGET_BASENAME" == *"instance_data"* ]]; then
                         TEST_EXE="$SCRIPT_DIR/test_instance_data_backup.sh"
                         TEST_LOG="$BACKUP_DIR/.test_instance_data_last_run.log"
                     elif [[ "$TARGET_BASENAME" == *"system"* ]]; then

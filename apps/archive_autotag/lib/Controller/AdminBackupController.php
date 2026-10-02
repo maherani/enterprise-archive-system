@@ -65,7 +65,44 @@ class AdminBackupController extends Controller {
         return null;
     }
 
-    /**
+        private function checkRequestToken(): ?DataResponse {
+        $token = (string)($this->request->getHeader('requesttoken') ?: $this->request->getParam('requesttoken', ''));
+        $hasSessionCookies = !empty($this->request->getCookie('nc_session_id')) || !empty($this->request->getCookie('oc_session_id'));
+
+        // If browser session is active, requesttoken header is mandatory
+        if ($hasSessionCookies && empty($token)) {
+            return new DataResponse([
+                'status' => 'error',
+                'code' => 'CSRF_FAILED',
+                'message' => 'توکن امنیتی درخواست (Request Token) ارسال نشده است.',
+            ], Http::STATUS_FORBIDDEN);
+        }
+
+        // If a request token is provided, validate it against Nextcloud CsrfTokenManager
+        if (!empty($token)) {
+            try {
+                /** @var \OC\Security\CSRF\CsrfTokenManager $tokenManager */
+                $tokenManager = \OC::$server->get(\OC\Security\CSRF\CsrfTokenManager::class);
+                if (!$tokenManager->isTokenValid(new \OC\Security\CSRF\CsrfToken($token))) {
+                    return new DataResponse([
+                        'status' => 'error',
+                        'code' => 'CSRF_FAILED',
+                        'message' => 'اعتبارسنجی توکن امنیتی (CSRF Token) با شکست مواجه شد.',
+                    ], Http::STATUS_FORBIDDEN);
+                }
+            } catch (\Throwable $e) {
+                return new DataResponse([
+                    'status' => 'error',
+                    'code' => 'CSRF_FAILED',
+                    'message' => 'خطا در اعتبارسنجی توکن امنیتی.',
+                ], Http::STATUS_FORBIDDEN);
+            }
+        }
+
+        return null;
+    }
+
+/**
 
 
      * @NoAdminRequired
@@ -282,20 +319,15 @@ class AdminBackupController extends Controller {
      * @NoAdminRequired
 
 
-     * @NoCSRFRequired
-
-
      */
 
 
     #[NoAdminRequired]
 
 
-    #[NoCSRFRequired]
-
-
     public function runBackup(): DataResponse {
         if ($res = $this->checkAdmin()) return $res;
+        if ($res = $this->checkRequestToken()) return $res;
 
         $body = $this->request->getParams();
         $backupType = (string)($body['backup_type'] ?? $this->request->getParam('backup_type', 'full_instance'));
@@ -308,7 +340,7 @@ class AdminBackupController extends Controller {
             'backup_type' => $backupType,
             'id' => 'req-' . time() . '-' . bin2hex(random_bytes(3)),
             'requested_at' => date('c'),
-            'requested_by' => $this->userSession->getUser()?->getUID(),
+            'requested_by' => ($this->userSession->getUser()?->getUID() ?? 'admin'),
             'status' => 'PENDING',
         ];
 
@@ -348,20 +380,15 @@ class AdminBackupController extends Controller {
      * @NoAdminRequired
 
 
-     * @NoCSRFRequired
-
-
      */
 
 
     #[NoAdminRequired]
 
 
-    #[NoCSRFRequired]
-
-
     public function runRestore(): DataResponse {
         if ($res = $this->checkAdmin()) return $res;
+        if ($res = $this->checkRequestToken()) return $res;
 
         $body = $this->request->getParams();
         $target = (string)($body['target'] ?? $this->request->getParam('target', ''));
@@ -470,20 +497,15 @@ class AdminBackupController extends Controller {
      * @NoAdminRequired
 
 
-     * @NoCSRFRequired
-
-
      */
 
 
     #[NoAdminRequired]
 
 
-    #[NoCSRFRequired]
-
-
     public function runTest(): DataResponse {
         if ($res = $this->checkAdmin()) return $res;
+        if ($res = $this->checkRequestToken()) return $res;
 
         $body = $this->request->getParams();
         $target = (string)($body['target'] ?? $this->request->getParam('target', ''));
@@ -596,20 +618,15 @@ class AdminBackupController extends Controller {
      * @NoAdminRequired
 
 
-     * @NoCSRFRequired
-
-
      */
 
 
     #[NoAdminRequired]
 
 
-    #[NoCSRFRequired]
-
-
     public function saveConfig(): DataResponse {
         if ($res = $this->checkAdmin()) return $res;
+        if ($res = $this->checkRequestToken()) return $res;
 
         $body = $this->request->getParams();
         $enabled = $body['backup_enabled'] ?? $this->request->getParam('backup_enabled');

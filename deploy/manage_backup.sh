@@ -164,50 +164,55 @@ backup_dir = '$BACKUP_DIR'
 files = sorted(glob.glob(os.path.join(backup_dir, '*.tar.gz')), key=os.path.getmtime, reverse=True)
 
 for f in files:
-    fname = os.path.basename(f)
-    if fname.startswith('latest_'):
-        continue
-    sz = f'{os.path.getsize(f) / (1024*1024):.1f}M'
-    if os.path.getsize(f) < 1024 * 1024:
-        sz = f'{os.path.getsize(f) / 1024:.0f}K'
-    mtime = datetime.datetime.fromtimestamp(os.path.getmtime(f)).strftime('%Y-%m-%d %H:%M:%S')
+    try:
+        if not os.path.exists(f):
+            continue
+        fname = os.path.basename(f)
+        if fname.startswith('latest_'):
+            continue
+        sz = f'{os.path.getsize(f) / (1024*1024):.1f}M'
+        if os.path.getsize(f) < 1024 * 1024:
+            sz = f'{os.path.getsize(f) / 1024:.0f}K'
+        mtime = datetime.datetime.fromtimestamp(os.path.getmtime(f)).strftime('%Y-%m-%d %H:%M:%S')
+        
+        btype = 'full_instance'
+        baseline_info = '-'
+        if 'system' in fname:
+            btype = 'system_only'
+            try:
+                with tarfile.open(f, 'r:gz') as t:
+                    for m in t.getmembers():
+                        if m.name.endswith('manifest.json'):
+                            mf = json.load(t.extractfile(m))
+                            baseline_info = mf.get('software_baseline', {}).get('git_commit', '')[:8]
+                            break
+            except Exception:
+                pass
+        elif 'instance_data' in fname or 'data' in fname:
+            btype = 'instance_data'
+            if 'pre_restore' in fname:
+                btype = 'pre_restore'
+            try:
+                with tarfile.open(f, 'r:gz') as t:
+                    for m in t.getmembers():
+                        if m.name.endswith('manifest.json'):
+                            mf = json.load(t.extractfile(m))
+                            b = mf.get('system_baseline', {})
+                            sys_id = b.get('system_backup_id', '')
+                            commit = b.get('git_commit', '')[:8]
+                            if sys_id:
+                                baseline_info = sys_id[:16]
+                            elif commit:
+                                baseline_info = commit
+                            break
+            except Exception:
+                pass
     
-    btype = 'full_instance'
-    baseline_info = '-'
-    if 'system' in fname:
-        btype = 'system_only'
-        try:
-            with tarfile.open(f, 'r:gz') as t:
-                for m in t.getmembers():
-                    if m.name.endswith('manifest.json'):
-                        mf = json.load(t.extractfile(m))
-                        baseline_info = mf.get('software_baseline', {}).get('git_commit', '')[:8]
-                        break
-        except Exception:
-            pass
-    elif 'instance_data' in fname or 'data' in fname:
-        btype = 'instance_data'
-        if 'pre_restore' in fname:
-            btype = 'pre_restore'
-        try:
-            with tarfile.open(f, 'r:gz') as t:
-                for m in t.getmembers():
-                    if m.name.endswith('manifest.json'):
-                        mf = json.load(t.extractfile(m))
-                        b = mf.get('system_baseline', {})
-                        sys_id = b.get('system_backup_id', '')
-                        commit = b.get('git_commit', '')[:8]
-                        if sys_id:
-                            baseline_info = sys_id[:16]
-                        elif commit:
-                            baseline_info = commit
-                        break
-        except Exception:
-            pass
-
-    sha_file = f + '.sha256'
-    sha_status = '[OK] Verified' if os.path.exists(sha_file) else '[No Hash]'
-    print(f'{fname:<42}  {btype:<15}  {baseline_info:<16}  {mtime:<19}  {sz:<8}  {sha_status:<15}')
+        sha_file = f + '.sha256'
+        sha_status = '[OK] Verified' if os.path.exists(sha_file) else '[No Hash]'
+        print(f'{fname:<42}  {btype:<15}  {baseline_info:<16}  {mtime:<19}  {sz:<8}  {sha_status:<15}')
+    except Exception:
+        continue
 "
         echo "=============================================================================================================================="
         ;;
@@ -258,7 +263,8 @@ for f in files:
         echo "================================================================================"
         read -r -p "Type 'RESTORE-CONFIRM' to proceed: " confirm
         if [ "$confirm" = "RESTORE-CONFIRM" ]; then
-            "$SCRIPT_DIR/restore_instance_data.sh" "$target"
+            CLI_REQUESTER="${RESTORE_REQUESTED_BY:-cli:${SUDO_USER:-${USER:-admin}}}"
+            RESTORE_REQUESTED_BY="$CLI_REQUESTER" "$SCRIPT_DIR/restore_instance_data.sh" "$target"
         else
             echo "[ABORTED] Production restore cancelled. Input did not match 'RESTORE-CONFIRM'."
             exit 1
@@ -303,7 +309,7 @@ for f in files:
             target="$BACKUP_DIR/$target"
         fi
         target_base="$(basename "${target:-}")"
-        if [ -n "$target" ] && ([[ "$target_base" == *"instance_data"* ]] || [[ "$target_base" == *"backup_data"* ]]); then
+        if [ -n "$target" ] && [[ "$target_base" == *"instance_data"* ]]; then
             "$SCRIPT_DIR/test_instance_data_backup.sh" "$target"
         elif [ -n "$target" ] && [[ "$target_base" == *"system"* ]]; then
             "$SCRIPT_DIR/test_system_backup.sh" "$target"

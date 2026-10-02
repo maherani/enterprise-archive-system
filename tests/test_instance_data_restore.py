@@ -91,6 +91,10 @@ def get_config_identity():
 
 class TestInstanceDataRestore(unittest.TestCase):
 
+    def tearDown(self):
+        # Guarantee maintenance mode is always OFF after each test
+        subprocess.run(["docker", "exec", "archive_app", "php", "occ", "maintenance:mode", "--off"], capture_output=True)
+
     @classmethod
     def setUpClass(cls):
         # Ensure a clean base instance_data backup exists
@@ -282,6 +286,12 @@ class TestInstanceDataRestore(unittest.TestCase):
         config_before = get_config_identity()
         self.assertTrue(bool(config_before.get("instanceid")), "Failed to read initial config identity")
 
+        # Step 1.5: Clean residual test files from any prior runs
+        subprocess.run([
+            "docker", "exec", "archive_app", "bash", "-c",
+            "rm -f /var/www/html/data/test_user_a/files/Doc_*.txt && php occ files:scan test_user_a >/dev/null 2>&1"
+        ])
+
         # Step 2: Create Doc A and Doc B
         subprocess.run([
             "docker", "exec", "archive_app", "bash", "-c",
@@ -388,6 +398,145 @@ class TestInstanceDataRestore(unittest.TestCase):
         )
         self.assertNotEqual(res.returncode, 0, "CLI must reject invalid confirmation")
         self.assertIn("ABORTED", res.stdout + res.stderr)
+
+
+    def test_13_hardening_failure_injection_maintenance_on_failure(self):
+        """Failure Injection I: Maintenance ON failure -> Restore NOT STARTED, fail-closed."""
+        env = os.environ.copy()
+        env["TEST_SIMULATE_MAINT_ON_FAIL"] = "1"
+        res = subprocess.run(
+            [f"{DEPLOY_DIR}/restore_instance_data.sh", "latest_instance_data_backup.tar.gz"],
+            cwd=REPO_DIR, env=env, capture_output=True, text=True
+        )
+        self.assertNotEqual(res.returncode, 0, "Restore must fail-closed if maintenance activation fails")
+        self.assertIn("Failed to activate maintenance mode", res.stdout + res.stderr)
+
+        # Verify audit log
+        audit_file = os.path.join(BACKUP_DIR, "restore_audit.jsonl")
+        self.assertTrue(os.path.exists(audit_file))
+        with open(audit_file, "r") as f:
+            last = json.loads(f.readlines()[-1])
+        self.assertEqual(last.get("result"), "FAILED")
+        self.assertEqual(last.get("failure_reason"), "Failed to activate maintenance mode")
+
+        # Verify status file
+        status_file = "/tmp/archive_backup_status.json"
+        if os.path.exists(status_file):
+            with open(status_file, "r") as f:
+                st = json.load(f)
+            self.assertEqual(st.get("status"), "FAILED")
+
+    def test_14_hardening_failure_injection_missing_postgres_password(self):
+        """Failure Injection J: Missing POSTGRES_PASSWORD -> Restore NOT STARTED, no hardcoded password."""
+        dummy_env = "/tmp/test_dummy_missing_pw.env"
+        with open(dummy_env, "w") as f:
+            f.write("POSTGRES_DB=nextcloud\nPOSTGRES_USER=nextcloud_user\nPOSTGRES_PASSWORD=\n")
+        try:
+            env = os.environ.copy()
+            env["RESTORE_ENV_FILE"] = dummy_env
+            res = subprocess.run(
+                [f"{DEPLOY_DIR}/restore_instance_data.sh", "latest_instance_data_backup.tar.gz"],
+                cwd=REPO_DIR, env=env, capture_output=True, text=True
+            )
+            self.assertEqual(res.returncode, 1, "Restore must abort with missing password")
+            self.assertIn("Missing database credentials in environment or .env file", res.stderr)
+        finally:
+            if os.path.exists(dummy_env):
+                os.remove(dummy_env)
+
+    def test_15_hardening_failure_injection_degraded_health(self):
+        """Failure Injection K: Post-restore health check fails -> SUCCESS must NOT be recorded."""
+        env = os.environ.copy()
+        env["TEST_SIMULATE_HEALTH_FAIL"] = "1"
+        res = subprocess.run(
+            [f"{DEPLOY_DIR}/restore_instance_data.sh", "latest_instance_data_backup.tar.gz"],
+            cwd=REPO_DIR, env=env, capture_output=True, text=True
+        )
+        self.assertNotEqual(res.returncode, 0, "Restore must fail if post-restore health check fails")
+        self.assertIn("Post-Restore Health Check FAILED", res.stdout + res.stderr)
+
+        # Verify audit log recorded FAILED, NOT SUCCESS
+        audit_file = os.path.join(BACKUP_DIR, "restore_audit.jsonl")
+        with open(audit_file, "r") as f:
+            last = json.loads(f.readlines()[-1])
+        self.assertEqual(last.get("result"), "FAILED")
+        self.assertEqual(last.get("failure_reason"), "Post-restore health check gate failed")
+
+    def test_16_hardening_failure_injection_maintenance_off_failure(self):
+        """Failure Injection L: Maintenance OFF fails -> Final result != SUCCESS."""
+        env = os.environ.copy()
+        env["TEST_SIMULATE_MAINT_OFF_FAIL"] = "1"
+        try:
+            res = subprocess.run(
+                [f"{DEPLOY_DIR}/restore_instance_data.sh", "latest_instance_data_backup.tar.gz"],
+                cwd=REPO_DIR, env=env, capture_output=True, text=True
+            )
+            self.assertNotEqual(res.returncode, 0, "Restore must fail if maintenance mode cannot be turned off")
+            out = res.stdout + res.stderr
+            self.assertTrue(
+                "Failed to execute 'occ maintenance:mode --off'" in out or "Failed to disable maintenance mode" in out,
+                f"Expected maintenance off failure message in output, got: {out}"
+            )
+
+            # Verify audit log
+            audit_file = os.path.join(BACKUP_DIR, "restore_audit.jsonl")
+            with open(audit_file, "r") as f:
+                last = json.loads(f.readlines()[-1])
+            self.assertEqual(last.get("result"), "FAILED")
+            self.assertEqual(last.get("failure_reason"), "Failed to disable maintenance mode")
+        finally:
+            # Cleanup: Ensure maintenance mode is off on the live container
+            subprocess.run(["docker", "exec", "archive_app", "php", "occ", "maintenance:mode", "--off"], capture_output=True)
+
+    def test_17_hardening_request_token_validation(self):
+        """Failure Injection M: Invalid / Missing Request Token rejected (403), valid UI token accepted."""
+        url_restore = f"{BASE_URL}/restore/run"
+        url_backup = f"{BASE_URL}/backup/run"
+
+        # 1. State-changing request with invalid requesttoken header -> 403 Forbidden CSRF_FAILED
+        bad_headers = dict(HEADERS)
+        bad_headers["requesttoken"] = "invalid_csrf_token_value_98765"
+        res_bad_tok = requests.post(url_restore, auth=admin_auth, headers=bad_headers, json={
+            "target": "latest_instance_data_backup.tar.gz",
+            "confirmation": "RESTORE-CONFIRM"
+        })
+        self.assertEqual(res_bad_tok.status_code, 403, "Invalid request token must be rejected with 403")
+        self.assertEqual(res_bad_tok.json().get("code"), "CSRF_FAILED")
+
+        # 2. State-changing request from session with cookies without requesttoken -> 403 Forbidden
+        cookie_headers = dict(HEADERS)
+        res_no_tok = requests.post(
+            url_backup, auth=admin_auth, headers=cookie_headers,
+            cookies={"nc_session_id": "fake_browser_session_123"},
+            json={"backup_type": "instance_data"}
+        )
+        self.assertEqual(res_no_tok.status_code, 403, "Browser session without requesttoken must be rejected")
+        self.assertEqual(res_no_tok.json().get("code"), "CSRF_FAILED")
+
+        # 3. GET read-only requests without token remain accessible
+        res_status = requests.get(f"{BASE_URL}/backup/status", auth=admin_auth, headers=HEADERS)
+        self.assertEqual(res_status.status_code, 200)
+
+        res_list = requests.get(f"{BASE_URL}/backup/list", auth=admin_auth, headers=HEADERS)
+        self.assertEqual(res_list.status_code, 200)
+
+    def test_18_hardening_audit_requester_identity(self):
+        """Failure Injection N: Audit log records actual requesting administrator identity."""
+        test_requester = "enterprise_secadmin_test"
+        env = os.environ.copy()
+        env["RESTORE_REQUESTED_BY"] = test_requester
+        env["TEST_SIMULATE_MAINT_ON_FAIL"] = "1"  # fast fail-closed test
+        res = subprocess.run(
+            [f"{DEPLOY_DIR}/restore_instance_data.sh", "latest_instance_data_backup.tar.gz"],
+            cwd=REPO_DIR, env=env, capture_output=True, text=True
+        )
+        self.assertNotEqual(res.returncode, 0)
+
+        audit_file = os.path.join(BACKUP_DIR, "restore_audit.jsonl")
+        with open(audit_file, "r") as f:
+            last = json.loads(f.readlines()[-1])
+        self.assertEqual(last.get("requested_by"), test_requester, "Audit log must record the exact requesting admin user")
+        self.assertNotEqual(last.get("requested_by"), "admin", "Audit log must not be hardcoded to 'admin' when specified")
 
 
 if __name__ == "__main__":

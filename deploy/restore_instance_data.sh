@@ -23,9 +23,25 @@ BACKUP_DIR="${SCRIPT_DIR}/backups"
 STATUS_FILE="/tmp/archive_backup_status.json"
 LOCK_FILE="${BACKUP_DIR}/.archive_restore.lock"
 AUDIT_LOG="${BACKUP_DIR}/restore_audit.jsonl"
-POSTGRES_USER="nextcloud_user"
-POSTGRES_DB="nextcloud"
-POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-Secure_DB_Password_123!}"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ENV_FILE="${RESTORE_ENV_FILE:-$ROOT_DIR/.env}"
+
+if [ ! -f "$ENV_FILE" ]; then
+    echo "[ERROR] .env file not found at $ENV_FILE" >&2
+    exit 1
+fi
+
+set -a
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+set +a
+
+if [ -z "${POSTGRES_DB:-}" ] || [ -z "${POSTGRES_USER:-}" ] || [ -z "${POSTGRES_PASSWORD:-}" ]; then
+    echo "[ERROR] Missing database credentials in environment or .env file (POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD must all be defined and non-empty)." >&2
+    exit 1
+fi
+
+REQUESTED_BY="${RESTORE_REQUESTED_BY:-${2:-cli:${USER:-admin}}}"
 
 mkdir -p "$BACKUP_DIR"
 
@@ -47,6 +63,8 @@ for p in ['$STATUS_FILE', '${BACKUP_DIR}/.backup_status.json']:
     try:
         with open(p, 'w') as f:
             json.dump(data, f, indent=2)
+        import os
+        os.chmod(p, 0o666)
     except Exception:
         pass
 " 2>/dev/null || true
@@ -61,11 +79,12 @@ record_audit() {
     local completed_at="$6"
     local result="$7"
     local reason="$8"
+    local requester="${9:-$REQUESTED_BY}"
 
     python3 -c "
 import json, time
 entry = {
-    'requested_by': 'admin',
+    'requested_by': '$requester',
     'requested_at': '$started_at',
     'backup_id': '$backup_id',
     'backup_type': 'instance_data',
@@ -333,13 +352,27 @@ fi
 echo "  [OK] Pre-Restore Safety Backup verified valid and recoverable."
 
 # ==============================================================================
-# Stage 5: Enter Maintenance Mode
+# Stage 5: Enter Maintenance Mode (Fail-Closed)
 # ==============================================================================
 echo ""
 echo "[INFO] [5/9] Entering Maintenance Mode..."
 update_status "IN_PROGRESS" 50 "مرحله ۵/۹: فعال‌سازی حالت تعمیرات (Maintenance Mode) سامانه..."
 
-docker exec archive_app php occ maintenance:mode --on > /dev/null 2>&1 || true
+if [ "${TEST_SIMULATE_MAINT_ON_FAIL:-0}" = "1" ] || ! docker exec archive_app php occ maintenance:mode --on > /dev/null 2>&1; then
+    echo "[ERROR] Failed to activate maintenance mode on archive_app." >&2
+    update_status "FAILED" 50 "خطا: فعال‌سازی حالت تعمیرات (Maintenance Mode) با شکست مواجه شد."
+    record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "FAILED" "Failed to activate maintenance mode" "$REQUESTED_BY"
+    exit 1
+fi
+
+MAINT_ON_VERIFY=$(docker exec archive_app php occ status 2>/dev/null | grep -i "maintenance:" | awk '{print $NF}' || echo "unknown")
+if [ "$MAINT_ON_VERIFY" != "true" ]; then
+    echo "[ERROR] Maintenance mode verification failed: status is '$MAINT_ON_VERIFY', expected 'true'." >&2
+    update_status "FAILED" 50 "خطا: وضعیت حالت تعمیرات تایید نشد. عملیات بازیابی لغو گردید."
+    record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "FAILED" "Maintenance mode verification failed: $MAINT_ON_VERIFY" "$REQUESTED_BY"
+    exit 1
+fi
+echo "  [OK] Maintenance mode successfully activated and verified (status: true)."
 
 # Define failure trap that keeps system protected and notifies operator
 on_restore_failure() {
@@ -368,12 +401,14 @@ update_status "IN_PROGRESS" 60 "مرحله ۶/۹: بازیابی دقیق پای
 
 DB_SQL_FILE="${COMPONENT_DIR}/database.sql"
 
-# Terminate active client connections to nextcloud database
+# Disallow new connections and terminate active connections to prevent drop failure
+docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -U "$POSTGRES_USER" -d postgres -c \
+    "ALTER DATABASE $POSTGRES_DB WITH ALLOW_CONNECTIONS false;" > /dev/null 2>&1 || true
 docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -U "$POSTGRES_USER" -d postgres -c \
     "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$POSTGRES_DB' AND pid <> pg_backend_pid();" > /dev/null 2>&1 || true
 
-# Recreate database cleanly
-docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS $POSTGRES_DB;" > /dev/null
+# Recreate database cleanly with FORCE to guarantee clean drop
+docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS $POSTGRES_DB WITH (FORCE);" > /dev/null
 docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE $POSTGRES_DB OWNER $POSTGRES_USER;" > /dev/null
 
 # Restore SQL dump with ON_ERROR_STOP=1
@@ -509,26 +544,50 @@ fi
 echo "  [OK] DB <-> Files consistency verified."
 
 # ==============================================================================
-# Stage 9: Service Recovery & Final Post-Restore Health Check
+# Stage 9: Service Recovery & Final Post-Restore Health Check Gate
 # ==============================================================================
 echo ""
-echo "[INFO] [9/9] Returning Service to Normal and Running Health Check..."
-update_status "IN_PROGRESS" 95 "مرحله ۹/۹: غیرفعال‌سازی حالت تعمیرات و بررسی سلامت نهایی..."
+echo "[INFO] [9/9] Returning Service to Normal and Running Health Check Gate..."
+update_status "IN_PROGRESS" 92 "مرحله ۹/۹: غیرفعال‌سازی حالت تعمیرات و بررسی سلامت نهایی..."
 
 # Turn maintenance mode OFF
-docker exec archive_app php occ maintenance:mode --off > /dev/null
+if [ "${TEST_SIMULATE_MAINT_OFF_FAIL:-0}" = "1" ] || ! docker exec archive_app php occ maintenance:mode --off > /dev/null 2>&1; then
+    echo "[ERROR] Failed to execute 'occ maintenance:mode --off' command!" >&2
+    RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    update_status "FAILED" 92 "خطا: غیرفعال‌سازی حالت تعمیرات با شکست مواجه شد."
+    record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$RESTORE_END_TIME" "FAILED" "Failed to disable maintenance mode" "$REQUESTED_BY"
+    exit 1
+fi
+
+# Verify Maintenance OFF
+MAINT_OFF_VERIFY=$(docker exec archive_app php occ status 2>/dev/null | grep -i "maintenance:" | awk '{print $NF}' || echo "unknown")
+if [ "$MAINT_OFF_VERIFY" != "false" ]; then
+    echo "[ERROR] Verification failed: Maintenance mode is still ACTIVE (status: $MAINT_OFF_VERIFY)!" >&2
+    RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    update_status "FAILED" 92 "خطا: حالت تعمیرات همچنان فعال است و خاموش نشد."
+    record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$RESTORE_END_TIME" "FAILED" "Maintenance mode still active after restore: $MAINT_OFF_VERIFY" "$REQUESTED_BY"
+    exit 1
+fi
+echo "  [OK] Maintenance mode successfully disabled and verified (status: false)."
 
 # Reset trap
 trap cleanup EXIT
 
-# Run check_health.sh
-HEALTH_STATUS=$("${SCRIPT_DIR}/check_health.sh" 2>&1 || true)
-if echo "$HEALTH_STATUS" | grep -q "System is degraded or unhealthy"; then
-    echo "[WARNING] Health check reported degraded state, verifying core endpoints..."
+# Post-Restore Health Check Gate (Strict Gate)
+echo "[INFO] Executing comprehensive post-restore health check gate..."
+update_status "IN_PROGRESS" 96 "مرحله ۹/۹: اجرای گیت بررسی جامع سلامت سامانه..."
+
+if [ "${TEST_SIMULATE_HEALTH_FAIL:-0}" = "1" ] || ! "${SCRIPT_DIR}/check_health.sh" > "${BACKUP_DIR}/.restore_health_check.log" 2>&1; then
+    echo "[ERROR] Post-Restore Health Check FAILED! System reported degraded or unhealthy state." >&2
+    RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    update_status "FAILED" 96 "خطا: آزمون سلامت سامانه پس از بازیابی با شکست مواجه شد."
+    record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$RESTORE_END_TIME" "FAILED" "Post-restore health check gate failed" "$REQUESTED_BY"
+    exit 1
 fi
+echo "  [OK] Post-restore health check passed with 100% healthy status."
 
 RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$RESTORE_END_TIME" "SUCCESS" "None"
+record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$RESTORE_END_TIME" "SUCCESS" "None" "$REQUESTED_BY"
 
 update_status "SUCCESS" 100 "عملیات بازیابی داده‌های عملیاتی با موفقیت کامل انجام شد."
 
@@ -537,6 +596,7 @@ echo "======================================================================"
 echo " [SUCCESS] BR-04 Production Instance Data Restore Completed!"
 echo " Target Recovery Point: $TARGET_RECOVERY_POINT"
 echo " Pre-Restore Safety Backup: $PRE_RESTORE_BACKUP_ID"
+echo " Requester: $REQUESTED_BY"
 echo " Audit Log: $AUDIT_LOG"
 echo "======================================================================"
 exit 0
