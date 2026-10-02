@@ -37,9 +37,11 @@ class TestSystemDeploymentAndRecoveryRunbook(unittest.TestCase):
             "deploy_from_scratch.sh",
             "restore_db.sh",
             "backup_db.sh",
+            "backup_system.sh",
             "check_health.sh",
             "manage_backup.sh",
-            "backup_daemon.sh"
+            "backup_daemon.sh",
+            "test_system_backup.sh"
         ]
         for script in scripts:
             path = os.path.join(DEPLOY_DIR, script)

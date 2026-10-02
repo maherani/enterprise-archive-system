@@ -5876,7 +5876,8 @@
         html.push('  <div style="font-weight:bold;font-size:1rem;color:var(--ea-text-main);">فهرست نسخه‌های پشتیبان معتبر پایگاه داده و فایل‌ها</div>');
         html.push('  <div style="display:flex;gap:10px;">');
         html.push('    <button id="ea-backup-refresh-btn" class="ea-btn ea-btn-sm" title="بازخوانی لیست">🔄 بازخوانی</button>');
-        html.push('    <button id="ea-backup-run-instant-btn" class="ea-btn ea-btn-primary ea-btn-sm" ' + (isTaskRunning ? 'disabled' : '') + ' style="background:#4f46e5;">⚡ تهیه فوری نسخه پشتیبان (Run Backup)</button>');
+        html.push('    <button id="ea-backup-run-system-btn" class="ea-btn ea-btn-sm" ' + (isTaskRunning ? 'disabled' : '') + ' style="background:#6366f1;color:#fff;border-color:#4f46e5;" title="پشتیبان مستقل از داده: کدهای برنامه، کانفیگ، کلیدها - فاقد دیتابیس و اسناد">💻 تهیه پشتیبان سیستم (System Backup)</button>');
+        html.push('    <button id="ea-backup-run-instant-btn" class="ea-btn ea-btn-primary ea-btn-sm" ' + (isTaskRunning ? 'disabled' : '') + ' style="background:#059669;border-color:#047857;" title="پشتیبان جامع Disaster Recovery: شامل کل دیتابیس، اسناد و کانفیگ">📦 تهیه پشتیبان جامع (Full Instance Backup)</button>');
         html.push('  </div>');
         html.push('</div>');
 
@@ -5899,21 +5900,23 @@
             html.push('<div style="border:1px solid var(--ea-border);border-radius:8px;background:var(--ea-surface-card);overflow:hidden;">');
             html.push('  <table class="ea-table" style="width:100%;border-collapse:collapse;table-layout:fixed;text-align:right;">');
             html.push('    <colgroup>');
-            html.push('      <col style="width:28%;">');
-            html.push('      <col style="width:16%;">');
-            html.push('      <col style="width:9%;">');
+            html.push('      <col style="width:26%;">');
             html.push('      <col style="width:13%;">');
-            html.push('      <col style="width:16%;">');
-            html.push('      <col style="width:18%;">');
+            html.push('      <col style="width:14%;">');
+            html.push('      <col style="width:8%;">');
+            html.push('      <col style="width:12%;">');
+            html.push('      <col style="width:12%;">');
+            html.push('      <col style="width:15%;">');
             html.push('    </colgroup>');
             html.push('    <thead>');
             html.push('      <tr style="border-bottom:1px solid var(--ea-border);background:rgba(255,255,255,0.02);">');
             html.push('        <th style="padding:10px 12px;font-size:0.83rem;">نام فایل آرشیو</th>');
-            html.push('        <th style="padding:10px 12px;font-size:0.83rem;text-align:center;">تاریخ ایجاد</th>');
-            html.push('        <th style="padding:10px 12px;font-size:0.83rem;text-align:center;">حجم</th>');
-            html.push('        <th style="padding:10px 12px;font-size:0.83rem;text-align:center;">صحت هش SHA-256</th>');
-            html.push('        <th style="padding:10px 12px;font-size:0.83rem;text-align:center;">آزمون سندباکس</th>');
-            html.push('        <th style="padding:10px 12px;font-size:0.83rem;text-align:center;">عملیات</th>');
+            html.push('        <th style="padding:10px 8px;font-size:0.83rem;text-align:center;">نوع پشتیبان</th>');
+            html.push('        <th style="padding:10px 10px;font-size:0.83rem;text-align:center;">تاریخ ایجاد</th>');
+            html.push('        <th style="padding:10px 8px;font-size:0.83rem;text-align:center;">حجم</th>');
+            html.push('        <th style="padding:10px 8px;font-size:0.83rem;text-align:center;">صحت هش SHA-256</th>');
+            html.push('        <th style="padding:10px 8px;font-size:0.83rem;text-align:center;">آزمون سلامت</th>');
+            html.push('        <th style="padding:10px 8px;font-size:0.83rem;text-align:center;">عملیات</th>');
             html.push('      </tr>');
             html.push('    </thead>');
             html.push('    <tbody>');
@@ -5932,6 +5935,15 @@
 
                 var downloadUrl = '/index.php/apps/archive_autotag/api/admin/backup/download?filename=' + encodeURIComponent(b.filename);
 
+                var isSys = (b.type === 'system_only');
+                var typeBadge = isSys
+                    ? '<span style="background:rgba(99,102,241,0.18);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);padding:2px 6px;border-radius:4px;font-size:0.75rem;font-weight:600;" title="پشتیبان مستقل از داده: کدهای برنامه، کانفیگ، کلیدها">💻 سیستم</span>'
+                    : '<span style="background:rgba(16,185,129,0.18);color:#6ee7b7;border:1px solid rgba(16,185,129,0.35);padding:2px 6px;border-radius:4px;font-size:0.75rem;font-weight:600;" title="پشتیبان جامع سازمانی: دیتابیس، اسناد، کانفیگ">📦 جامع</span>';
+
+                var restoreBtn = isSys
+                    ? '<button class="ea-btn ea-btn-sm" disabled style="opacity:0.4;cursor:not-allowed;color:var(--ea-text-muted);" title="بازیابی اختصاصی System Backup در فاز بعدی فعال می‌شود (BR-01)">⚠️ بازیابی</button>'
+                    : '<button class="ea-btn ea-btn-sm ea-btn-restore-prod" data-file="' + escapeHtml(b.filename) + '" ' + (isTaskRunning ? 'disabled' : '') + ' style="color:#ef4444;border-color:rgba(239,68,68,0.4);" title="بازیابی کامل سامانه از این نسخه">⚠️ بازیابی</button>';
+
                 html.push('      <tr style="border-bottom:1px solid var(--ea-border-light, rgba(255,255,255,0.05));">');
                 html.push('        <td style="padding:8px 12px;font-family:monospace;font-size:0.83rem;direction:ltr;text-align:left;overflow:hidden;">');
                 html.push('          <div style="font-weight:bold;color:var(--ea-text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeHtml(b.filename) + '">' + escapeHtml(b.filename) + '</div>');
@@ -5939,6 +5951,7 @@
                     html.push('          <div style="font-size:0.72rem;color:var(--ea-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeHtml(b.sha256) + '">هش: ' + escapeHtml(b.sha256.substring(0, 16)) + '...</div>');
                 }
                 html.push('        </td>');
+                html.push('        <td style="padding:8px 8px;text-align:center;white-space:nowrap;">' + typeBadge + '</td>');
                 html.push('        <td style="padding:8px 10px;font-size:0.82rem;white-space:nowrap;direction:ltr;text-align:center;color:var(--ea-text-muted);">' + escapeHtml(b.mtime_iso ? b.mtime_iso.replace('T', ' ').substring(0, 19) : '-') + '</td>');
                 html.push('        <td style="padding:8px 8px;font-size:0.82rem;font-family:monospace;direction:ltr;text-align:center;font-weight:600;">' + escapeHtml(b.size_human || '-') + '</td>');
                 html.push('        <td style="padding:8px 8px;text-align:center;white-space:nowrap;">' + shaBadge + '</td>');
@@ -5947,7 +5960,7 @@
                 html.push('          <div style="display:inline-flex;gap:4px;align-items:center;justify-content:center;">');
                 html.push('            <a href="' + downloadUrl + '" class="ea-btn ea-btn-sm"  title="دانلود فایل آرشیو">📥 دریافت</a>');
                 html.push('            <button class="ea-btn ea-btn-sm ea-btn-test-sandbox" data-file="' + escapeHtml(b.filename) + '" ' + (isTaskRunning ? 'disabled' : '') + ' style="border-color:rgba(99,102,241,0.4);color:#818cf8;" title="تست بازیابی ایزوله در سندباکس موقت بدون دستکاری داده‌های اصلی">🧪 تست</button>');
-                html.push('            <button class="ea-btn ea-btn-sm ea-btn-restore-prod" data-file="' + escapeHtml(b.filename) + '" ' + (isTaskRunning ? 'disabled' : '') + ' style="color:#ef4444;border-color:rgba(239,68,68,0.4);" title="بازیابی کامل سامانه از این نسخه">⚠️ بازیابی</button>');
+                html.push('            ' + restoreBtn);
                 html.push('          </div>');
                 html.push('        </td>');
                 html.push('      </tr>');
@@ -5963,6 +5976,9 @@
         // Wire event handlers
         var refreshBtn = document.getElementById('ea-backup-refresh-btn');
         if (refreshBtn) refreshBtn.onclick = function () { loadBackupOverview(); };
+
+        var systemBtn = document.getElementById('ea-backup-run-system-btn');
+        if (systemBtn) systemBtn.onclick = function () { triggerSystemBackup(); };
 
         var instantBtn = document.getElementById('ea-backup-run-instant-btn');
         if (instantBtn) instantBtn.onclick = function () { triggerInstantBackup(); };

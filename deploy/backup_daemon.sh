@@ -38,11 +38,73 @@ with open('$STATUS_FILE', 'w') as f:
 "
 
             case "$ACTION" in
-                backup)
-                    echo "[DAEMON] Executing backup_db.sh..."
-                    if "$SCRIPT_DIR/backup_db.sh" > "$BACKUP_DIR/.backup_last_run.log" 2>&1; then
-                        echo "[DAEMON] Backup completed successfully."
+                backup_system)
+                    echo "[DAEMON] Executing backup_system.sh..."
+                    if "$SCRIPT_DIR/backup_system.sh" > "$BACKUP_DIR/.backup_sys_last_run.log" 2>&1; then
+                        echo "[DAEMON] System backup completed successfully."
                         python3 -c "
+import json
+with open('$STATUS_FILE', 'w') as f:
+    json.dump({
+        'status': 'SUCCESS',
+        'action': 'backup_system',
+        'task_id': '$TASK_ID',
+        'progress': 100,
+        'message': 'پشتیبان‌گیری سیستم با موفقیت تکمیل گردید.'
+    }, f, indent=2)
+"
+                    else
+                        echo "[DAEMON] System backup failed!"
+                        python3 -c "
+import json
+with open('$STATUS_FILE', 'w') as f:
+    json.dump({
+        'status': 'FAILED',
+        'action': 'backup_system',
+        'task_id': '$TASK_ID',
+        'progress': 0,
+        'message': 'خطا در اجرای پشتیبان‌گیری سیستم.'
+    }, f, indent=2)
+"
+                    fi
+                    ;;
+
+                backup)
+                    BACKUP_TYPE=$(python3 -c "import json; q=json.load(open('$QUEUE_FILE')); print(q.get('backup_type', 'full_instance'))" 2>/dev/null || echo "full_instance")
+                    if [ "$BACKUP_TYPE" = "system_only" ]; then
+                        echo "[DAEMON] Executing backup_system.sh..."
+                        if "$SCRIPT_DIR/backup_system.sh" > "$BACKUP_DIR/.backup_sys_last_run.log" 2>&1; then
+                            echo "[DAEMON] System backup completed successfully."
+                            python3 -c "
+import json
+with open('$STATUS_FILE', 'w') as f:
+    json.dump({
+        'status': 'SUCCESS',
+        'action': 'backup_system',
+        'task_id': '$TASK_ID',
+        'progress': 100,
+        'message': 'پشتیبان‌گیری سیستم با موفقیت تکمیل گردید.'
+    }, f, indent=2)
+"
+                        else
+                            echo "[DAEMON] System backup failed!"
+                            python3 -c "
+import json
+with open('$STATUS_FILE', 'w') as f:
+    json.dump({
+        'status': 'FAILED',
+        'action': 'backup_system',
+        'task_id': '$TASK_ID',
+        'progress': 0,
+        'message': 'خطا در اجرای پشتیبان‌گیری سیستم.'
+    }, f, indent=2)
+"
+                        fi
+                    else
+                        echo "[DAEMON] Executing backup_db.sh..."
+                        if "$SCRIPT_DIR/backup_db.sh" > "$BACKUP_DIR/.backup_last_run.log" 2>&1; then
+                            echo "[DAEMON] Backup completed successfully."
+                            python3 -c "
 import json
 with open('$STATUS_FILE', 'w') as f:
     json.dump({
@@ -53,9 +115,9 @@ with open('$STATUS_FILE', 'w') as f:
         'message': 'پشتیبان‌گیری با موفقیت تکمیل گردید.'
     }, f, indent=2)
 "
-                    else
-                        echo "[DAEMON] Backup failed!"
-                        python3 -c "
+                        else
+                            echo "[DAEMON] Backup failed!"
+                            python3 -c "
 import json
 with open('$STATUS_FILE', 'w') as f:
     json.dump({
@@ -66,6 +128,7 @@ with open('$STATUS_FILE', 'w') as f:
         'message': 'خطا در اجرای پشتیبان‌گیری. لاگ سیستم را بررسی کنید.'
     }, f, indent=2)
 "
+                        fi
                     fi
                     ;;
 
@@ -103,7 +166,12 @@ with open('$STATUS_FILE', 'w') as f:
                 test)
                     echo "[DAEMON] Executing test_restore.sh in sandbox..."
                     TARGET_BASENAME="$(basename "${TARGET:-latest_instance_backup.tar.gz}")"
-                    if "$SCRIPT_DIR/test_restore.sh" ${TARGET:+"$TARGET"} > "$BACKUP_DIR/.test_last_run.log" 2>&1; then
+                    if [[ "${TARGET:-}" == *"system"* ]]; then
+                        TEST_EXE="$SCRIPT_DIR/test_system_backup.sh"
+                    else
+                        TEST_EXE="$SCRIPT_DIR/test_restore.sh"
+                    fi
+                    if "$TEST_EXE" ${TARGET:+"$TARGET"} > "$BACKUP_DIR/.test_last_run.log" 2>&1; then
                         echo "[DAEMON] Sandbox test restore passed."
                         python3 -c "
 import json, re

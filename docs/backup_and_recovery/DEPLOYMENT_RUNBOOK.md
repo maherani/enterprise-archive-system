@@ -212,8 +212,14 @@ sudo systemctl status enterprise-archive-daemon.service
 # مشاهده فهرست فایل‌های پشتیبان و کدهای هش
 ./deploy/manage_backup.sh list
 
-# اجرای فوری یک نسخه پشتیبان جامع
+# اجرای پشتیبان‌گیری سیستم مستقل از داده (Software + Config + Identity Keys)
+./deploy/manage_backup.sh backup-system
+
+# اجرای فوری یک نسخه پشتیبان جامع سازمانی (Full Instance)
 ./deploy/manage_backup.sh run
+
+# اجرای آزمون اعتبارسنجی نسخه پشتیبان سیستم (عدم وجود دیتای عملیاتی و تمامیت کد)
+./deploy/manage_backup.sh test-system deploy/backups/latest_system_backup.tar.gz
 
 # اجرای آزمون سلامت بازیابی در سندباکس ایزوله
 ./deploy/manage_backup.sh test deploy/backups/latest_instance_backup.tar.gz

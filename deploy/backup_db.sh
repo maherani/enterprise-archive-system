@@ -5,6 +5,10 @@ START_TIME=$(date +%s)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ENV_FILE="$PROJECT_DIR/.env"
+
+if [ "${1:-}" = "system_only" ] || [ "${1:-}" = "system" ] || [ "${1:-}" = "--system-only" ]; then
+    exec "$SCRIPT_DIR/backup_system.sh"
+fi
 CONFIG_FILE="$SCRIPT_DIR/backup_config.json"
 BACKUP_DIR="$SCRIPT_DIR/backups"
 
