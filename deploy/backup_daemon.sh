@@ -196,11 +196,86 @@ with open('$STATUS_FILE', 'w') as f:
                     fi
                     ;;
 
-                restore)
-                    echo "[DAEMON] Executing restore_db.sh..."
-                    if "$SCRIPT_DIR/restore_db.sh" ${TARGET:+"$TARGET"} > "$BACKUP_DIR/.restore_last_run.log" 2>&1; then
-                        echo "[DAEMON] Restore completed successfully."
+                restore_data)
+                    echo "[DAEMON] Executing restore_instance_data.sh..."
+                    if "$SCRIPT_DIR/restore_instance_data.sh" ${TARGET:+"$TARGET"} > "$BACKUP_DIR/.restore_data_last_run.log" 2>&1; then
+                        echo "[DAEMON] Instance data restore completed successfully."
                         python3 -c "
+import json
+with open('$STATUS_FILE', 'w') as f:
+    json.dump({
+        'status': 'SUCCESS',
+        'action': 'restore_data',
+        'task_id': '$TASK_ID',
+        'progress': 100,
+        'message': 'بازیابی داده‌های عملیاتی با موفقیت کامل انجام شد. سامانه آماده بهره‌برداری است.'
+    }, f, indent=2)
+"
+                    else
+                        echo "[DAEMON] Instance data restore failed!"
+                        python3 -c "
+import json
+with open('$STATUS_FILE', 'w') as f:
+    json.dump({
+        'status': 'FAILED',
+        'action': 'restore_data',
+        'task_id': '$TASK_ID',
+        'progress': 0,
+        'message': 'خطا در فرآیند بازیابی داده‌های عملیاتی سامانه.'
+    }, f, indent=2)
+"
+                    fi
+                    ;;
+
+                restore)
+                    TARGET_BASENAME="$(basename "${TARGET:-}")"
+                    if [[ "$TARGET_BASENAME" == *"instance_data"* ]] || [[ "$TARGET_BASENAME" == *"pre_restore"* ]]; then
+                        echo "[DAEMON] Target is instance_data. Executing dedicated restore_instance_data.sh..."
+                        if "$SCRIPT_DIR/restore_instance_data.sh" ${TARGET:+"$TARGET"} > "$BACKUP_DIR/.restore_data_last_run.log" 2>&1; then
+                            echo "[DAEMON] Instance data restore completed successfully."
+                            python3 -c "
+import json
+with open('$STATUS_FILE', 'w') as f:
+    json.dump({
+        'status': 'SUCCESS',
+        'action': 'restore_data',
+        'task_id': '$TASK_ID',
+        'progress': 100,
+        'message': 'بازیابی داده‌های عملیاتی با موفقیت کامل انجام شد. سامانه آماده بهره‌برداری است.'
+    }, f, indent=2)
+"
+                        else
+                            echo "[DAEMON] Instance data restore failed!"
+                            python3 -c "
+import json
+with open('$STATUS_FILE', 'w') as f:
+    json.dump({
+        'status': 'FAILED',
+        'action': 'restore_data',
+        'task_id': '$TASK_ID',
+        'progress': 0,
+        'message': 'خطا در فرآیند بازیابی داده‌های عملیاتی سامانه.'
+    }, f, indent=2)
+"
+                        fi
+                    elif [[ "$TARGET_BASENAME" == *"system"* ]]; then
+                        echo "[DAEMON] Rejecting system_only restore on live system."
+                        python3 -c "
+import json
+with open('$STATUS_FILE', 'w') as f:
+    json.dump({
+        'status': 'FAILED',
+        'action': '$ACTION',
+        'task_id': '$TASK_ID',
+        'progress': 0,
+        'message': 'امکان بازیابی فایل پشتیبان سیستم (system_only) روی سرور زنده وجود ندارد. این پشتیبان برای Disaster Recovery است.'
+    }, f, indent=2)
+"
+                    else
+                        echo "[DAEMON] Executing restore_db.sh for full instance..."
+                        if "$SCRIPT_DIR/restore_db.sh" ${TARGET:+"$TARGET"} > "$BACKUP_DIR/.restore_last_run.log" 2>&1; then
+                            echo "[DAEMON] Restore completed successfully."
+                            python3 -c "
 import json
 with open('$STATUS_FILE', 'w') as f:
     json.dump({
@@ -211,9 +286,9 @@ with open('$STATUS_FILE', 'w') as f:
         'message': 'بازیابی اطلاعات با موفقیت انجام شد. سامانه آماده بهره‌برداری است.'
     }, f, indent=2)
 "
-                    else
-                        echo "[DAEMON] Restore failed!"
-                        python3 -c "
+                        else
+                            echo "[DAEMON] Restore failed!"
+                            python3 -c "
 import json
 with open('$STATUS_FILE', 'w') as f:
     json.dump({
@@ -224,6 +299,7 @@ with open('$STATUS_FILE', 'w') as f:
         'message': 'خطا در فرآیند بازیابی اطلاعات.'
     }, f, indent=2)
 "
+                        fi
                     fi
                     ;;
 

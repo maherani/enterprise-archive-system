@@ -53,11 +53,17 @@ fi
 mkdir -p "$BACKUP_DIR"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 RAND_SUFFIX=$(head -c 6 /dev/urandom | xxd -p 2>/dev/null || tr -dc a-z0-9 </dev/urandom | head -c 6)
-BACKUP_ID="bk-data-${TIMESTAMP}-${RAND_SUFFIX}"
+BACKUP_PURPOSE="${1:-scheduled}"
+if [ "$BACKUP_PURPOSE" = "pre_restore_safety" ]; then
+    BACKUP_ID="bk-data-pre_restore-${TIMESTAMP}-${RAND_SUFFIX}"
+    BACKUP_FILE="$BACKUP_DIR/backup_instance_data_pre_restore_${TIMESTAMP}_${RAND_SUFFIX}.tar.gz"
+else
+    BACKUP_ID="bk-data-${TIMESTAMP}-${RAND_SUFFIX}"
+    BACKUP_FILE="$BACKUP_DIR/backup_instance_data_${TIMESTAMP}_${RAND_SUFFIX}.tar.gz"
+fi
 BACKUP_TYPE="instance_data"
 
 WORK_DIR="$BACKUP_DIR/.backup_data_${TIMESTAMP}_${RAND_SUFFIX}"
-BACKUP_FILE="$BACKUP_DIR/backup_instance_data_${TIMESTAMP}_${RAND_SUFFIX}.tar.gz"
 LATEST_INSTANCE_DATA_FILE="$BACKUP_DIR/latest_instance_data_backup.tar.gz"
 LISTING_FILE="$WORK_DIR/.archive_listing.txt"
 
@@ -194,6 +200,7 @@ cat > "$WORK_DIR/manifest.json" <<EOF
 {
   "backup_id": "$BACKUP_ID",
   "backup_type": "$BACKUP_TYPE",
+  "backup_purpose": "$BACKUP_PURPOSE",
   "status": "SUCCESS",
   "created_at": "$(date -Iseconds)",
   "recovery_point": "$RECOVERY_POINT",
@@ -236,6 +243,7 @@ EOF
 cat > "$WORK_DIR/manifest.txt" <<EOF
 backup_id=$BACKUP_ID
 backup_type=$BACKUP_TYPE
+backup_purpose=$BACKUP_PURPOSE
 status=SUCCESS
 created_at=$(date -Iseconds)
 recovery_point=$RECOVERY_POINT
@@ -279,11 +287,17 @@ SHA256=$(sha256sum "$BACKUP_FILE" | cut -d' ' -f1)
 printf '%s  %s\n' "$SHA256" "$(basename "$BACKUP_FILE")" > "$BACKUP_FILE.sha256"
 
 # Canonical latest instance data alias
-cp "$BACKUP_FILE" "$LATEST_INSTANCE_DATA_FILE"
-cp "$BACKUP_FILE.sha256" "$LATEST_INSTANCE_DATA_FILE.sha256"
+if [ "$BACKUP_PURPOSE" = "pre_restore_safety" ]; then
+    LATEST_PRE_FILE="$BACKUP_DIR/latest_instance_data_pre_restore_backup.tar.gz"
+    cp "$BACKUP_FILE" "$LATEST_PRE_FILE"
+    cp "$BACKUP_FILE.sha256" "$LATEST_PRE_FILE.sha256"
+else
+    cp "$BACKUP_FILE" "$LATEST_INSTANCE_DATA_FILE"
+    cp "$BACKUP_FILE.sha256" "$LATEST_INSTANCE_DATA_FILE.sha256"
+fi
 
-# Independent Retention Policy for Instance Data Backups
-find "$BACKUP_DIR" -maxdepth 1 -name "backup_instance_data_*.tar.gz" -type f | sort -r | tail -n +"$((MAX_BACKUPS + 1))" | while read -r old; do
+# Independent Retention Policy for Instance Data Backups (Protecting pre_restore safety snapshots)
+find "$BACKUP_DIR" -maxdepth 1 -name "backup_instance_data_*.tar.gz" ! -name "*pre_restore*" -type f | sort -r | tail -n +"$((MAX_BACKUPS + 1))" | while read -r old; do
     if [ -n "$old" ] && [ -f "$old" ]; then
         echo "[RETENTION] Pruning expired instance data backup: $(basename "$old")"
         rm -f "$old" "$old.sha256"

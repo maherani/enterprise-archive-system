@@ -22,7 +22,8 @@ usage() {
     echo "  backup-system        Create independent system backup (system_only)"
     echo "  run [data|system]    Create backup (data: instance_data, system: system_only, default: full_instance)"
     echo "  backup [type]        Alias for run"
-    echo "  restore [file]       Restore full instance from specified archive"
+    echo "  restore [file]       Restore full instance from specified archive (or redirects data)"
+    echo "  restore-data [file]  Restore operational data to live instance (BR-04)"
     echo "  test [file]          Perform sandbox verification (auto-detects full, data, or system)"
     echo "  test-data [file]     Perform sandbox verification of instance data backup"
     echo "  test-system [file]   Perform sandbox verification of system backup"
@@ -180,12 +181,14 @@ for f in files:
                 for m in t.getmembers():
                     if m.name.endswith('manifest.json'):
                         mf = json.load(t.extractfile(m))
-                        baseline_info = mf.get('software_baseline', {}).get('git_commit', '-')[:8]
+                        baseline_info = mf.get('software_baseline', {}).get('git_commit', '')[:8]
                         break
         except Exception:
             pass
-    elif 'instance_data' in fname or 'backup_data' in fname:
+    elif 'instance_data' in fname or 'data' in fname:
         btype = 'instance_data'
+        if 'pre_restore' in fname:
+            btype = 'pre_restore'
         try:
             with tarfile.open(f, 'r:gz') as t:
                 for m in t.getmembers():
@@ -228,8 +231,55 @@ for f in files:
         fi
         ;;
 
+    restore-data)
+        target="${1:-}"
+        if [ -z "$target" ]; then
+            default_restore="latest_instance_data_backup.tar.gz"
+            if [ ! -f "$BACKUP_DIR/$default_restore" ]; then
+                echo "[ERROR] No file provided and $default_restore not found." >&2
+                exit 1
+            fi
+            target="$BACKUP_DIR/$default_restore"
+        fi
+        if [ ! -f "$target" ] && [ -f "$BACKUP_DIR/$target" ]; then
+            target="$BACKUP_DIR/$target"
+        fi
+        if [ ! -f "$target" ]; then
+            echo "[ERROR] Archive file not found: $target" >&2
+            exit 1
+        fi
+        echo "================================================================================"
+        echo " [WARNING] Production Instance Data Restore (BR-04)"
+        echo " Target: $(basename "$target")"
+        echo " This operation will restore PostgreSQL database and Nextcloud user files"
+        echo " on the running production system to this verified recovery point."
+        echo " System configuration (config.php, Nginx, Docker) will remain untouched."
+        echo " An emergency Pre-Restore Safety Backup will be generated before any changes."
+        echo "================================================================================"
+        read -r -p "Type 'RESTORE-CONFIRM' to proceed: " confirm
+        if [ "$confirm" = "RESTORE-CONFIRM" ]; then
+            "$SCRIPT_DIR/restore_instance_data.sh" "$target"
+        else
+            echo "[ABORTED] Production restore cancelled. Input did not match 'RESTORE-CONFIRM'."
+            exit 1
+        fi
+        ;;
+
     restore)
         target="${1:-}"
+        if [ -n "$target" ] && [ ! -f "$target" ] && [ -f "$BACKUP_DIR/$target" ]; then
+            target="$BACKUP_DIR/$target"
+        fi
+        target_base="$(basename "${target:-}")"
+        if [ -n "$target" ] && ([[ "$target_base" == *"instance_data"* ]] || [[ "$target_base" == *"pre_restore"* ]]); then
+            echo "[INFO] Detected instance_data backup. Forwarding to dedicated Production Data Restore engine..."
+            "$SCRIPT_DIR/manage_backup.sh" restore-data "$target"
+            exit $?
+        elif [ -n "$target" ] && [[ "$target_base" == *"system"* ]]; then
+            echo "[ERROR] Cannot restore a system_only backup on a live instance. System backups are reserved for disaster recovery rebuilds." >&2
+            exit 1
+        fi
+
         if [ -z "$target" ]; then
             default_restore="latest_instance_backup.tar.gz"
             if [ ! -f "$BACKUP_DIR/$default_restore" ] && [ -f "$BACKUP_DIR/latest_data_backup.tar.gz" ]; then
@@ -282,18 +332,18 @@ for f in files:
         target_type="${1:-all}"
         echo "[INFO] Running independent retention pruning engine (Target: $target_type)..."
         
-        # 1. Prune Instance Data Backups
+        # 1. Prune Instance Data Backups (protect pre_restore archives)
         if [ "$target_type" = "all" ] || [ "$target_type" = "data" ] || [ "$target_type" = "instance_data" ]; then
             MAX_DATA=$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c.get('instance_data_backup', c.get('retention_policy', {})).get('max_backups_count', 14))" 2>/dev/null || echo 14)
             DAYS_DATA=$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c.get('instance_data_backup', c.get('retention_policy', {})).get('retention_days', 30))" 2>/dev/null || echo 30)
-            echo "[PRUNE:instance_data] Enforcing limit (Count: $MAX_DATA, Days: $DAYS_DATA)..."
-            find "$BACKUP_DIR" -maxdepth 1 -name "backup_instance_data_*.tar.gz" -type f | sort -r | tail -n +"$((MAX_DATA + 1))" | while read -r old; do
+            echo "[PRUNE:instance_data] Enforcing limit (Count: $MAX_DATA, Days: $DAYS_DATA, protecting pre_restore)..."
+            find "$BACKUP_DIR" -maxdepth 1 -name "backup_instance_data_*.tar.gz" ! -name "*pre_restore*" -type f | sort -r | tail -n +"$((MAX_DATA + 1))" | while read -r old; do
                 if [ -n "$old" ] && [ -f "$old" ]; then
                     echo "  [PRUNED] Removing expired data backup: $(basename "$old")"
                     rm -f "$old" "$old.sha256"
                 fi
             done
-            find "$BACKUP_DIR" -maxdepth 1 -name "backup_instance_data_*.tar.gz" -type f -mtime +"$DAYS_DATA" | while read -r old; do
+            find "$BACKUP_DIR" -maxdepth 1 -name "backup_instance_data_*.tar.gz" ! -name "*pre_restore*" -type f -mtime +"$DAYS_DATA" | while read -r old; do
                 if [ -n "$old" ] && [ -f "$old" ]; then
                     echo "  [PRUNED] Removing aged data backup: $(basename "$old")"
                     rm -f "$old" "$old.sha256"

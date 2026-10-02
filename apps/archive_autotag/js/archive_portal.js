@@ -5942,8 +5942,11 @@
 
                 var isSys = (b.type === 'system_only');
                 var isData = (b.type === 'instance_data');
+                var isPreRestore = (b.purpose === 'pre_restore_safety' || b.is_pre_restore || (b.filename && b.filename.indexOf('pre_restore') !== -1));
                 var typeBadge;
-                if (isSys) {
+                if (isPreRestore) {
+                    typeBadge = '<span style="background:rgba(245,158,11,0.18);color:#fbbf24;border:1px solid rgba(245,158,11,0.4);padding:2px 6px;border-radius:4px;font-size:0.75rem;font-weight:600;" title="پیش‌پشتیبان اضطراری ایجادشده پیش از عملیات بازیابی (Pre-Restore Safety Backup)">🛡️ پیش‌پشتیبان امنیتی</span>';
+                } else if (isSys) {
                     typeBadge = '<span style="background:rgba(99,102,241,0.18);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);padding:2px 6px;border-radius:4px;font-size:0.75rem;font-weight:600;" title="پشتیبان مستقل از داده: کدهای برنامه، کانفیگ، کلیدها">💻 سیستم</span>';
                 } else if (isData) {
                     typeBadge = '<span style="background:rgba(2,132,199,0.18);color:#38bdf8;border:1px solid rgba(2,132,199,0.35);padding:2px 6px;border-radius:4px;font-size:0.75rem;font-weight:600;" title="پشتیبان داده‌های سازمانی: دیتابیس + فایل‌های کاربران (متصل به Baseline)">📦 داده‌های سازمانی</span>';
@@ -5953,11 +5956,11 @@
 
                 var restoreBtn;
                 if (isSys) {
-                    restoreBtn = '<button class="ea-btn ea-btn-sm" disabled style="opacity:0.4;cursor:not-allowed;color:var(--ea-text-muted);" title="بازیابی اختصاصی System Backup در فاز بعدی فعال می‌شود (BR-01)">⚠️ بازیابی</button>';
-                } else if (isData) {
-                    restoreBtn = '<button class="ea-btn ea-btn-sm" disabled style="opacity:0.4;cursor:not-allowed;color:var(--ea-text-muted);" title="بازیابی اختصاصی Instance Data بر روی Production در فاز بعدی فعال می‌شود (BR-04)">⚠️ بازیابی</button>';
+                    restoreBtn = '<button class="ea-btn ea-btn-sm" disabled style="opacity:0.4;cursor:not-allowed;color:var(--ea-text-muted);" title="بازیابی فایل پشتیبان سیستم (system_only) روی سرور فعال مجاز نیست">⚠️ بازیابی</button>';
+                } else if (isData || isPreRestore) {
+                    restoreBtn = '<button class="ea-btn ea-btn-sm ea-btn-restore-data" data-file="' + escapeHtml(b.filename) + '" ' + (isTaskRunning ? 'disabled' : '') + ' style="color:#f59e0b;border-color:rgba(245,158,11,0.5);" title="بازیابی داده‌های عملیاتی سامانه (Database + User Data) روی سامانه سالم (BR-04)">⚠️ بازیابی داده‌ها</button>';
                 } else {
-                    restoreBtn = '<button class="ea-btn ea-btn-sm ea-btn-restore-prod" data-file="' + escapeHtml(b.filename) + '" ' + (isTaskRunning ? 'disabled' : '') + ' style="color:#ef4444;border-color:rgba(239,68,68,0.4);" title="بازیابی کامل سامانه از این نسخه">⚠️ بازیابی</button>';
+                    restoreBtn = '<button class="ea-btn ea-btn-sm ea-btn-restore-prod" data-file="' + escapeHtml(b.filename) + '" ' + (isTaskRunning ? 'disabled' : '') + ' style="color:#ef4444;border-color:rgba(239,68,68,0.4);" title="بازیابی کامل سامانه از این نسخه (Full Instance)">⚠️ بازیابی</button>';
                 }
 
                 html.push('      <tr style="border-bottom:1px solid var(--ea-border-light, rgba(255,255,255,0.05));">');
@@ -6023,6 +6026,14 @@
             btn.onclick = function () {
                 var file = btn.getAttribute('data-file');
                 openRestoreConfirmModal(file);
+            };
+        });
+
+        var restoreDataBtns = body.querySelectorAll('.ea-btn-restore-data');
+        restoreDataBtns.forEach(function (btn) {
+            btn.onclick = function () {
+                var file = btn.getAttribute('data-file');
+                openInstanceDataRestoreModal(file);
             };
         });
     }
@@ -6382,6 +6393,81 @@
         };
     }
 
+    function openInstanceDataRestoreModal(filename) {
+        var submodal = document.createElement('div');
+        submodal.id = 'ea-active-restore-data-submodal';
+        submodal.className = 'ea-modal-overlay';
+        submodal.style.zIndex = '99999';
+        submodal.innerHTML = [
+            '<div class="ea-modal-card" style="max-width:580px;border-color:rgba(245,158,11,0.6);box-shadow:0 20px 45px rgba(245,158,11,0.25);">',
+            '  <div class="ea-modal-header" style="border-bottom-color:rgba(245,158,11,0.3);">',
+            '    <div class="ea-modal-title" style="color:#f59e0b;">',
+            '      <svg width="22" height="22" fill="none" stroke="#f59e0b" stroke-width="2.2" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>',
+            '      <span>بازیابی داده‌های عملیاتی سامانه (BR-04 — Production Instance Data Restore)</span>',
+            '    </div>',
+            '    <button class="ea-modal-close" id="ea-restore-data-close-btn">✕</button>',
+            '  </div>',
+            '  <div class="ea-modal-body" style="padding:20px;display:flex;flex-direction:column;gap:14px;">',
+            '    <div style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:14px;font-size:0.88rem;line-height:1.7;color:#fef3c7;">',
+            '      <strong>⚠️ اخطار بازگردانی داده‌های زنده:</strong> این عملیات وضعیت داده‌های عملیاتی فعلی سامانه (شامل کلیه پایگاه داده PostgreSQL و اسناد فایل کاربران) را با Recovery Point انتخابی جایگزین می‌کند.',
+            '      <div style="margin-top:6px;font-size:0.83rem;color:#fde68a;">System State، کدهای نرم‌افزار، تنظیمات داکر و کانفیگ سیستم (config.php) بدون تغییر و دست‌نخورده باقی می‌مانند.</div>',
+            '    </div>',
+            '    <div style="background:var(--ea-surface-card);border:1px solid var(--ea-border);border-radius:8px;padding:12px;font-size:0.84rem;display:flex;flex-direction:column;gap:6px;">',
+            '      <div style="display:flex;justify-content:space-between;"><span style="color:var(--ea-text-muted);">فایل آرشیو هدف:</span><span style="font-family:monospace;direction:ltr;font-weight:bold;color:var(--ea-text-main);">' + escapeHtml(filename) + '</span></div>',
+            '      <div style="display:flex;justify-content:space-between;"><span style="color:var(--ea-text-muted);">نوع بازیابی:</span><span style="color:#38bdf8;font-weight:600;">Instance Data Restore (Live Production)</span></div>',
+            '      <div style="display:flex;justify-content:space-between;"><span style="color:var(--ea-text-muted);">سپر امنیتی اضطراری:</span><span style="color:#34d399;font-weight:bold;">🛡️ Pre-Restore Safety Backup خودکار</span></div>',
+            '    </div>',
+            '    <div style="background:rgba(16,185,129,0.08);border:1px dashed rgba(16,185,129,0.35);border-radius:8px;padding:10px 14px;font-size:0.82rem;color:#a7f3d0;line-height:1.6;">',
+            '      🛡️ <strong>Safety Gate:</strong> پیش از ورود سامانه به Maintenance Mode و قبل از هرگونه تغییر روی دیتابیس، یک پیش‌پشتیبان کامل از وضعیت زنده جاری تهیه و اعتبارسنجی ۱۰۰٪ خواهد شد تا امکان Rollback تضمین شود.',
+            '    </div>',
+            '    <div>',
+            '      <label style="display:block;font-size:0.86rem;color:var(--ea-text-main);margin-bottom:6px;">جهت تایید قطعی بازیابی داده‌های زنده، عبارت <code>RESTORE-CONFIRM</code> را تایپ کنید:</label>',
+            '      <input type="text" id="ea-restore-data-phrase-inp" class="ea-input" placeholder="RESTORE-CONFIRM" autocomplete="off" style="font-family:monospace;font-weight:bold;letter-spacing:1px;direction:ltr;text-align:center;">',
+            '      <div id="ea-restore-data-phrase-err" style="display:none;color:#ef4444;font-size:0.82rem;margin-top:6px;">عبارت وارد شده منطبق نیست.</div>',
+            '    </div>',
+            '  </div>',
+            '  <div class="ea-modal-footer" style="display:flex;justify-content:space-between;">',
+            '    <button class="ea-btn" id="ea-restore-data-cancel-btn">انصراف</button>',
+            '    <button class="ea-btn" id="ea-restore-data-exec-btn" style="background:#f59e0b;color:#18181b;font-weight:bold;border-color:#d97706;" disabled>تایید نهایی و آغاز بازیابی داده‌ها (BR-04)</button>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.appendChild(submodal);
+
+        var closeSub = function () {
+            var el = document.getElementById('ea-active-restore-data-submodal');
+            if (el) el.remove();
+        };
+
+        document.getElementById('ea-restore-data-close-btn').onclick = closeSub;
+        document.getElementById('ea-restore-data-cancel-btn').onclick = closeSub;
+
+        var inp = document.getElementById('ea-restore-data-phrase-inp');
+        var execBtn = document.getElementById('ea-restore-data-exec-btn');
+        var errEl = document.getElementById('ea-restore-data-phrase-err');
+
+        inp.oninput = function () {
+            var val = inp.value.trim();
+            if (val === 'RESTORE-CONFIRM') {
+                execBtn.disabled = false;
+                errEl.style.display = 'none';
+            } else {
+                execBtn.disabled = true;
+            }
+        };
+
+        execBtn.onclick = function () {
+            if (inp.value.trim() !== 'RESTORE-CONFIRM') {
+                errEl.style.display = 'block';
+                return;
+            }
+            execBtn.disabled = true;
+            execBtn.textContent = 'در حال ارسال دستور بازیابی داده‌ها...';
+            executeRestore(filename, closeSub);
+        };
+    }
+
     function executeRestore(filename, onSuccessClose) {
         fetch('/index.php/apps/archive_autotag/api/admin/restore/run', {
             method: 'POST',
@@ -6434,7 +6520,7 @@
                             banner.style.display = 'flex';
                             var title = document.getElementById('ea-backup-running-title');
                             var msg = document.getElementById('ea-backup-running-msg');
-                            var actionTitle = (task.action === 'test' ? 'آزمون سلامت سندباکس' : (task.action === 'backup' ? 'تهیه نسخه پشتیبان' : 'بازیابی سامانه'));
+                            var actionTitle = (task.action === 'test' ? 'آزمون سلامت سندباکس' : (task.action === 'backup' || task.action === 'backup_data' || task.action === 'backup_system' ? 'تهیه نسخه پشتیبان' : (task.action === 'restore_data' ? 'بازیابی داده‌های عملیاتی' : 'بازیابی سامانه')));
                             if (title) title.textContent = 'عملیات در حال پردازش: ' + actionTitle;
                             if (msg) msg.textContent = task.message || 'در حال انجام عملیات...';
                         }

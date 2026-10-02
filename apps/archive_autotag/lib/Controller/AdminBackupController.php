@@ -250,6 +250,9 @@ class AdminBackupController extends Controller {
             $sz = filesize($file);
             $szHuman = $sz < 1048576 ? (round($sz / 1024, 0) . 'K') : (round($sz / 1048576, 1) . 'M');
 
+            $isPreRestore = str_contains($filename, 'pre_restore');
+            $purpose = $isPreRestore ? 'pre_restore_safety' : 'standard';
+
             $backups[] = [
                 'filename' => $filename,
                 'size_bytes' => $sz,
@@ -260,6 +263,8 @@ class AdminBackupController extends Controller {
                 'checksum_valid' => !empty($sha),
                 'test_status' => $testStatus,
                 'type' => $type,
+                'purpose' => $purpose,
+                'is_pre_restore' => $isPreRestore,
             ];
         }
 
@@ -369,6 +374,35 @@ class AdminBackupController extends Controller {
             ], Http::STATUS_BAD_REQUEST);
         }
 
+        // Concurrency Check (Section 20): Reject if a task is PENDING or IN_PROGRESS, or if lock files exist
+        if (file_exists($this->queueFile)) {
+            $q = json_decode((string)file_get_contents($this->queueFile), true);
+            if (is_array($q) && ($q['status'] ?? '') === 'PENDING') {
+                return new DataResponse([
+                    'status' => 'error',
+                    'code' => 'CONFLICT',
+                    'message' => 'یک عملیات دیگر در صف اجرا قرار دارد. اجرای همزمان دو عملیات بازیابی یا پشتیبان‌گیری امکان‌پذیر نیست.',
+                ], Http::STATUS_CONFLICT);
+            }
+        }
+        if (file_exists($this->statusFile)) {
+            $st = json_decode((string)file_get_contents($this->statusFile), true);
+            if (is_array($st) && in_array($st['status'] ?? '', ['IN_PROGRESS', 'PENDING'], true)) {
+                return new DataResponse([
+                    'status' => 'error',
+                    'code' => 'CONFLICT',
+                    'message' => 'عملیات دیگری هم‌اکنون در حال اجراست. لطفاً تا پایان عملیات جاری شکیبا باشید.',
+                ], Http::STATUS_CONFLICT);
+            }
+        }
+        if (file_exists($this->backupDir . '/.archive_restore.lock') || file_exists('/tmp/archive_restore.lock') || file_exists('/tmp/archive_backup.lock')) {
+            return new DataResponse([
+                'status' => 'error',
+                'code' => 'CONFLICT',
+                'message' => 'عملیات دیگری در حال حاضر قفل اجرایی را در اختیار دارد.',
+            ], Http::STATUS_CONFLICT);
+        }
+
         $targetPath = '';
         if (!empty($target)) {
             $sanitized = basename($target);
@@ -381,8 +415,25 @@ class AdminBackupController extends Controller {
             }
         }
 
+        $targetBase = basename($targetPath ?: $target);
+        $isSystem = str_contains($targetBase, 'system');
+        $isData = str_contains($targetBase, 'instance_data') || str_contains($targetBase, 'pre_restore');
+
+        // Section 18: Reject system_only restore on live system
+        if ($isSystem) {
+            return new DataResponse([
+                'status' => 'error',
+                'code' => 'FORBIDDEN_OPERATION',
+                'message' => 'امکان بازیابی فایل پشتیبان سیستم (system_only) روی سرور فعال وجود ندارد. این پشتیبان برای Disaster Recovery است.',
+            ], Http::STATUS_BAD_REQUEST);
+        }
+
+        $action = $isData ? 'restore_data' : 'restore';
+        $backupType = $isData ? 'instance_data' : 'full_instance';
+
         $queueData = [
-            'action' => 'restore',
+            'action' => $action,
+            'backup_type' => $backupType,
             'target' => $targetPath,
             'id' => 'req-' . time() . '-' . bin2hex(random_bytes(3)),
             'requested_at' => date('c'),
@@ -392,17 +443,23 @@ class AdminBackupController extends Controller {
 
         file_put_contents($this->queueFile, json_encode($queueData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
+        $msg = $isData
+            ? 'فرآیند بازیابی داده‌های عملیاتی آغاز شد. ایجاد و اعتبارسنجی پیش‌پشتیبان امنیتی اضطراری در حال انجام است...'
+            : 'فرآیند بازیابی اطلاعات آغاز شد. سیستم موقتاً در وضعیت نگهداری قرار خواهد گرفت.';
+
         file_put_contents($this->statusFile, json_encode([
             'status' => 'IN_PROGRESS',
-            'action' => 'restore',
+            'action' => $action,
+            'backup_type' => $backupType,
             'started_at' => date('c'),
-            'message' => 'فرآیند بازیابی اطلاعات آغاز شد. سیستم موقتاً در وضعیت نگهداری قرار خواهد گرفت.',
-            'progress' => 20,
+            'message' => $msg,
+            'progress' => 15,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
         return new DataResponse([
             'status' => 'success',
-            'message' => 'فرآیند بازیابی اطلاعات با موفقیت آغاز شد.',
+            'message' => $isData ? 'فرآیند بازیابی داده‌های عملیاتی با موفقیت آغاز شد.' : 'فرآیند بازیابی اطلاعات با موفقیت آغاز شد.',
+            'action' => $action,
             'task_id' => $queueData['id'],
         ]);
     }
@@ -780,10 +837,10 @@ class AdminBackupController extends Controller {
                         'progress' => $data['progress'] ?? 25,
                         'started_at' => $data['started_at'] ?? date('c'),
                     ];
-                } elseif ($action === 'restore') {
+                } elseif ($action === 'restore' || $action === 'restore_data') {
                     $status = [
                         'in_maintenance' => true,
-                        'action' => 'restore',
+                        'action' => $action,
                         'message' => 'سامانه در حال بازیابی و همگام‌سازی اضطراری اطلاعات است.',
                         'estimated_seconds' => 60,
                         'progress' => $data['progress'] ?? 30,
