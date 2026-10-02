@@ -22,17 +22,17 @@ set +a
 : "${POSTGRES_USER:?POSTGRES_USER is not set in .env}"
 : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set in .env}"
 
-MAX_BACKUPS=7
+MAX_BACKUPS=14
 RETENTION_DAYS=30
-BACKUP_TYPE="data_only"
+BACKUP_TYPE="full_instance"
 if [ -f "$CONFIG_FILE" ]; then
     CONFIG_STORAGE=$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c.get('storage_location', ''))" 2>/dev/null || echo "")
     if [ -n "$CONFIG_STORAGE" ] && [ -d "$CONFIG_STORAGE" ]; then
         BACKUP_DIR="$CONFIG_STORAGE"
     fi
-    MAX_BACKUPS=$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c.get('retention_policy', {}).get('max_backups_count', 7))" 2>/dev/null || echo 7)
+    MAX_BACKUPS=$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c.get('retention_policy', {}).get('max_backups_count', 14))" 2>/dev/null || echo 14)
     RETENTION_DAYS=$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c.get('retention_policy', {}).get('retention_days', 30))" 2>/dev/null || echo 30)
-    BACKUP_TYPE=$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c.get('backup_type', 'data_only'))" 2>/dev/null || echo "data_only")
+    BACKUP_TYPE=$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c.get('backup_type', 'full_instance'))" 2>/dev/null || echo "full_instance")
 fi
 
 for container in archive_db archive_app; do
@@ -59,8 +59,9 @@ TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 RAND_SUFFIX=$(head -c 6 /dev/urandom | xxd -p 2>/dev/null || tr -dc a-z0-9 </dev/urandom | head -c 6)
 BACKUP_ID="bk-${TIMESTAMP}-${RAND_SUFFIX}"
 WORK_DIR="$BACKUP_DIR/.backup_${TIMESTAMP}_${RAND_SUFFIX}"
-BACKUP_FILE="$BACKUP_DIR/backup_data_${TIMESTAMP}_${RAND_SUFFIX}.tar.gz"
-LATEST_FILE="$BACKUP_DIR/latest_data_backup.tar.gz"
+BACKUP_FILE="$BACKUP_DIR/backup_full_instance_${TIMESTAMP}_${RAND_SUFFIX}.tar.gz"
+LATEST_INSTANCE_FILE="$BACKUP_DIR/latest_instance_backup.tar.gz"
+LATEST_DATA_FILE="$BACKUP_DIR/latest_data_backup.tar.gz"
 LEGACY_LATEST_FILE="$BACKUP_DIR/latest_nextcloud_backup.tar.gz"
 LISTING_FILE="$WORK_DIR.archive_listing.txt"
 
@@ -85,12 +86,12 @@ with open('$BACKUP_DIR/.backup_status.json', 'w') as f:
         'action': 'backup',
         'started_at': '$(date -Iseconds)',
         'estimated_seconds': 45,
-        'progress': 25,
-        'message': 'عملیات پشتیبان‌گیری در حال اجراست...'
+        'progress': 20,
+        'message': 'عملیات پشتیبان‌گیری جامع در حال اجراست...'
     }, f, indent=2)
 " 2>/dev/null || true
 
-echo "[INFO] [1/6] Engaging point-in-time consistency lock (Maintenance Mode)..." 
+echo "[INFO] [1/6] Engaging point-in-time consistency lock (Maintenance Mode)..."
 docker exec archive_app php occ maintenance:mode --on >/dev/null
 maintenance_enabled=1
 RECOVERY_POINT=$(date -Iseconds)
@@ -103,7 +104,7 @@ if [ ! -s "$WORK_DIR/database.sql" ]; then
     exit 1
 fi
 
-echo "[INFO] [3/6] Archiving Nextcloud user data and security configuration..."
+echo "[INFO] [3/6] Archiving Nextcloud user data, configuration, and custom apps..."
 docker exec archive_app tar -C /var/www/html -czf - data > "$WORK_DIR/data.tar.gz"
 docker exec archive_app tar -C /var/www/html -czf - config > "$WORK_DIR/config.tar.gz"
 
@@ -127,9 +128,16 @@ cat > "$WORK_DIR/config_keys.json" <<EOF
 }
 EOF
 
+for component in database.sql data.tar.gz config.tar.gz config_keys.json custom_apps.tar.gz; do
+    if [ ! -f "$WORK_DIR/$component" ]; then
+        echo "[ERROR] Backup component is missing: $component"
+        exit 1
+    fi
+done
+
 for component in database.sql data.tar.gz config.tar.gz config_keys.json; do
     if [ ! -s "$WORK_DIR/$component" ]; then
-        echo "[ERROR] Backup component is empty: $component"
+        echo "[ERROR] Critical backup component is empty: $component"
         exit 1
     fi
 done
@@ -147,7 +155,16 @@ TAGS_COUNT=$(docker exec archive_db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -
 
 DB_SHA256=$(sha256sum "$WORK_DIR/database.sql" | cut -d' ' -f1)
 DATA_SHA256=$(sha256sum "$WORK_DIR/data.tar.gz" | cut -d' ' -f1)
-CONFIG_SHA256=$(sha256sum "$WORK_DIR/config_keys.json" | cut -d' ' -f1)
+CONFIG_ARCHIVE_SHA256=$(sha256sum "$WORK_DIR/config.tar.gz" | cut -d' ' -f1)
+CONFIG_KEYS_SHA256=$(sha256sum "$WORK_DIR/config_keys.json" | cut -d' ' -f1)
+CUSTOM_APPS_SHA256=$(sha256sum "$WORK_DIR/custom_apps.tar.gz" | cut -d' ' -f1)
+
+# Deterministic composite payload digest of all individual component hashes
+COMPONENTS_DIGEST_SHA256=$(printf "%s
+%s
+%s
+%s
+%s" "$DB_SHA256" "$DATA_SHA256" "$CONFIG_ARCHIVE_SHA256" "$CONFIG_KEYS_SHA256" "$CUSTOM_APPS_SHA256" | sha256sum | cut -d' ' -f1)
 
 cat > "$WORK_DIR/manifest.json" <<EOF
 {
@@ -156,10 +173,7 @@ cat > "$WORK_DIR/manifest.json" <<EOF
   "status": "SUCCESS",
   "created_at": "$(date -Iseconds)",
   "recovery_point": "$RECOVERY_POINT",
-  "duration_seconds": 0,
-  "size_bytes": 0,
-  "size_human": "",
-  "checksum_sha256": "",
+  "components_digest_sha256": "$COMPONENTS_DIGEST_SHA256",
   "components": {
     "database": {
       "file": "database.sql",
@@ -170,13 +184,25 @@ cat > "$WORK_DIR/manifest.json" <<EOF
       "tags_count": $TAGS_COUNT,
       "documents_metadata_count": $DOCS_COUNT
     },
+    "user_data": {
+      "file": "data.tar.gz",
+      "sha256": "$DATA_SHA256"
+    },
     "user_files": {
       "file": "data.tar.gz",
       "sha256": "$DATA_SHA256"
     },
+    "config": {
+      "file": "config.tar.gz",
+      "sha256": "$CONFIG_ARCHIVE_SHA256"
+    },
     "security_keys": {
       "file": "config_keys.json",
-      "sha256": "$CONFIG_SHA256"
+      "sha256": "$CONFIG_KEYS_SHA256"
+    },
+    "custom_apps": {
+      "file": "custom_apps.tar.gz",
+      "sha256": "$CUSTOM_APPS_SHA256"
     }
   },
   "environment": {
@@ -196,16 +222,15 @@ recovery_point=$RECOVERY_POINT
 postgres_db=$POSTGRES_DB
 postgres_user=$POSTGRES_USER
 components=database,data,config,config_keys,custom_apps
+components_digest_sha256=$COMPONENTS_DIGEST_SHA256
 EOF
 
 # Pack into single unified archive
 tar -C "$BACKUP_DIR" -czf "$BACKUP_FILE" "$(basename "$WORK_DIR")"
-cp "$BACKUP_FILE" "$LATEST_FILE"
-cp "$BACKUP_FILE" "$LEGACY_LATEST_FILE"
 
-# Verification
+# Verification of internal listing
 tar -tzf "$BACKUP_FILE" > "$LISTING_FILE"
-for component in database.sql data.tar.gz config.tar.gz config_keys.json manifest.json manifest.txt; do
+for component in database.sql data.tar.gz config.tar.gz config_keys.json custom_apps.tar.gz manifest.json manifest.txt; do
     if ! grep -Fq "/$component" "$LISTING_FILE"; then
         echo "[ERROR] Backup verification failed; missing component: $component"
         exit 1
@@ -218,39 +243,29 @@ SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
 SIZE_BYTES=$(stat -c%s "$BACKUP_FILE" 2>/dev/null || stat -f%z "$BACKUP_FILE" 2>/dev/null || echo 0)
 SHA256=$(sha256sum "$BACKUP_FILE" | cut -d' ' -f1)
 
-# Update manifest inside archive with final size and duration
-python3 -c "
-import json
-with open('$WORK_DIR/manifest.json') as f:
-    m = json.load(f)
-m['duration_seconds'] = $DURATION
-m['size_bytes'] = $SIZE_BYTES
-m['size_human'] = '$SIZE'
-m['checksum_sha256'] = '$SHA256'
-with open('$WORK_DIR/manifest.json', 'w') as f:
-    json.dump(m, f, indent=2)
-"
-
-# Re-tar with final manifest
-tar -C "$BACKUP_DIR" -czf "$BACKUP_FILE" "$(basename "$WORK_DIR")"
-cp "$BACKUP_FILE" "$LATEST_FILE"
-cp "$BACKUP_FILE" "$LEGACY_LATEST_FILE"
-
-SHA256=$(sha256sum "$BACKUP_FILE" | cut -d' ' -f1)
+# Write sidecar checksums and establish standard aliases
 printf '%s  %s
 ' "$SHA256" "$(basename "$BACKUP_FILE")" > "$BACKUP_FILE.sha256"
-cp "$BACKUP_FILE.sha256" "$LATEST_FILE.sha256"
+
+# Canonical latest alias
+cp "$BACKUP_FILE" "$LATEST_INSTANCE_FILE"
+cp "$BACKUP_FILE.sha256" "$LATEST_INSTANCE_FILE.sha256"
+
+# Backward compatibility aliases
+cp "$BACKUP_FILE" "$LATEST_DATA_FILE"
+cp "$BACKUP_FILE.sha256" "$LATEST_DATA_FILE.sha256"
+cp "$BACKUP_FILE" "$LEGACY_LATEST_FILE"
 cp "$BACKUP_FILE.sha256" "$LEGACY_LATEST_FILE.sha256"
 
 echo "[INFO] [6/6] Executing retention pruning policy (Max: $MAX_BACKUPS, Days: $RETENTION_DAYS)..."
-find "$BACKUP_DIR" -maxdepth 1 -name "backup_data_*.tar.gz" -type f | sort -r | tail -n +"$((MAX_BACKUPS + 1))" | while read -r old_backup; do
+find "$BACKUP_DIR" -maxdepth 1 \( -name "backup_full_instance_*.tar.gz" -o -name "backup_data_*.tar.gz" \) -type f | sort -r | tail -n +"$((MAX_BACKUPS + 1))" | while read -r old_backup; do
     if [ -n "$old_backup" ] && [ -f "$old_backup" ]; then
         echo "[RETENTION] Pruning expired backup: $(basename "$old_backup")"
         rm -f "$old_backup" "$old_backup.sha256"
     fi
 done
 
-find "$BACKUP_DIR" -maxdepth 1 -name "backup_data_*.tar.gz" -type f -mtime +"$RETENTION_DAYS" | while read -r old_backup; do
+find "$BACKUP_DIR" -maxdepth 1 \( -name "backup_full_instance_*.tar.gz" -o -name "backup_data_*.tar.gz" \) -type f -mtime +"$RETENTION_DAYS" | while read -r old_backup; do
     if [ -n "$old_backup" ] && [ -f "$old_backup" ]; then
         echo "[RETENTION] Pruning aged backup (> $RETENTION_DAYS days): $(basename "$old_backup")"
         rm -f "$old_backup" "$old_backup.sha256"
@@ -265,16 +280,18 @@ with open('$BACKUP_DIR/.backup_status.json', 'w') as f:
         'status': 'SUCCESS',
         'action': 'backup',
         'progress': 100,
-        'message': 'پشتیبان‌گیری با موفقیت تکمیل گردید.'
+        'message': 'پشتیبان‌گیری جامع با موفقیت تکمیل گردید.'
     }, f, indent=2)
 " 2>/dev/null || true
 
-echo "[SUCCESS] Point-in-time Consistent Backup Completed!" 
+echo "[SUCCESS] Point-in-time Consistent Full Instance Backup Completed!"
 echo "  - Backup ID:       $BACKUP_ID"
+echo "  - Backup Type:     $BACKUP_TYPE"
 echo "  - Recovery Point:  $RECOVERY_POINT"
 echo "  - File:            $BACKUP_FILE"
 echo "  - Size:            $SIZE ($SIZE_BYTES bytes)"
 echo "  - Duration:        ${DURATION}s"
 echo "  - SHA256:          $SHA256"
-echo "  - Symlink:         $LATEST_FILE"
+echo "  - Digest:          $COMPONENTS_DIGEST_SHA256"
+echo "  - Latest File:     $LATEST_INSTANCE_FILE"
 echo "================================================================================"

@@ -92,7 +92,10 @@ class AdminBackupController extends Controller {
         }
 
         $latest = null;
-        $latestPath = $this->backupDir . '/latest_data_backup.tar.gz';
+        $latestPath = $this->backupDir . '/latest_instance_backup.tar.gz';
+        if (!file_exists($latestPath)) {
+            $latestPath = $this->backupDir . '/latest_data_backup.tar.gz';
+        }
         if (file_exists($latestPath)) {
             $shaFile = $latestPath . '.sha256';
             $sha = file_exists($shaFile) ? trim(explode(' ', (string)file_get_contents($shaFile))[0]) : 'N/A';
@@ -193,7 +196,7 @@ class AdminBackupController extends Controller {
                 $sha = trim(explode(' ', (string)file_get_contents($shaFile))[0]);
             }
 
-            $testStatus = $testLog[$filename] ?? ($testLog['latest_data_backup.tar.gz'] ?? 'UNTESTED');
+            $testStatus = $testLog[$filename] ?? ($testLog['latest_instance_backup.tar.gz'] ?? ($testLog['latest_data_backup.tar.gz'] ?? 'UNTESTED'));
 
             $backups[] = [
                 'filename' => $filename,
@@ -204,7 +207,7 @@ class AdminBackupController extends Controller {
                 'sha256' => $sha,
                 'checksum_valid' => !empty($sha),
                 'test_status' => $testStatus,
-                'type' => str_contains($filename, 'data') ? 'data_only' : 'full_system',
+                'type' => 'full_instance',
             ];
         }
 

@@ -102,7 +102,7 @@ with open('$STATUS_FILE', 'w') as f:
 
                 test)
                     echo "[DAEMON] Executing test_restore.sh in sandbox..."
-                    TARGET_BASENAME="$(basename "${TARGET:-latest_data_backup.tar.gz}")"
+                    TARGET_BASENAME="$(basename "${TARGET:-latest_instance_backup.tar.gz}")"
                     if "$SCRIPT_DIR/test_restore.sh" ${TARGET:+"$TARGET"} > "$BACKUP_DIR/.test_last_run.log" 2>&1; then
                         echo "[DAEMON] Sandbox test restore passed."
                         python3 -c "

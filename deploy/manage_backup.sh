@@ -19,7 +19,7 @@ usage() {
     echo "Commands:"
     echo "  status               Show overall status of backup engine, services, and latest backup"
     echo "  list                 List all available backup archives with integrity and test status"
-    echo "  run | backup         Execute immediate point-in-time consistent backup"
+    echo "  run | backup         Execute immediate point-in-time consistent full-instance backup"
     echo "  restore [file]       Restore system from latest backup or specified archive"
     echo "  test [file]          Execute isolated test restore in sandbox DB without downtime"
     echo "  prune                Execute retention policy to remove expired backup archives"
@@ -36,19 +36,27 @@ case "$cmd" in
         echo "[1] Docker Container Status:"
         for c in archive_db archive_app archive_proxy; do
             st=$(docker inspect --format '{{.State.Status}}' "$c" 2>/dev/null || echo "not_found")
-            printf "  - %-15s : %s
-" "$c" "$st"
+            printf "  - %-15s : %s\n" "$c" "$st"
         done
         echo ""
         echo "[2] Latest Backup Archive:"
-        if [ -f "$BACKUP_DIR/latest_data_backup.tar.gz" ]; then
-            sz=$(du -h "$BACKUP_DIR/latest_data_backup.tar.gz" | cut -f1)
-            dt=$(date -r "$BACKUP_DIR/latest_data_backup.tar.gz" -Iseconds 2>/dev/null || stat -c%y "$BACKUP_DIR/latest_data_backup.tar.gz" 2>/dev/null || echo "N/A")
+        LATEST_TARGET=""
+        if [ -f "$BACKUP_DIR/latest_instance_backup.tar.gz" ]; then
+            LATEST_TARGET="$BACKUP_DIR/latest_instance_backup.tar.gz"
+        elif [ -f "$BACKUP_DIR/latest_data_backup.tar.gz" ]; then
+            LATEST_TARGET="$BACKUP_DIR/latest_data_backup.tar.gz"
+        elif [ -f "$BACKUP_DIR/latest_nextcloud_backup.tar.gz" ]; then
+            LATEST_TARGET="$BACKUP_DIR/latest_nextcloud_backup.tar.gz"
+        fi
+
+        if [ -n "$LATEST_TARGET" ] && [ -f "$LATEST_TARGET" ]; then
+            sz=$(du -h "$LATEST_TARGET" | cut -f1)
+            dt=$(date -r "$LATEST_TARGET" -Iseconds 2>/dev/null || stat -c%y "$LATEST_TARGET" 2>/dev/null || echo "N/A")
             sha="N/A"
-            if [ -f "$BACKUP_DIR/latest_data_backup.tar.gz.sha256" ]; then
-                sha=$(cut -d' ' -f1 < "$BACKUP_DIR/latest_data_backup.tar.gz.sha256")
+            if [ -f "$LATEST_TARGET.sha256" ]; then
+                sha=$(cut -d' ' -f1 < "$LATEST_TARGET.sha256")
             fi
-            echo "  - File:       latest_data_backup.tar.gz ($sz)"
+            echo "  - File:       $(basename "$LATEST_TARGET") ($sz)"
             echo "  - Date:       $dt"
             echo "  - SHA256:     $sha"
         else
@@ -61,7 +69,7 @@ case "$cmd" in
 import json
 c = json.load(open('$CONFIG_FILE'))
 print('  - Enabled:    ', c.get('backup_enabled'))
-print('  - Type:       ', c.get('backup_type'))
+print('  - Type:       ', c.get('backup_type', 'full_instance'))
 print('  - Schedule:   ', c.get('schedule', {}).get('cron_expression'))
 print('  - Max Backups:', c.get('retention_policy', {}).get('max_backups_count'))
 print('  - Retention:  ', c.get('retention_policy', {}).get('retention_days'), 'days')
@@ -72,8 +80,7 @@ print('  - Retention:  ', c.get('retention_policy', {}).get('retention_days'), '
 
     list)
         echo "===================================================================================================="
-        printf "%-32s  %-8s  %-19s  %-8s  %-15s
-" "ARCHIVE FILENAME" "TYPE" "DATE & TIME" "SIZE" "CHECKSUM STATUS"
+        printf "%-38s  %-14s  %-19s  %-8s  %-15s\n" "ARCHIVE FILENAME" "TYPE" "DATE & TIME" "SIZE" "CHECKSUM STATUS"
         echo "----------------------------------------------------------------------------------------------------"
         python3 -c "
 import os, glob, json, datetime
@@ -87,10 +94,10 @@ for f in files:
         continue
     sz = f'{os.path.getsize(f) / (1024*1024):.1f}M'
     mtime = datetime.datetime.fromtimestamp(os.path.getmtime(f)).strftime('%Y-%m-%d %H:%M:%S')
-    btype = 'data' if 'data' in fname else 'full'
+    btype = 'full_instance'
     sha_file = f + '.sha256'
     sha_status = '[OK] Verified' if os.path.exists(sha_file) else '[No Hash]'
-    print(f'{fname:<32}  {btype:<8}  {mtime:<19}  {sz:<8}  {sha_status:<15}')
+    print(f'{fname:<38}  {btype:<14}  {mtime:<19}  {sz:<8}  {sha_status:<15}')
 "
         echo "===================================================================================================="
         ;;
@@ -102,10 +109,14 @@ for f in files:
     restore)
         target="${1:-}"
         if [ -z "$target" ]; then
-            echo "[PROMPT] Restoring from latest backup: latest_data_backup.tar.gz"
+            default_restore="latest_instance_backup.tar.gz"
+            if [ ! -f "$BACKUP_DIR/$default_restore" ] && [ -f "$BACKUP_DIR/latest_data_backup.tar.gz" ]; then
+                default_restore="latest_data_backup.tar.gz"
+            fi
+            echo "[PROMPT] Restoring from latest full instance backup: $default_restore"
             read -r -p "Are you sure you want to restore the entire system? [y/N]: " confirm
             if [[ "$confirm" =~ ^[Yy]$ ]]; then
-                "$SCRIPT_DIR/restore_db.sh"
+                "$SCRIPT_DIR/restore_db.sh" "$BACKUP_DIR/$default_restore"
             else
                 echo "[ABORTED] Restore cancelled by user."
             fi
@@ -121,11 +132,10 @@ for f in files:
 
     prune)
         echo "[INFO] Running retention pruning engine..."
-        "$SCRIPT_DIR/backup_db.sh" --prune-only 2>/dev/null || true
-        MAX_BACKUPS=$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c.get('retention_policy', {}).get('max_backups_count', 7))" 2>/dev/null || echo 7)
-        find "$BACKUP_DIR" -maxdepth 1 -name "backup_data_*.tar.gz" -type f | sort -r | tail -n +"$((MAX_BACKUPS + 1))" | while read -r old; do
+        MAX_BACKUPS=$(python3 -c "import json; c=json.load(open('$CONFIG_FILE')); print(c.get('retention_policy', {}).get('max_backups_count', 14))" 2>/dev/null || echo 14)
+        find "$BACKUP_DIR" -maxdepth 1 \( -name "backup_full_instance_*.tar.gz" -o -name "backup_data_*.tar.gz" \) -type f | sort -r | tail -n +"$((MAX_BACKUPS + 1))" | while read -r old; do
             if [ -n "$old" ] && [ -f "$old" ]; then
-                echo "[PRUNED] Removing: $(basename "$old")"
+                echo "[PRUNED] Removing expired: $(basename "$old")"
                 rm -f "$old" "$old.sha256"
             fi
         done

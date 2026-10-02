@@ -270,7 +270,7 @@ latest_data_backup.tar.gz.sha256
 ```json
 {
   "backup_id": "bk-20260925-020000-8f92",
-  "backup_type": "data_only",
+  "backup_type": "full_instance",
   "status": "SUCCESS",
   "created_at": "2026-09-25T02:00:00+03:30",
   "recovery_point": "2026-09-25T02:00:15+03:30",

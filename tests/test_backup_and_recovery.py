@@ -34,7 +34,7 @@ ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "Secure_Admin_Password_123!")
 admin_auth = HTTPBasicAuth(ADMIN_USER, ADMIN_PASS)
 
-SOC_USER = os.environ.get("SOC_USER", "Bakbari")
+SOC_USER = os.environ.get("SOC_USER", "test_user_a")
 SOC_PASS = os.environ.get("SOC_PASS", "User_Password_123!")
 soc_auth = HTTPBasicAuth(SOC_USER, SOC_PASS)
 
@@ -83,6 +83,7 @@ class TestBackupAndRecovery(unittest.TestCase):
         self.assertIn("retention_policy", payload)
         self.assertIn("storage", payload)
         self.assertIn("backups_count", payload)
+        self.assertEqual(payload.get("config", {}).get("backup_type"), "full_instance")
 
     def test_03_admin_get_list(self):
         """Admin can list all backup archives with checksum and test status."""
@@ -239,6 +240,62 @@ class TestBackupAndRecovery(unittest.TestCase):
         self.assertIn("in_maintenance", payload)
         self.assertIn("estimated_seconds", payload)
 
+
+
+    def test_11_fail_closed_on_corrupt_archive(self):
+        """Sandbox test restore engine (deploy/test_restore.sh) must fail-closed on corrupt archive."""
+        repo_dir = "/home/alborz/enterprise-archive-system"
+        corrupt_file = "/tmp/corrupted_test_archive.tar.gz"
+        with open(corrupt_file, "w") as f:
+            f.write("corrupted_garbage_content")
+        try:
+            res = subprocess.run(
+                [f"{repo_dir}/deploy/test_restore.sh", corrupt_file],
+                cwd=repo_dir,
+                capture_output=True,
+                text=True
+            )
+            self.assertNotEqual(res.returncode, 0, "test_restore.sh must fail on corrupt archive")
+            self.assertIn("FAIL", res.stdout, "test_restore.sh output must report FAIL")
+        finally:
+            if os.path.exists(corrupt_file):
+                os.remove(corrupt_file)
+
+    def test_12_manifest_and_components_digest_integrity(self):
+        """Verify manifest.json in latest backup has full_instance type and valid component digests."""
+        import tarfile
+        import json
+        import hashlib
+
+        backup_dir = "/home/alborz/enterprise-archive-system/deploy/backups"
+        latest_archive = os.path.join(backup_dir, "latest_instance_backup.tar.gz")
+        if not os.path.isfile(latest_archive):
+            latest_archive = os.path.join(backup_dir, "latest_data_backup.tar.gz")
+        self.assertTrue(os.path.isfile(latest_archive), "Latest backup archive missing")
+
+        with tarfile.open(latest_archive, "r:gz") as tar:
+            members_by_basename = {os.path.basename(m.name): m for m in tar.getmembers()}
+            for comp in ["manifest.json", "manifest.txt", "database.sql", "data.tar.gz", "config.tar.gz", "config_keys.json", "custom_apps.tar.gz"]:
+                self.assertIn(comp, members_by_basename, f"Required component {comp} missing from backup archive")
+
+            manifest_f = tar.extractfile(members_by_basename["manifest.json"])
+            manifest = json.load(manifest_f)
+
+            self.assertEqual(manifest.get("backup_type"), "full_instance")
+            components = manifest.get("components", {})
+            for key in ["database", "user_data", "config", "security_keys", "custom_apps"]:
+                self.assertIn(key, components, f"Component key {key} missing from manifest")
+                self.assertEqual(len(components[key].get("sha256", "")), 64, f"Component {key} SHA-256 missing or invalid")
+
+            # Verify components_digest_sha256 matches composite sha256 of component digests
+            db_sha = components["database"]["sha256"]
+            data_sha = components["user_data"]["sha256"]
+            cfg_sha = components["config"]["sha256"]
+            keys_sha = components["security_keys"]["sha256"]
+            apps_sha = components["custom_apps"]["sha256"]
+            preimage = f"{db_sha}\n{data_sha}\n{cfg_sha}\n{keys_sha}\n{apps_sha}"
+            expected_digest = hashlib.sha256(preimage.encode("utf-8")).hexdigest()
+            self.assertEqual(manifest.get("components_digest_sha256"), expected_digest)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
