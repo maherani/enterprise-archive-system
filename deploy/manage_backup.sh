@@ -24,6 +24,8 @@ usage() {
     echo "  backup [type]        Alias for run"
     echo "  restore [file]       Restore full instance from specified archive (or redirects data)"
     echo "  restore-data [file]  Restore operational data to live instance (BR-04)"
+    echo "  recover [options]    Full Disaster Recovery on Lost Server (BR-05)"
+    echo "  disaster-recovery    Alias for recover"
     echo "  test [file]          Perform sandbox verification (auto-detects full, data, or system)"
     echo "  test-data [file]     Perform sandbox verification of instance data backup"
     echo "  test-system [file]   Perform sandbox verification of system backup"
@@ -403,6 +405,10 @@ for f in files:
         fi
 
         echo "[SUCCESS] Pruning complete."
+        ;;
+
+    recover|disaster-recovery)
+        "$SCRIPT_DIR/recover_lost_server.sh" "$@"
         ;;
 
     config)

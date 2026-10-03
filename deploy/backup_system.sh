@@ -80,6 +80,10 @@ DOCKER_APP_IMAGE=$(docker inspect archive_app --format '{{.Config.Image}}' 2>/de
 DOCKER_DB_IMAGE=$(docker inspect archive_db --format '{{.Config.Image}}' 2>/dev/null || echo "unknown")
 DOCKER_PROXY_IMAGE=$(docker inspect archive_proxy --format '{{.Config.Image}}' 2>/dev/null || echo "unknown")
 
+DOCKER_APP_DIGEST=$(docker image inspect "$DOCKER_APP_IMAGE" --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{else}}{{.Id}}{{end}}' 2>/dev/null || echo "unknown")
+DOCKER_DB_DIGEST=$(docker image inspect "$DOCKER_DB_IMAGE" --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{else}}{{.Id}}{{end}}' 2>/dev/null || echo "unknown")
+DOCKER_PROXY_DIGEST=$(docker image inspect "$DOCKER_PROXY_IMAGE" --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{else}}{{.Id}}{{end}}' 2>/dev/null || echo "unknown")
+
 ENABLED_APPS_JSON=$(docker exec -u www-data archive_app php occ app:list --output=json 2>/dev/null || echo "{}")
 
 cat > "$WORK_DIR/software_info.json" <<EOF
@@ -97,6 +101,11 @@ cat > "$WORK_DIR/software_info.json" <<EOF
     "app": "$DOCKER_APP_IMAGE",
     "db": "$DOCKER_DB_IMAGE",
     "proxy": "$DOCKER_PROXY_IMAGE"
+  },
+  "container_image_digests": {
+    "app": "$DOCKER_APP_DIGEST",
+    "db": "$DOCKER_DB_DIGEST",
+    "proxy": "$DOCKER_PROXY_DIGEST"
   },
   "enabled_apps": $ENABLED_APPS_JSON
 }
