@@ -76,9 +76,37 @@ NC_VERSION=$(docker exec -u www-data archive_app php occ config:system:get versi
 PHP_VERSION=$(docker exec archive_app php -r 'echo PHP_VERSION;' 2>/dev/null || echo "unknown")
 APP_VERSION="2.9.0"
 
-DOCKER_APP_IMAGE=$(docker inspect archive_app --format '{{.Config.Image}}' 2>/dev/null || echo "unknown")
-DOCKER_DB_IMAGE=$(docker inspect archive_db --format '{{.Config.Image}}' 2>/dev/null || echo "unknown")
-DOCKER_PROXY_IMAGE=$(docker inspect archive_proxy --format '{{.Config.Image}}' 2>/dev/null || echo "unknown")
+DOCKER_APP_IMAGE_ID=$(docker inspect archive_app --format '{{.Image}}' 2>/dev/null || echo "unknown")
+DOCKER_DB_IMAGE_ID=$(docker inspect archive_db --format '{{.Image}}' 2>/dev/null || echo "unknown")
+DOCKER_PROXY_IMAGE_ID=$(docker inspect archive_proxy --format '{{.Image}}' 2>/dev/null || echo "unknown")
+
+DOCKER_APP_REPODIGEST=$(docker image inspect "$DOCKER_APP_IMAGE_ID" --format '{{index .RepoDigests 0}}' 2>/dev/null || echo "")
+DOCKER_DB_REPODIGEST=$(docker image inspect "$DOCKER_DB_IMAGE_ID" --format '{{index .RepoDigests 0}}' 2>/dev/null || echo "")
+DOCKER_PROXY_REPODIGEST=$(docker image inspect "$DOCKER_PROXY_IMAGE_ID" --format '{{index .RepoDigests 0}}' 2>/dev/null || echo "")
+
+for role_name in APP DB PROXY; do
+    rd_var="DOCKER_${role_name}_REPODIGEST"
+    rd_val="${!rd_var}"
+    if [ -z "$rd_val" ] || [[ "$rd_val" == *":latest"* ]] || [[ "$rd_val" != *"@sha256:"* ]]; then
+        echo "[ERROR] Container $role_name does not have an immutable RepoDigest (repository@sha256:...): '$rd_val'"
+        exit 1
+    fi
+done
+
+DOCKER_APP_IMAGE="$DOCKER_APP_REPODIGEST"
+DOCKER_DB_IMAGE="$DOCKER_DB_REPODIGEST"
+DOCKER_PROXY_IMAGE="$DOCKER_PROXY_REPODIGEST"
+
+DOCKER_APP_DIGEST="$DOCKER_APP_IMAGE_ID"
+DOCKER_DB_DIGEST="$DOCKER_DB_IMAGE_ID"
+DOCKER_PROXY_DIGEST="$DOCKER_PROXY_IMAGE_ID"
+
+echo "[INFO] Creating immutable Git repository bundle artifact..."
+git -C "$PROJECT_DIR" bundle create "$WORK_DIR/repository.bundle" HEAD >/dev/null 2>&1 || {
+    echo "[ERROR] Failed to create git bundle for commit $GIT_COMMIT"
+    exit 1
+}
+REPO_BUNDLE_SHA=$(sha256sum "$WORK_DIR/repository.bundle" | cut -d' ' -f1)
 
 ENABLED_APPS_JSON=$(docker exec -u www-data archive_app php occ app:list --output=json 2>/dev/null || echo "{}")
 
@@ -93,10 +121,22 @@ cat > "$WORK_DIR/software_info.json" <<EOF
     "php_version": "$PHP_VERSION",
     "app_version": "$APP_VERSION"
   },
+  "source_artifact": {
+    "type": "git_bundle",
+    "filename": "repository.bundle",
+    "sha256": "$REPO_BUNDLE_SHA",
+    "git_commit": "$GIT_COMMIT",
+    "git_branch": "$GIT_BRANCH"
+  },
   "container_images": {
     "app": "$DOCKER_APP_IMAGE",
     "db": "$DOCKER_DB_IMAGE",
     "proxy": "$DOCKER_PROXY_IMAGE"
+  },
+  "container_image_digests": {
+    "app": "$DOCKER_APP_DIGEST",
+    "db": "$DOCKER_DB_DIGEST",
+    "proxy": "$DOCKER_PROXY_DIGEST"
   },
   "enabled_apps": $ENABLED_APPS_JSON
 }
@@ -137,7 +177,7 @@ if [ -f "$WORK_DIR/data.tar.gz" ]; then
 fi
 
 # Check required system components exist and are non-empty
-for comp in config.tar.gz config_keys.json custom_apps.tar.gz software_info.json; do
+for comp in config.tar.gz config_keys.json custom_apps.tar.gz software_info.json repository.bundle; do
     if [ ! -s "$WORK_DIR/$comp" ]; then
         echo "[ERROR] System backup component is missing or empty: $comp"
         exit 1
@@ -151,7 +191,7 @@ CUSTOM_APPS_SHA=$(sha256sum "$WORK_DIR/custom_apps.tar.gz" | cut -d' ' -f1)
 SOFTWARE_SHA=$(sha256sum "$WORK_DIR/software_info.json" | cut -d' ' -f1)
 
 # Deterministic composite payload digest of all component hashes
-COMPONENTS_DIGEST_SHA256=$(printf "%s\n%s\n%s\n%s" "$CONFIG_SHA" "$KEYS_SHA" "$CUSTOM_APPS_SHA" "$SOFTWARE_SHA" | sha256sum | cut -d' ' -f1)
+COMPONENTS_DIGEST_SHA256=$(printf "%s\n%s\n%s\n%s\n%s" "$CONFIG_SHA" "$KEYS_SHA" "$CUSTOM_APPS_SHA" "$SOFTWARE_SHA" "$REPO_BUNDLE_SHA" | sha256sum | cut -d' ' -f1)
 
 cat > "$WORK_DIR/manifest.json" <<EOF
 {
@@ -184,6 +224,11 @@ cat > "$WORK_DIR/manifest.json" <<EOF
     "software_info": {
       "file": "software_info.json",
       "sha256": "$SOFTWARE_SHA"
+    },
+    "repository_bundle": {
+      "file": "repository.bundle",
+      "sha256": "$REPO_BUNDLE_SHA",
+      "git_commit": "$GIT_COMMIT"
     }
   },
   "excluded_data": {
@@ -204,7 +249,7 @@ created_at=$(date -Iseconds)
 git_commit=$GIT_COMMIT
 git_branch=$GIT_BRANCH
 nextcloud_version=$NC_VERSION
-components=config,config_keys,custom_apps,software_info
+components=config,config_keys,custom_apps,software_info,repository_bundle
 components_digest_sha256=$COMPONENTS_DIGEST_SHA256
 excluded=database.sql,data.tar.gz
 EOF

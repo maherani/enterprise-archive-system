@@ -52,8 +52,10 @@
 │                          │ مجهز به Pre-Restore Safety Backup خودکار و ممیزی DB ↔ Files │
 │                          │ گیت‌های امنیتی Fail-Closed: Maintenance، Health Gate و CSRF │
 ├──────────────────────────┼─────────────────────────────────────────────────────────────┤
-│ BR-05: Full DR on Lost   │ بازسازی و ریکاوری فاجعه روی سرور تخریب‌شده / جدید           │
-│ (فاز آتی نقشه راه)       │ ترکیب System Backup + Instance Data برای استقرار کامل سرور  │
+│ BR-05: Full DR on Lost   │ هماهنگ‌کننده و ارکستراتور کامل بازیابی در شرایط فاجعه        │
+│ (پیاده‌سازی‌شده - نهایی)   │ بازسازی دقیق لایه سیستم + داده بر روی Lost Server / New Host │
+│                          │ مبتنی بر Shared Restore Core، انجماد Recovery Set، تطابق گیت │
+│                          │ احراز هویت دایجست ایمیج، آزمون واقعی احراز هویت و پایش Air-Gap│
 └──────────────────────────┴─────────────────────────────────────────────────────────────┘
 ```
 
@@ -127,9 +129,17 @@
 8. **حفاظت ضد CSRF و اعتبارسنجی توکن درخواست (CSRF & Request Token Audit):**
    - کلیه متدهای حساس و تغییردهنده وضعیت (`runBackup`, `runRestore`, `runTest`, `saveConfig`) در `AdminBackupController` مجهز به اعتبارسنجی توکن امنیتی Nextcloud CSRF (`CsrfTokenManager`) هستند و درخواست‌های تغییر وضعیت بدون توکن معتبر با خطای ۴۰۳ ریجکت می‌شوند.
 
-> [!NOTE]
-> **وضعیت نیازمندی BR-05 (Full Disaster Recovery on Lost Server):**  
-> این قابلیت مربوط به فازهای آتی نقشه راه بوده و در این مرحله **آغاز نشده است (Status: NOT STARTED)**.
+> [!IMPORTANT]
+> **تفکیک سه سناریوی عملیاتی مستقل (Three Distinct Scenarios):**
+> 1. **استقرار تمیز از صفر (Fresh Deployment):**
+>    اجرای `deploy/deploy_from_scratch.sh` برای راه‌اندازی اولیه و نو بدون داده‌های قبلی؛ تولید سالت‌ها و هویت‌های تازه.
+> 2. **بازیابی داده‌های عملیاتی پروداکشن (Production Instance Data Restore — BR-04):**
+>    اجرای `deploy/restore_instance_data.sh` روی سرور زنده و سالم؛ بازگردانی اتمیک `database.sql` و فایل‌های کاربران به همراه Pre-Restore Backup و اعتبارسنجی سلامت Fail-Closed.
+> 3. **بازیابی کامل در شرایط فاجعه روی سرور جدید (Full Disaster Recovery on Lost Server — BR-05):**
+>    ارکستراتور مستقل `deploy/orchestrate_disaster_recovery.sh` برای احیای سامانه روی هاست ریکاوری جدید با تطابق قطعی Git Baseline، اعتبارسنجی ایمیج‌های داکر، بازسازی لایه سیستم (`system_only`)، گیت سیستمی، بازسازی داده‌های عملیاتی (`instance_data`)، ممیزی‌های ساختاری/تابعی/امنیتی، گیت قطع اینترنت، و گیت نهایی سلامت.
+>
+> **وضعیت نیازمندی BR-05 (Full Disaster Recovery on Lost Server):**
+> پیاده‌سازی ارکستراتور، هماهنگ‌کننده ریکاوری، تمپلیت ایزوله داکر، ابزار ممیزی پروداکشن و مجموعه آزمون‌های ۲۱ گانه DR-01 تا DR-18 در محیط آزمایشگاهی تکمیل و اعتبارسنجی شده است (Status: IMPLEMENTED & LAB VERIFIED). سناریوهای آزمایشی با ثبت لاگ در `disaster_recovery_audit.jsonl` مستند گردیده‌اند.
 
 ---
 
@@ -180,3 +190,23 @@ graph LR
 
 ## خط‌مشی اسناد زنده (Living Documentation Policy)
 تمامی اسناد این پوشه به صورت کاملاً همگام با اسکریپت‌های اجرایی پوشه `deploy/` نگهداری می‌شوند. هرگونه تغییر در متغیرهای محیطی، سیاست‌های نگهداری (Retention) یا نسخه‌های کانتینرها مستلزم به‌روزرسانی آنی این اسناد است.
+
+---
+
+## دستورات خط فرمانی بازیابی بحران (BR-05 Full Disaster Recovery)
+
+```bash
+# ۱. اجرای آزمایشی مانور بحران در محیط ایزوله سندباکس (بدون کوچک‌ترین داون‌تایم یا اثر روی پروداکشن)
+./deploy/manage_backup.sh dr
+
+# ۲. اجرای مستقیم ارکستراتور جهت استقرار کامل روی سرور جدید (New Recovery Host)
+./deploy/orchestrate_disaster_recovery.sh \
+    --data-backup deploy/backups/latest_instance_data_backup.tar.gz \
+    --system-backup deploy/backups/latest_system_backup.tar.gz \
+    --target-env host \
+    --target-port 80 \
+    --requested-by "admin_soc"
+
+# ۳. ممیزی و تایید عدم دستکاری پروداکشن (DR-18 Verification)
+./deploy/fingerprint_production.sh verify /tmp/prod_fp_before.json /tmp/prod_fp_after.json
+```

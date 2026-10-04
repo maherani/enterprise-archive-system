@@ -24,6 +24,7 @@ usage() {
     echo "  backup [type]        Alias for run"
     echo "  restore [file]       Restore full instance from specified archive (or redirects data)"
     echo "  restore-data [file]  Restore operational data to live instance (BR-04)"
+    echo "  disaster-recovery    Execute full disaster recovery coordinator (BR-05)"
     echo "  test [file]          Perform sandbox verification (auto-detects full, data, or system)"
     echo "  test-data [file]     Perform sandbox verification of instance data backup"
     echo "  test-system [file]   Perform sandbox verification of system backup"
@@ -234,6 +235,10 @@ for f in files:
         else
             "$SCRIPT_DIR/backup_db.sh"
         fi
+        ;;
+
+    dr|disaster-recovery)
+        "$SCRIPT_DIR/orchestrate_disaster_recovery.sh" "$@"
         ;;
 
     restore-data)

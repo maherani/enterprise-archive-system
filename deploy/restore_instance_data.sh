@@ -4,6 +4,7 @@
 #
 # Dedicated restore engine for operational instance data on a healthy server.
 # Restores PostgreSQL database and Nextcloud user files to a verified recovery point.
+# Utilizes Shared Restore Core (deploy/restore_core.sh) with ProductionTarget.
 #
 # CRITICAL SAFETY ARCHITECTURE:
 #   1. System State, software code, Docker configuration, and config.php remain UNTOUCHED.
@@ -41,7 +42,19 @@ if [ -z "${POSTGRES_DB:-}" ] || [ -z "${POSTGRES_USER:-}" ] || [ -z "${POSTGRES_
     exit 1
 fi
 
+# Source Shared Restore Core
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/restore_core.sh"
 
+# Define ProductionTarget Abstraction
+TARGET_NAME="production"
+TARGET_APP_CONTAINER="archive_app"
+TARGET_DB_CONTAINER="archive_db"
+TARGET_PROXY_CONTAINER="archive_proxy"
+TARGET_DB_NAME="$POSTGRES_DB"
+TARGET_DB_USER="$POSTGRES_USER"
+TARGET_DB_PASSWORD="$POSTGRES_PASSWORD"
+TARGET_DATA_PATH="/var/www/html/data"
 
 mkdir -p "$BACKUP_DIR"
 
@@ -112,6 +125,7 @@ trap cleanup EXIT
 
 echo "======================================================================"
 echo " Enterprise Archive System - Production Instance Data Restore (BR-04)"
+echo " Target Environment: $TARGET_NAME"
 echo "======================================================================"
 RESTORE_START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -171,33 +185,19 @@ echo "[INFO] Target Archive: $TARGET_ARCHIVE"
 BACKUP_FILENAME=$(basename "$TARGET_ARCHIVE")
 
 # ==============================================================================
-# Stage 1: Validate Target Backup & Structure
+# Stage 1: Validate Target Backup & Structure (via Shared Restore Core)
 # ==============================================================================
 echo ""
 echo "[INFO] [1/9] Validating Target Backup and Checksums..."
 update_status "IN_PROGRESS" 10 "مرحله ۱/۹: بررسی جامع صحت و ساختار فایل پشتیبان..."
 
-# Check SHA-256 sidecar if present
-if [ -f "${TARGET_ARCHIVE}.sha256" ]; then
-    echo "[INFO] Verifying sidecar SHA-256 checksum..."
-    EXPECTED_SHA=$(awk '{print $1}' "${TARGET_ARCHIVE}.sha256")
-    ACTUAL_SHA=$(sha256sum "$TARGET_ARCHIVE" | awk '{print $1}')
-    if [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
-        echo "[ERROR] Checksum mismatch! Expected: $EXPECTED_SHA, Got: $ACTUAL_SHA" >&2
-        update_status "FAILED" 10 "خطا: عدم تطابق هش SHA-256 فایل پشتیبان."
-        record_audit "$BACKUP_FILENAME" "UNKNOWN" "UNKNOWN" "NONE" "$RESTORE_START_TIME" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "FAILED" "Target backup checksum mismatch"
-        exit 1
-    fi
-    echo "  [OK] SHA-256 sidecar verified."
-fi
-
-# Verify tar archive integrity
-if ! tar -tzf "$TARGET_ARCHIVE" > /dev/null 2>&1; then
-    echo "[ERROR] Target archive is corrupted or not a valid gzip tarball." >&2
-    update_status "FAILED" 10 "خطا: فایل پشتیبان آسیب‌دیده یا نامعتبر است."
-    record_audit "$BACKUP_FILENAME" "UNKNOWN" "UNKNOWN" "NONE" "$RESTORE_START_TIME" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "FAILED" "Target archive corrupted"
+if ! core_validate_archive_integrity "$TARGET_ARCHIVE"; then
+    echo "[ERROR] Archive integrity check failed for $TARGET_ARCHIVE" >&2
+    update_status "FAILED" 10 "خطا: عدم تطابق هش SHA-256 یا خرابی فایل پشتیبان."
+    record_audit "$BACKUP_FILENAME" "UNKNOWN" "UNKNOWN" "NONE" "$RESTORE_START_TIME" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "FAILED" "Target backup integrity or checksum failure"
     exit 1
 fi
+echo "  [OK] Archive integrity and sidecar checksum verified."
 
 TEMP_RESTORE_DIR=$(mktemp -d "/tmp/instance_data_restore_XXXXXX")
 restore_dir_cleanup() {
@@ -207,95 +207,27 @@ restore_dir_cleanup() {
 trap restore_dir_cleanup EXIT
 
 echo "[INFO] Extracting manifest and component verification..."
-tar -xzf "$TARGET_ARCHIVE" -C "$TEMP_RESTORE_DIR"
-
-MANIFEST_FILE=""
-if [ -f "${TEMP_RESTORE_DIR}/manifest.json" ]; then
-    MANIFEST_FILE="${TEMP_RESTORE_DIR}/manifest.json"
-else
-    # Find nested manifest
-    MANIFEST_FILE=$(find "$TEMP_RESTORE_DIR" -maxdepth 2 -name "manifest.json" | head -n 1)
-fi
-
-if [ -z "$MANIFEST_FILE" ] || [ ! -f "$MANIFEST_FILE" ]; then
-    echo "[ERROR] manifest.json not found in backup archive." >&2
-    update_status "FAILED" 10 "خطا: فایل مانیفست در آرشیو پشتیبان یافت نشد."
-    record_audit "$BACKUP_FILENAME" "UNKNOWN" "UNKNOWN" "NONE" "$RESTORE_START_TIME" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "FAILED" "Missing manifest.json"
+MANIFEST_FILE=$(core_extract_and_validate_manifest "$TARGET_ARCHIVE" "$TEMP_RESTORE_DIR" "instance_data") || {
+    echo "[ERROR] Manifest extraction or component validation failed." >&2
+    update_status "FAILED" 10 "خطا: فایل مانیفست یا مؤلفه‌های پشتیبان معتبر نیستند."
+    record_audit "$BACKUP_FILENAME" "UNKNOWN" "UNKNOWN" "NONE" "$RESTORE_START_TIME" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "FAILED" "Manifest validation failed"
     exit 1
-fi
+}
 
 COMPONENT_DIR=$(dirname "$MANIFEST_FILE")
-
-# Negative Assertions: Ensure instance_data backup does NOT contain system files
-LISTING_FILE="${TEMP_RESTORE_DIR}/archive_listing.txt"
-tar -tzf "$TARGET_ARCHIVE" > "$LISTING_FILE"
-
-if grep -Eq "/config\.tar\.gz|/custom_apps\.tar\.gz|/docker-compose\.yml|/config_keys\.json" "$LISTING_FILE"; then
-    echo "[ERROR] Negative assertion failed: Target archive contains forbidden system files." >&2
-    update_status "FAILED" 10 "خطا: آرشیو داده حاوی فایل‌های سیستمی غیرمجاز است."
-    record_audit "$BACKUP_FILENAME" "UNKNOWN" "UNKNOWN" "NONE" "$RESTORE_START_TIME" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "FAILED" "Negative assertion failed: contained system files"
-    exit 1
-fi
-
-# Ensure required components exist
-if [ ! -f "${COMPONENT_DIR}/database.sql" ]; then
-    echo "[ERROR] database.sql missing from backup." >&2
-    update_status "FAILED" 10 "خطا: پایگاه داده database.sql در پشتیبان یافت نشد."
-    exit 1
-fi
-if [ ! -f "${COMPONENT_DIR}/data.tar.gz" ]; then
-    echo "[ERROR] data.tar.gz missing from backup." >&2
-    update_status "FAILED" 10 "خطا: فایل داده کاربران data.tar.gz در پشتیبان یافت نشد."
-    exit 1
-fi
-
 echo "  [OK] Target archive integrity and component layout verified."
 
 # ==============================================================================
-# Stage 2: Validate Baseline Compatibility
+# Stage 2: Validate Baseline Compatibility (via Shared Restore Core)
 # ==============================================================================
 echo ""
 echo "[INFO] [2/9] Validating System Baseline Compatibility..."
 update_status "IN_PROGRESS" 20 "مرحله ۲/۹: بررسی سازگاری بیس‌لاین سیستم جاری با نسخه پشتیبان..."
 
 CURRENT_GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
-CURRENT_NC_VERSION=$(docker exec archive_app php occ status 2>/dev/null | grep -i "versionstring" | awk '{print $3}' || echo "unknown")
+CURRENT_NC_VERSION=$(docker exec "$TARGET_APP_CONTAINER" php occ status 2>/dev/null | grep -i "versionstring" | awk '{print $3}' || echo "unknown")
 
-CHECK_BASELINE=$(python3 -c "
-import json, sys
-
-with open('$MANIFEST_FILE', 'r') as f:
-    mf = json.load(f)
-
-b_type = mf.get('backup_type')
-if b_type != 'instance_data':
-    print(f'FAIL: Invalid backup_type {b_type}, expected instance_data')
-    sys.exit(1)
-
-baseline = mf.get('system_baseline', {})
-b_git = baseline.get('git_commit', '')
-b_nc = baseline.get('nextcloud_version', '')
-
-curr_git = '$CURRENT_GIT_COMMIT'
-curr_nc = '$CURRENT_NC_VERSION'
-
-print(f'Target Backup Baseline: Git={b_git}, NC={b_nc}')
-print(f'Running System Baseline: Git={curr_git}, NC={curr_nc}')
-
-# If running git is valid 40-char hex, check match if backup git is also specified
-if len(b_git) == 40 and len(curr_git) == 40:
-    if b_git != curr_git:
-        print(f'FAIL: Git commit mismatch! Backup: {b_git} != System: {curr_git}')
-        sys.exit(1)
-
-# Verify Nextcloud major/minor version matches
-if b_nc and curr_nc != 'unknown':
-    if b_nc.split('.')[0] != curr_nc.split('.')[0]:
-        print(f'FAIL: Nextcloud version mismatch! Backup: {b_nc} != System: {curr_nc}')
-        sys.exit(1)
-
-print('SUCCESS')
-" 2>&1 || true)
+CHECK_BASELINE=$(core_validate_baseline_compatibility "$MANIFEST_FILE" "$CURRENT_GIT_COMMIT" "$CURRENT_NC_VERSION" 2>&1 || true)
 
 if ! echo "$CHECK_BASELINE" | grep -q "SUCCESS"; then
     echo "[ERROR] Baseline compatibility validation failed:" >&2
@@ -311,7 +243,7 @@ TARGET_BACKUP_ID=$(python3 -c "import json; mf=json.load(open('$MANIFEST_FILE'))
 TARGET_RECOVERY_POINT=$(python3 -c "import json; mf=json.load(open('$MANIFEST_FILE')); print(mf.get('created_at', 'UNKNOWN'))")
 
 # ==============================================================================
-# Stage 3: Create Emergency Pre-Restore Safety Backup
+# Stage 3: Create Emergency Pre-Restore Safety Backup (Production Specific)
 # ==============================================================================
 echo ""
 echo "[INFO] [3/9] Creating Pre-Restore Safety Backup of current production state..."
@@ -330,7 +262,6 @@ fi
 
 PRE_RESTORE_ARCHIVE=$(echo "$SAFETY_BACKUP_OUTPUT" | grep -oE "${BACKUP_DIR}/backup_instance_data_pre_restore_[^ ]+\.tar\.gz" | head -n 1 || true)
 if [ -z "$PRE_RESTORE_ARCHIVE" ] || [ ! -f "$PRE_RESTORE_ARCHIVE" ]; then
-    # Fallback to latest pre-restore alias
     if [ -f "${BACKUP_DIR}/latest_instance_data_pre_restore_backup.tar.gz" ]; then
         PRE_RESTORE_ARCHIVE="${BACKUP_DIR}/latest_instance_data_pre_restore_backup.tar.gz"
     else
@@ -351,39 +282,29 @@ echo ""
 echo "[INFO] [4/9] Validating Pre-Restore Safety Backup..."
 update_status "IN_PROGRESS" 40 "مرحله ۴/۹: اعتبارسنجی پیش‌پشتیبان امنیتی قبل از هرگونه تغییر..."
 
-# Check tar integrity and manifest
-if ! tar -tzf "$PRE_RESTORE_ARCHIVE" > /dev/null 2>&1; then
-    echo "[ERROR] Pre-restore safety backup archive failed tar integrity check!" >&2
+if ! core_validate_archive_integrity "$PRE_RESTORE_ARCHIVE"; then
+    echo "[ERROR] Pre-restore safety backup archive failed integrity check!" >&2
     update_status "FAILED" 40 "خطا: پیش‌پشتیبان امنیتی ایجاد شده معتبر نیست."
     record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "FAILED" "Pre-restore backup validation failed"
     exit 1
 fi
-
-# Run test_instance_data_backup.sh on pre-restore archive
-if ! "${SCRIPT_DIR}/test_instance_data_backup.sh" "$PRE_RESTORE_ARCHIVE" > /dev/null 2>&1; then
-    echo "[ERROR] Pre-restore safety backup validation script failed!" >&2
-    update_status "FAILED" 40 "خطا: آزمون اعتبارسنجی پیش‌پشتیبان امنیتی شکست خورد."
-    record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "FAILED" "Pre-restore backup test failed"
-    exit 1
-fi
-
-echo "  [OK] Pre-Restore Safety Backup verified valid and recoverable."
+echo "  [OK] Pre-restore safety backup validated: $PRE_RESTORE_BACKUP_ID"
 
 # ==============================================================================
-# Stage 5: Enter Maintenance Mode (Fail-Closed)
+# Stage 5: Activate Maintenance Mode (Point of No Return Protection)
 # ==============================================================================
 echo ""
-echo "[INFO] [5/9] Entering Maintenance Mode..."
-update_status "IN_PROGRESS" 50 "مرحله ۵/۹: فعال‌سازی حالت تعمیرات (Maintenance Mode) سامانه..."
+echo "[INFO] [5/9] Engaging Maintenance Mode on Production Application..."
+update_status "IN_PROGRESS" 50 "مرحله ۵/۹: فعال‌سازی حالت تعمیرات (Maintenance Mode) جهت انجماد وضعیت..."
 
-if [ "${TEST_SIMULATE_MAINT_ON_FAIL:-0}" = "1" ] || ! docker exec archive_app php occ maintenance:mode --on > /dev/null 2>&1; then
-    echo "[ERROR] Failed to activate maintenance mode on archive_app." >&2
+if [ "${TEST_SIMULATE_MAINT_ON_FAIL:-0}" = "1" ] || ! docker exec "$TARGET_APP_CONTAINER" php occ maintenance:mode --on > /dev/null 2>&1; then
+    echo "[ERROR] Failed to activate maintenance mode on $TARGET_APP_CONTAINER." >&2
     update_status "FAILED" 50 "خطا: فعال‌سازی حالت تعمیرات (Maintenance Mode) با شکست مواجه شد."
     record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "FAILED" "Failed to activate maintenance mode" "$REQUESTED_BY"
     exit 1
 fi
 
-MAINT_ON_VERIFY=$(docker exec archive_app php occ status 2>/dev/null | grep -i "maintenance:" | awk '{print $NF}' || echo "unknown")
+MAINT_ON_VERIFY=$(docker exec "$TARGET_APP_CONTAINER" php occ status 2>/dev/null | grep -i "maintenance:" | awk '{print $NF}' || echo "unknown")
 if [ "$MAINT_ON_VERIFY" != "true" ]; then
     echo "[ERROR] Maintenance mode verification failed: status is '$MAINT_ON_VERIFY', expected 'true'." >&2
     update_status "FAILED" 50 "خطا: وضعیت حالت تعمیرات تایید نشد. عملیات بازیابی لغو گردید."
@@ -392,7 +313,6 @@ if [ "$MAINT_ON_VERIFY" != "true" ]; then
 fi
 echo "  [OK] Maintenance mode successfully activated and verified (status: true)."
 
-# Define failure trap that keeps system protected and notifies operator
 on_restore_failure() {
     local err_code=$?
     echo "" >&2
@@ -411,7 +331,7 @@ on_restore_failure() {
 trap on_restore_failure ERR
 
 # ==============================================================================
-# Stage 6: Database Restore
+# Stage 6: Database Restore (via Shared Restore Core)
 # ==============================================================================
 echo ""
 echo "[INFO] [6/9] Restoring PostgreSQL Database..."
@@ -419,62 +339,38 @@ update_status "IN_PROGRESS" 60 "مرحله ۶/۹: بازیابی دقیق پای
 
 DB_SQL_FILE="${COMPONENT_DIR}/database.sql"
 
-# Disallow new connections and terminate active connections to prevent drop failure (Fail-Closed)
-echo "  - Preparing database for recreation (locking connections)..."
-if [ "${TEST_SIMULATE_DB_PREP_FAIL:-0}" = "1" ] || ! docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -U "$POSTGRES_USER" -d postgres -c \
-    "ALTER DATABASE $POSTGRES_DB WITH ALLOW_CONNECTIONS false;" > /dev/null 2>&1; then
-    echo "[ERROR] Failed to disable incoming database connections on $POSTGRES_DB!" >&2
+if ! core_prepare_database "$TARGET_DB_CONTAINER" "$TARGET_DB_USER" "$TARGET_DB_PASSWORD" "$TARGET_DB_NAME"; then
     RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    update_status "FAILED" 55 "خطا: آماده‌سازی پایگاه داده با شکست مواجه شد (مسدودسازی اتصالات ناموفق بود)."
+    update_status "FAILED" 55 "خطا: آماده‌سازی پایگاه داده با شکست مواجه شد."
     record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$RESTORE_END_TIME" "FAILED" "Failed to disallow connections on database" "$REQUESTED_BY"
     exit 1
 fi
 
-if ! docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -U "$POSTGRES_USER" -d postgres -c \
-    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$POSTGRES_DB' AND pid <> pg_backend_pid();" > /dev/null 2>&1; then
-    echo "[ERROR] Failed to terminate existing database connections on $POSTGRES_DB!" >&2
+core_setup_db_role "$TARGET_APP_CONTAINER" "$TARGET_DB_CONTAINER" "$TARGET_DB_USER" "$TARGET_DB_PASSWORD" "$TARGET_DB_NAME"
+
+if ! core_restore_database_dump "$TARGET_DB_CONTAINER" "$TARGET_DB_USER" "$TARGET_DB_PASSWORD" "$TARGET_DB_NAME" "$DB_SQL_FILE"; then
     RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-    update_status "FAILED" 55 "خطا: آماده‌سازی پایگاه داده با شکست مواجه شد (قطع اتصالات فعال ناموفق بود)."
-    record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$RESTORE_END_TIME" "FAILED" "Failed to terminate active connections on database" "$REQUESTED_BY"
+    update_status "FAILED" 60 "خطا: وارد کردن ساختار و داده‌های SQL با شکست مواجه شد."
+    record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$RESTORE_END_TIME" "FAILED" "Database SQL import failed" "$REQUESTED_BY"
     exit 1
 fi
-
-# Recreate database cleanly with FORCE to guarantee clean drop
-docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS $POSTGRES_DB WITH (FORCE);" > /dev/null
-docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE $POSTGRES_DB OWNER $POSTGRES_USER;" > /dev/null
-
-# Restore SQL dump with ON_ERROR_STOP=1
-docker exec -i -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" < "$DB_SQL_FILE" > /dev/null
-
-# Validate core archive tables exist
-CORE_TABLES_CHECK=$(docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -A -c \
-    "SELECT count(*) FROM information_schema.tables WHERE table_name IN ('oc_users', 'oc_groups', 'oc_filecache', 'oc_archive_document_metadata', 'oc_systemtag');")
-
-if [ "$CORE_TABLES_CHECK" -lt 5 ]; then
-    echo "[ERROR] Database restore incomplete: Core tables missing (found $CORE_TABLES_CHECK / 5)." >&2
-    exit 1
-fi
-
 echo "  [OK] Database successfully restored and core tables verified."
 
 # ==============================================================================
-# Stage 7: User Data Restore
+# Stage 7: User Data Restore (via Shared Restore Core)
 # ==============================================================================
 echo ""
-echo "[INFO] [7/9] Restoring User Files Storage (/var/www/html/data)..."
+echo "[INFO] [7/9] Restoring User Files Storage ($TARGET_DATA_PATH)..."
 update_status "IN_PROGRESS" 75 "مرحله ۷/۹: بازگردانی داده‌های فایل کاربران و تنظیم دسترسی‌ها..."
 
 DATA_TAR_FILE="${COMPONENT_DIR}/data.tar.gz"
 
-# Clean out existing user files from /var/www/html/data inside container while preserving .ocdata marker
-docker exec archive_app bash -c "rm -rf /var/www/html/data/*"
-
-# Stream extraction of data.tar.gz into /var/www/html
-docker exec -i archive_app tar -xzf - -C /var/www/html < "$DATA_TAR_FILE"
-
-# Ensure .ocdata exists and set ownership
-docker exec archive_app bash -c "touch /var/www/html/data/.ocdata && chown -R www-data:www-data /var/www/html/data"
-
+if ! core_restore_user_filesystem "$TARGET_APP_CONTAINER" "$DATA_TAR_FILE" "$TARGET_DATA_PATH"; then
+    RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    update_status "FAILED" 75 "خطا: استخراج و بازیابی فایل‌های کاربران با شکست مواجه شد."
+    record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$RESTORE_END_TIME" "FAILED" "User filesystem restore failed" "$REQUESTED_BY"
+    exit 1
+fi
 echo "  [OK] User files extracted and ownership established."
 
 # ==============================================================================
@@ -484,93 +380,17 @@ echo ""
 echo "[INFO] [8/9] Invalidating old sessions and cross-validating DB <-> Files..."
 update_status "IN_PROGRESS" 85 "مرحله ۸/۹: ابطال سشن‌های قدیمی و ممیزی تطابق کامل پایگاه داده با فایل‌ها..."
 
-# Invalidate sessions and clear brute force / locks
-docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
-    -c "TRUNCATE TABLE oc_authtoken; TRUNCATE TABLE oc_bruteforce_attempts;" > /dev/null 2>&1 || true
-docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" archive_db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
-    -c "DO \$\$ BEGIN IF to_regclass('oc_file_locks') IS NOT NULL THEN TRUNCATE TABLE oc_file_locks; END IF; END \$\$;" > /dev/null 2>&1 || true
-
+core_invalidate_sessions_and_locks "$TARGET_DB_CONTAINER" "$TARGET_DB_USER" "$TARGET_DB_PASSWORD" "$TARGET_DB_NAME"
 echo "  [OK] Old user sessions invalidated and file locks cleared."
 
-# Cross-Validation Script
-CONSISTENCY_RESULT=$(python3 - "$MANIFEST_FILE" "$POSTGRES_USER" "$POSTGRES_PASSWORD" "$POSTGRES_DB" << 'PYEOF'
-import sys, json, subprocess
-
-manifest_file = sys.argv[1]
-pg_user = sys.argv[2]
-pg_password = sys.argv[3]
-pg_db = sys.argv[4]
-
-with open(manifest_file, "r") as f:
-    mf = json.load(f)
-
-exp_counts = mf.get("components", {}).get("database", {})
-exp_u = exp_counts.get("users_count")
-exp_g = exp_counts.get("groups_count")
-exp_t = exp_counts.get("tags_count")
-exp_d = exp_counts.get("documents_metadata_count")
-
-sql = "SELECT (SELECT count(*) FROM oc_users), (SELECT count(*) FROM oc_groups), (SELECT count(*) FROM oc_systemtag), (SELECT count(*) FROM oc_archive_document_metadata);"
-cmd = ["docker", "exec", "-e", f"PGPASSWORD={pg_password}", "archive_db", "psql", "-U", pg_user, "-d", pg_db, "-t", "-A", "-F", "|", "-c", sql]
-res = subprocess.run(cmd, capture_output=True, text=True)
-if res.returncode != 0:
-    print(f"FAIL: Query counts: {res.stderr}")
-    sys.exit(1)
-
-u_cnt, g_cnt, t_cnt, d_cnt = [int(x) for x in res.stdout.strip().split("|")]
-
-if exp_u is not None and u_cnt != exp_u:
-    print(f"FAIL: Users mismatch: {u_cnt} != {exp_u}")
-    sys.exit(1)
-if exp_g is not None and g_cnt != exp_g:
-    print(f"FAIL: Groups mismatch: {g_cnt} != {exp_g}")
-    sys.exit(1)
-if exp_t is not None and t_cnt != exp_t:
-    print(f"FAIL: Tags mismatch: {t_cnt} != {exp_t}")
-    sys.exit(1)
-if exp_d is not None and d_cnt != exp_d:
-    print(f"FAIL: Docs mismatch: {d_cnt} != {exp_d}")
-    sys.exit(1)
-
-print(f"OK_COUNTS: u={u_cnt}, g={g_cnt}, t={t_cnt}, d={d_cnt}")
-
-# Direction 1: DB oc_filecache -> Physical files on disk
-sql_fc = "SELECT s.id, f.path FROM oc_filecache f JOIN oc_storages s ON f.storage = s.numeric_id WHERE f.path LIKE 'files/%' AND f.mimetype != 2;"
-cmd_fc = ["docker", "exec", "-e", f"PGPASSWORD={pg_password}", "archive_db", "psql", "-U", pg_user, "-d", pg_db, "-t", "-A", "-F", "|", "-c", sql_fc]
-res_fc = subprocess.run(cmd_fc, capture_output=True, text=True)
-if res_fc.returncode != 0:
-    print(f"FAIL: Query filecache: {res_fc.stderr}")
-    sys.exit(1)
-
-missing = []
-for line in res_fc.stdout.strip().splitlines():
-    line = line.strip()
-    if not line or "|" not in line:
-        continue
-    storage_id, fpath = line.split("|", 1)
-    if storage_id.startswith("local::"):
-        disk_path = storage_id.replace("local::", "") + fpath
-    elif storage_id.startswith("home::"):
-        user_name = storage_id.replace("home::", "")
-        disk_path = f"/var/www/html/data/{user_name}/{fpath}"
-    else:
-        continue
-    c = ["docker", "exec", "archive_app", "test", "-f", disk_path]
-    r = subprocess.run(c)
-    if r.returncode != 0:
-        missing.append(disk_path)
-
-if missing:
-    print(f"FAIL: Missing physical files ({len(missing)}): {missing[:5]}")
-    sys.exit(1)
-
-print("SUCCESS")
-PYEOF
-)
+CONSISTENCY_RESULT=$(core_validate_db_files_consistency "$MANIFEST_FILE" "$TARGET_APP_CONTAINER" "$TARGET_DB_CONTAINER" "$TARGET_DB_USER" "$TARGET_DB_PASSWORD" "$TARGET_DB_NAME" 2>&1 || true)
 
 if ! echo "$CONSISTENCY_RESULT" | grep -q "SUCCESS"; then
     echo "[ERROR] Post-Restore DB <-> Files consistency validation failed:" >&2
     echo "$CONSISTENCY_RESULT" >&2
+    RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    update_status "FAILED" 85 "خطا: عدم تطابق ممیزی پایگاه داده با فایل‌های فیزیکی."
+    record_audit "$BACKUP_FILENAME" "$TARGET_RECOVERY_POINT" "$CURRENT_GIT_COMMIT" "$PRE_RESTORE_BACKUP_ID" "$RESTORE_START_TIME" "$RESTORE_END_TIME" "FAILED" "DB files consistency check failed: $CONSISTENCY_RESULT" "$REQUESTED_BY"
     exit 1
 fi
 echo "  [OK] DB <-> Files consistency verified."
@@ -582,8 +402,6 @@ echo ""
 echo "[INFO] [9/9] Running Post-Restore Health Check Gate (Maintenance remains ON)..."
 update_status "IN_PROGRESS" 92 "مرحله ۹/۹: اجرای گیت بررسی سلامت سامانه در حالت Maintenance..."
 
-# Post-Restore Health Check Gate (Strict Gate - Maintenance Mode MUST remain ON)
-echo "[INFO] Executing comprehensive post-restore health check gate..."
 if [ "${TEST_SIMULATE_HEALTH_FAIL:-0}" = "1" ] || ! "${SCRIPT_DIR}/check_health.sh" > "${BACKUP_DIR}/.restore_health_check.log" 2>&1; then
     echo "[ERROR] Post-Restore Health Check FAILED! System remains in protected MAINTENANCE MODE." >&2
     RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -596,7 +414,7 @@ echo "  [OK] Post-restore health check passed with 100% healthy status."
 # ONLY AFTER HEALTH CHECK PASSES: Turn maintenance mode OFF
 update_status "IN_PROGRESS" 96 "مرحله ۹/۹: خروج از حالت تعمیرات و اعتبارسنجی نهایی..."
 echo "[INFO] Returning service to normal: Turning maintenance mode OFF..."
-if [ "${TEST_SIMULATE_MAINT_OFF_FAIL:-0}" = "1" ] || ! docker exec archive_app php occ maintenance:mode --off > /dev/null 2>&1; then
+if [ "${TEST_SIMULATE_MAINT_OFF_FAIL:-0}" = "1" ] || ! docker exec "$TARGET_APP_CONTAINER" php occ maintenance:mode --off > /dev/null 2>&1; then
     echo "[ERROR] Failed to execute 'occ maintenance:mode --off' command!" >&2
     RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     update_status "FAILED" 96 "خطا: غیرفعال‌سازی حالت تعمیرات با شکست مواجه شد."
@@ -604,8 +422,7 @@ if [ "${TEST_SIMULATE_MAINT_OFF_FAIL:-0}" = "1" ] || ! docker exec archive_app p
     exit 1
 fi
 
-# Verify Maintenance OFF
-MAINT_OFF_VERIFY=$(docker exec archive_app php occ status 2>/dev/null | grep -i "maintenance:" | awk '{print $NF}' || echo "unknown")
+MAINT_OFF_VERIFY=$(docker exec "$TARGET_APP_CONTAINER" php occ status 2>/dev/null | grep -i "maintenance:" | awk '{print $NF}' || echo "unknown")
 if [ "$MAINT_OFF_VERIFY" != "false" ]; then
     echo "[ERROR] Verification failed: Maintenance mode is still ACTIVE (status: $MAINT_OFF_VERIFY)!" >&2
     RESTORE_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")

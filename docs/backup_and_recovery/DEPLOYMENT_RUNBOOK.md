@@ -6,8 +6,8 @@
 ## ۱. خط‌مشی حاکمیت اسناد زنده (Living Documentation Policy)
 
 > [!IMPORTANT]
-> این سند راهنمای رسمی، معتبر و زنده اپراتوری سامانه آرشیو اسناد سازمانی (`enterprise-archive-system`) است.  
-> بر اساس سیاست حاکمیت مستندات پروژه، **به‌ازای هرگونه تغییر در معماری سرویس‌ها، ایمیج‌های داکر، ساختار متغیرهای محیطی (`.env`)، پورت‌ها، اسکریپت‌های پوشه `deploy/` یا کامپوننت‌های سفارشی، این سند باید بلافاصله و در همان کامیت به‌روزرسانی شود.**  
+> این سند راهنمای رسمی، معتبر و زنده اپراتوری سامانه آرشیو اسناد سازمانی (`enterprise-archive-system`) است.
+> بر اساس سیاست حاکمیت مستندات پروژه، **به‌ازای هرگونه تغییر در معماری سرویس‌ها، ایمیج‌های داکر، ساختار متغیرهای محیطی (`.env`)، پورت‌ها، اسکریپت‌های پوشه `deploy/` یا کامپوننت‌های سفارشی، این سند باید بلافاصله و در همان کامیت به‌روزرسانی شود.**
 > هیچ تغییری در زیرساخت بدون بازتاب در این Runbook معتبر تلقی نخواهد شد.
 
 ---
@@ -68,7 +68,7 @@
 - **آزمون‌های تزریق خرابی:** کلیه سناریوهای A تا R به همراه آزمون بازگشت زنده (Live Reversion Test) با موفقیت اعتبارسنجی شده‌اند.
 
 > [!NOTE]
-> **وضعیت نیازمندی BR-05 (Rebuild on Lost Server):**  
+> **وضعیت نیازمندی BR-05 (Rebuild on Lost Server):**
 > نیازمندی BR-05 مربوط به فازهای آتی نقشه راه بوده و در این مرحله **آغاز نشده است (Status: NOT STARTED)**.
 
 ---
@@ -116,7 +116,7 @@ nano .env
 ```
 
 > [!CAUTION]
-> **مدیریت امن رمزها و کلیدها:**  
+> **مدیریت امن رمزها و کلیدها:**
 > فایل `.env` نباید به هیچ عنوان به گیت کامیت شود. مقادیر `POSTGRES_PASSWORD` و رمزهای عبور باید از کانال امن (مانند Vault سازمانی یا فایل رمزگذاری‌شده محلی) به سرور جدید منتقل شوند.
 
 ### گام ۵.۳: انتقال بسته پشتیبان و اعتبارسنجی امضای دیجیتال
@@ -153,6 +153,24 @@ docker compose up -d db
 ```bash
 ./deploy/check_health.sh
 ./venv/bin/python3 -m unittest tests/test_backup_and_recovery.py tests/test_system_deployment_and_recovery.py
+```
+
+### گام ۵.۶: هماهنگ‌کننده پیشرفته بازیابی فاجعه (BR-05 Full Disaster Recovery Orchestrator)
+
+در معماری نوین BR-05، بازیابی بر روی هاست جدید به جای اجرای دستی مراحل، از طریق هماهنگ‌کننده خودکار `orchestrate_disaster_recovery.sh` اجرا می‌شود. این هماهنگ‌کننده با ماشین وضعیت ۱۳ مرحله‌ای:
+1. کامیت دقیق گیت (`FROZEN_GIT_COMMIT`) و دایجست ایمیج‌های داکر را اعتبارسنجی می‌کند.
+2. با جفت‌سازی `system_only` و `instance_data`، ابتدا لایه سیستم را مستقر و از دروازه `System Gate` عبور می‌دهد.
+3. داده‌های پایگاه داده و فایل‌ها را با اعتبارسنجی دوطرفه DB ↔ Files بازیابی می‌کند.
+4. آزمون‌های ساختاری، تابعی، اعتبارسنجی احراز هویت بدون ریست پسورد، ایزولاسیون دسترسی گروه‌ها و جستجوی اسناد را کنترل می‌کند.
+5. خروج اینترنت را از طریق دروازه Air-Gapped قطع و پس از احراز سلامت نهایی، سامانه را `OPERATIONAL` اعلام می‌کند.
+
+```bash
+# اجرای بازیابی فاجعه روی هاست جدید
+./deploy/orchestrate_disaster_recovery.sh \
+    --system-backup deploy/backups/latest_system_backup.tar.gz \
+    --data-backup deploy/backups/latest_instance_data_backup.tar.gz \
+    --target-env host \
+    --target-port 80
 ```
 
 ---
@@ -232,6 +250,18 @@ sudo systemctl status enterprise-archive-daemon.service
 # اجرای بازیابی در ترمینال
 ./deploy/manage_backup.sh restore deploy/backups/latest_instance_backup.tar.gz
 
+# اجرای پشتیبان‌گیری داده‌های عملیاتی (BR-02 Instance Data Backup)
+./deploy/manage_backup.sh backup-data
+
+# آزمون داده‌های عملیاتی در سندباکس (BR-03 Sandbox Test)
+./deploy/manage_backup.sh test-data deploy/backups/latest_instance_data_backup.tar.gz
+
+# بازیابی داده‌های عملیاتی روی سرور سالم پروداکشن (BR-04 Production Restore)
+./deploy/manage_backup.sh restore-data deploy/backups/latest_instance_data_backup.tar.gz
+
+# مانور کامل بازیابی در شرایط فاجعه روی محیط ایزوله (BR-05 Disaster Recovery Drill)
+./deploy/manage_backup.sh dr
+
 # پالایش نسخه‌های قدیمی بر اساس سقف ماندگاری
 ./deploy/manage_backup.sh prune
 ```
@@ -241,7 +271,7 @@ sudo systemctl status enterprise-archive-daemon.service
 ## ۹. راهنمای Rollback ایمن و مقابله با شکست در استقرار
 
 > [!CAUTION]
-> **قانون قطعی عدم استفاده از دستورات مخرب:**  
+> **قانون قطعی عدم استفاده از دستورات مخرب:**
 > در هنگام بروز خطا در سناریوی A یا B، هرگز بدون بررسی لاگ‌ها و بدون هماهنگی اقدام به اجرای دستورات حذف مستقیم دایرکتوری‌ها نکنید. دستوراتی نظیر `rm -rf db/*` یا `docker compose down -v` اطلاعات حیاتی را نابود می‌کنند.
 
 ### مراحل مجاز و ایمن برای Rollback:

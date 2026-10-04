@@ -1,0 +1,58 @@
+services:
+  recovery_db:
+    image: ${RECOVERY_DB_IMAGE:?RECOVERY_DB_IMAGE is required and must be pinned}
+    container_name: ${RECOVERY_DB_CONTAINER:?RECOVERY_DB_CONTAINER is required}
+    restart: "no"
+    volumes:
+      - ${RECOVERY_DATA_DIR:?RECOVERY_DATA_DIR is required}/db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:?POSTGRES_DB is required}
+      - POSTGRES_USER=${POSTGRES_USER:?POSTGRES_USER is required}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    networks:
+      archive_recovery_net:
+        aliases:
+          - db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  recovery_app:
+    image: ${RECOVERY_APP_IMAGE:?RECOVERY_APP_IMAGE is required and must be pinned}
+    container_name: ${RECOVERY_APP_CONTAINER:?RECOVERY_APP_CONTAINER is required}
+    restart: "no"
+    depends_on:
+      recovery_db:
+        condition: service_healthy
+    volumes:
+      - ${RECOVERY_DATA_DIR:?RECOVERY_DATA_DIR is required}/nextcloud:/var/www/html
+    environment:
+      - POSTGRES_HOST=db
+      - POSTGRES_DB=${POSTGRES_DB:?POSTGRES_DB is required}
+      - POSTGRES_USER=${POSTGRES_USER:?POSTGRES_USER is required}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - NEXTCLOUD_TRUSTED_DOMAINS=localhost 127.0.0.1
+    networks:
+      archive_recovery_net:
+        aliases:
+          - app
+          - recovery_app
+
+  recovery_proxy:
+    image: ${RECOVERY_PROXY_IMAGE:?RECOVERY_PROXY_IMAGE is required and must be pinned}
+    container_name: ${RECOVERY_PROXY_CONTAINER:?RECOVERY_PROXY_CONTAINER is required}
+    restart: "no"
+    depends_on:
+      - recovery_app
+    ports:
+      - "${RECOVERY_HTTP_PORT:?RECOVERY_HTTP_PORT is required}:80"
+    volumes:
+      - ${RECOVERY_DATA_DIR:?RECOVERY_DATA_DIR is required}/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - archive_recovery_net
+
+networks:
+  archive_recovery_net:
+    driver: bridge
