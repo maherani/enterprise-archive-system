@@ -74,9 +74,6 @@ class Application extends App implements IBootstrap {
     }
 
     public function boot(IBootContext $context): void {
-        // Global URL Masking script: keep browser address bar fixed at origin root across all pages
-        Util::addScript(self::APP_ID, 'url_mask');
-
         // Global App Launcher & Navigation restriction: for non-admin groups, only show "??????? ?????"
         Util::addScript(self::APP_ID, 'app_menu_filter');
         Util::addStyle(self::APP_ID, 'app_menu_filter');

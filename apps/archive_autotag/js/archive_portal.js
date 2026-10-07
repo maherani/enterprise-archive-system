@@ -391,11 +391,19 @@
         state.highlightedFileId = highlightFileId || null;
 
         try {
-            var newUrl = window.location.pathname + (targetDir && targetDir !== '/' ? ('?dir=' + encodeURIComponent(targetDir)) : '');
+            var rootEl = document.getElementById('archive-portal-root');
+            var uId = rootEl ? rootEl.getAttribute('data-user-id') : (state.currentUser ? state.currentUser.uid : '');
+            var publicBaseUrl = (window._eaGetPublicBaseUrl && window._eaGetPublicBaseUrl()) || (window.location.origin + '/');
+            var stateObj = { dir: targetDir, isFolderView: true };
             if (isPush) {
-                window.history.pushState({ dir: targetDir }, '', newUrl);
+                window.history.pushState(stateObj, document.title, publicBaseUrl);
             } else {
-                window.history.replaceState({ dir: targetDir }, '', newUrl);
+                window.history.replaceState(stateObj, document.title, publicBaseUrl);
+            }
+            if (uId && targetDir) {
+                try {
+                    sessionStorage.setItem('ea_current_dir_' + uId, targetDir);
+                } catch (err) {}
             }
         } catch (e) {}
 
@@ -469,7 +477,15 @@
         state.currentFolderDir = null;
         state.highlightedFileId = null;
         try {
-            window.history.pushState({}, '', window.location.pathname);
+            var publicBaseUrl = (window._eaGetPublicBaseUrl && window._eaGetPublicBaseUrl()) || (window.location.origin + '/');
+            window.history.pushState({ dir: null, isFolderView: false }, document.title, publicBaseUrl);
+            var rootEl = document.getElementById('archive-portal-root');
+            var uId = rootEl ? rootEl.getAttribute('data-user-id') : (state.currentUser ? state.currentUser.uid : '');
+            if (uId) {
+                try {
+                    sessionStorage.removeItem('ea_current_dir_' + uId);
+                } catch (err) {}
+            }
         } catch (e) {}
         renderTagBar();
         fetchFiles();
@@ -4101,17 +4117,23 @@
         setupKeyboardListeners();
         setupGlobalDragAndDrop();
         window.addEventListener('popstate', function (e) {
-            var urlParams = new URLSearchParams(window.location.search);
-            var dirParam = urlParams.get('dir');
-            if (dirParam) {
-                openFolderInPortal(dirParam, null, false);
-            } else if (state.isFolderView) {
-                var root = document.getElementById('archive-portal-root');
-                var initialDir = root ? root.getAttribute('data-initial-dir') : null;
-                if (initialDir) {
-                    openFolderInPortal(initialDir, null, false);
-                } else {
-                    exitFolderMode();
+            if (e.state && e.state.dir) {
+                openFolderInPortal(e.state.dir, null, false);
+            } else if (e.state && e.state.isFolderView === false) {
+                exitFolderMode();
+            } else {
+                var urlParams = new URLSearchParams(window.location.search);
+                var dirParam = urlParams.get('dir');
+                if (dirParam) {
+                    openFolderInPortal(dirParam, null, false);
+                } else if (state.isFolderView) {
+                    var root = document.getElementById('archive-portal-root');
+                    var initialDir = root ? root.getAttribute('data-initial-dir') : null;
+                    if (initialDir) {
+                        openFolderInPortal(initialDir, null, false);
+                    } else {
+                        exitFolderMode();
+                    }
                 }
             }
         });
@@ -4148,9 +4170,16 @@
                 var rolePromise = fetchUserRole();
                 fetchTags(true);
 
+                var uId = root.getAttribute('data-user-id') || '';
+                var savedDir = null;
+                if (uId) {
+                    try {
+                        savedDir = sessionStorage.getItem('ea_current_dir_' + uId);
+                    } catch (e) {}
+                }
                 var urlParams = new URLSearchParams(window.location.search);
                 var dirParam = urlParams.get('dir');
-                var initialDir = dirParam || root.getAttribute('data-initial-dir');
+                var initialDir = dirParam || savedDir || root.getAttribute('data-initial-dir');
                 var filesPromise = initialDir
                     ? openFolderInPortal(initialDir, null, false)
                     : fetchFiles();
@@ -4159,6 +4188,7 @@
                     Promise.all([rolePromise, filesPromise, minTimePromise])
                         .then(function () {
                             dismissWelcomeScreen(welcomeOverlay);
+                            if (window._eaMaskAddressBar) window._eaMaskAddressBar();
                         })
                         .catch(function (err) {
                             console.error('Archive portal initialization error:', err);
@@ -4179,14 +4209,22 @@
                 }
                 fetchUserRole();
                 fetchTags(true);
+                var uId = root.getAttribute('data-user-id') || '';
+                var savedDir = null;
+                if (uId) {
+                    try {
+                        savedDir = sessionStorage.getItem('ea_current_dir_' + uId);
+                    } catch (e) {}
+                }
                 var urlParams = new URLSearchParams(window.location.search);
                 var dirParam = urlParams.get('dir');
-                var initialDir = dirParam || root.getAttribute('data-initial-dir');
+                var initialDir = dirParam || savedDir || root.getAttribute('data-initial-dir');
                 if (initialDir) {
                     openFolderInPortal(initialDir, null, false);
                 } else {
                     fetchFiles();
                 }
+                if (window._eaMaskAddressBar) window._eaMaskAddressBar();
             }
         }
     }

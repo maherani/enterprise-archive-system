@@ -49,5 +49,6 @@ $userDisplay = (string)($_['displayName'] ?? '');
      data-user-display="<?php p($_['displayName'] ?? ''); ?>"
      data-initial-dir="<?php p($_['initialDir'] ?? ''); ?>"
      data-initial-display-dir="<?php p($_['initialDisplayDir'] ?? ''); ?>"
-     data-show-welcome="<?php echo $showWelcome ? '1' : '0'; ?>">
+     data-show-welcome="<?php echo $showWelcome ? '1' : '0'; ?>"
+     data-public-base-url="<?php p($_['publicBaseUrl'] ?? '/'); ?>">
 </div>

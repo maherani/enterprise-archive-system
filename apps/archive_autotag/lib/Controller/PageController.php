@@ -10,6 +10,7 @@ use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IRequest;
 use OCP\ISession;
+use OCP\IURLGenerator;
 use OCP\IUserSession;
 use OCP\Util;
 
@@ -19,6 +20,7 @@ class PageController extends Controller {
         private readonly IUserSession $userSession,
         private readonly NavigationController $navigationController,
         private readonly ISession $session,
+        private readonly IURLGenerator $urlGenerator,
     ) {
         parent::__construct(Application::APP_ID, $request);
     }
@@ -29,6 +31,7 @@ class PageController extends Controller {
     #[NoAdminRequired]
     #[NoCSRFRequired]
     public function index(): TemplateResponse {
+        Util::addScript(Application::APP_ID, 'url_mask');
         Util::addScript(Application::APP_ID, 'archive_portal');
         Util::addStyle(Application::APP_ID, 'archive_portal');
 
@@ -44,12 +47,16 @@ class PageController extends Controller {
             $this->session->set($sessionKey, true);
         }
 
+        // Dynamically obtain the environment-configured Public Base URL without hardcoded hosts
+        $publicBaseUrl = $this->urlGenerator->getAbsoluteURL('/');
+
         $params = [
             'userId' => $uid,
             'displayName' => $user !== null ? $user->getDisplayName() : '',
             'initialDir' => $highest['dir'] ?? '/',
             'initialDisplayDir' => $highest['display_dir'] ?? '/',
             'showWelcome' => $showWelcome ? '1' : '0',
+            'publicBaseUrl' => $publicBaseUrl,
         ];
 
         return new TemplateResponse(Application::APP_ID, 'main', $params);
