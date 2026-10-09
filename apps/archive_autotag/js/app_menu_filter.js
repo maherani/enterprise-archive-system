@@ -58,7 +58,105 @@
         return false;
     }
 
+    // === Return to Archive Portal — Settings Page (All Users) ===
+    // Visible for ALL users. Clears only folder nav state in sessionStorage.
+    // No authorization change. No hardcoded IPs. No redirect loops.
+    var _EA_PORTAL_BTN_ID = 'ea-return-to-portal-btn';
+    var _EA_PORTAL_ROUTE  = '/index.php/apps/archive_autotag/';
+
+    function _eaIsSettingsPage() {
+        if (document.body && document.body.id === 'body-settings') { return true; }
+        var p = window.location.pathname;
+        return p.indexOf('/settings/') !== -1 || p.indexOf('/index.php/settings/') !== -1;
+    }
+
+    function _eaGetCurrentUserId() {
+        try {
+            if (window.OC && window.OC.currentUser) { return String(window.OC.currentUser); }
+            if (window.OC && typeof window.OC.getCurrentUser === 'function') {
+                var u = window.OC.getCurrentUser();
+                return (u && u.uid) ? String(u.uid) : '';
+            }
+        } catch (e) {}
+        try {
+            var m = document.querySelector('meta[name="user"]');
+            if (m) { return m.getAttribute('content') || ''; }
+        } catch (e) {}
+        return '';
+    }
+
+    function _eaClearPortalNavState() {
+        // Removes ONLY ea_current_dir_<uid> from sessionStorage.
+        // No file data, no session tokens, no user data touched.
+        try {
+            var uid = _eaGetCurrentUserId();
+            if (uid) {
+                sessionStorage.removeItem('ea_current_dir_' + uid);
+            } else {
+                for (var _i = sessionStorage.length - 1; _i >= 0; _i--) {
+                    var _k = sessionStorage.key(_i);
+                    if (_k && _k.indexOf('ea_current_dir_') === 0) { sessionStorage.removeItem(_k); }
+                }
+            }
+        } catch (e) {}
+    }
+
+    function _eaHandleReturnToPortal(e) {
+        if (e && e.preventDefault) { e.preventDefault(); }
+        _eaClearPortalNavState();
+        // replace() keeps Settings page out of browser back history
+        // Portal init resolves authorized root for current user server-side
+        // url_mask.js masks address bar to Public Base URL after portal renders
+        window.location.replace(_EA_PORTAL_ROUTE);
+    }
+
+    function _eaInjectReturnToPortalButton() {
+        if (!_eaIsSettingsPage()) { return; }
+        if (document.getElementById(_EA_PORTAL_BTN_ID)) { return; }
+        var headerEnd = document.querySelector('#header .header-end');
+        if (!headerEnd) { return; }
+
+        var btn = document.createElement('button');
+        btn.id        = _EA_PORTAL_BTN_ID;
+        btn.type      = 'button';
+        btn.className = 'ea-return-portal-btn';
+        // Persian: "بازگشت به پنل بایگانی اسناد سازمانی"
+        var _ariaLabel = '\u0628\u0627\u0632\u06AF\u0634\u062A \u0628\u0647 \u067E\u0646\u0644 \u0628\u0627\u06CC\u06AF\u0627\u0646\u06CC \u0627\u0633\u0646\u0627\u062F \u0633\u0627\u0632\u0645\u0627\u0646\u06CC';
+        btn.setAttribute('aria-label', _ariaLabel);
+        btn.setAttribute('title', _ariaLabel);
+        btn.setAttribute('dir', 'rtl');
+        btn.setAttribute('lang', 'fa');
+
+        var _iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 119.24 119.24"'
+            + ' width="16" height="16" aria-hidden="true" focusable="false">'
+            + '<path fill-rule="evenodd" fill="currentColor"'
+            + ' d="M102.2014008,17.0287781H17.0359039v85.1729126h85.1654968V17.0287781z'
+            + ' M119.2376099,0 H0v119.2378845h119.2376099V0z"/>'
+            + '<polygon fill-rule="evenodd" fill="currentColor"'
+            + ' points="98.9226074,76.647583 98.9226074,58.3074951 59.6188049,42.5828857'
+            + ' 20.3150024,58.3074951 20.3150024,76.647583 59.6188049,60.9306946"/>'
+            + '</svg>';
+
+        // Persian label: "بازگشت به پنل بایگانی"
+        var _labelText = '\u0628\u0627\u0632\u06AF\u0634\u062A \u0628\u0647 \u067E\u0646\u0644 \u0628\u0627\u06CC\u06AF\u0627\u0646\u06CC';
+
+        btn.innerHTML = _iconSvg;
+        var _lbl = document.createElement('span');
+        _lbl.className = 'ea-return-portal-btn__label';
+        _lbl.textContent = _labelText;
+        btn.appendChild(_lbl);
+
+        btn.addEventListener('click', _eaHandleReturnToPortal);
+        btn.addEventListener('keydown', function (_e) {
+            if (_e.key === 'Enter' || _e.key === ' ') { _e.preventDefault(); _eaHandleReturnToPortal(_e); }
+        });
+
+        // Insert as first child — top of header, always visible
+        headerEnd.insertBefore(btn, headerEnd.firstChild);
+    }
+
     function sanitizeNextcloudShell() {
+        _eaInjectReturnToPortalButton();
         try {
             // Remove any legacy injected Bank Maskan logo link (strictly deferred to Band 2)
             const legacyBrand = document.getElementById('ea-header-bank-maskan-brand');
