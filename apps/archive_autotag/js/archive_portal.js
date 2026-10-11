@@ -544,13 +544,264 @@
             }
         }
 
+        var changePwBtnHtml = '<button type="button" id="ea-change-password-btn" class="ea-change-password-btn" title="تغییر رمز عبور" aria-label="تغییر رمز عبور">' +
+            '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>' +
+            '<span>تغییر رمز عبور</span>' +
+            '</button>';
+
         existingBrand.innerHTML = [
             '<div class="ea-header-brand-text">',
             '  <h1 class="ea-brand-title">سامانه بایگانی اسناد سازمانی</h1>',
-            '  <div class="ea-brand-subtitle">پورتال دسترسی سریع، فیلتر چندتگی و جستجوی اسناد • <span class="ea-brand-user-name">' + escapeHtml(userDisplay) + '</span></div>',
+            '  <div class="ea-brand-subtitle">',
+            '    <span>پورتال دسترسی سریع، فیلتر چندتگی و جستجوی اسناد • </span>',
+            '    <span class="ea-brand-user-wrapper">',
+            '      <span class="ea-brand-user-name">' + escapeHtml(userDisplay) + '</span>',
+            '      ' + changePwBtnHtml,
+            '    </span>',
+            '  </div>',
             '</div>'
         ].join('\n');
+
+        var pwBtn = existingBrand.querySelector('#ea-change-password-btn');
+        if (pwBtn) {
+            pwBtn.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                openChangePasswordModal();
+            };
+        }
     }
+
+
+    // =========================================================================
+    // Dedicated Self-Service Password Change Modal & Workflow (Requirement 6 & 7)
+    // =========================================================================
+    function openChangePasswordModal() {
+        var existingModal = document.getElementById('ea-change-password-modal-overlay');
+        if (existingModal) {
+            var currInput = existingModal.querySelector('#ea-pwd-current');
+            if (currInput) currInput.focus();
+            return;
+        }
+
+        var overlay = document.createElement('div');
+        overlay.id = 'ea-change-password-modal-overlay';
+        overlay.className = 'ea-modal-overlay';
+        overlay.style.zIndex = '100005';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-labelledby', 'ea-change-password-modal-title');
+
+        overlay.innerHTML = [
+            '<div class="ea-modal-card ea-modal-card-password" style="max-width:440px;width:92%;direction:rtl;text-align:right;">',
+            '  <div class="ea-modal-header" style="display:flex;align-items:center;justify-content:space-between;">',
+            '    <div class="ea-modal-title" id="ea-change-password-modal-title" style="display:flex;align-items:center;gap:8px;font-weight:700;color:#f8fafc;font-size:0.95rem;">',
+            '      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>',
+            '      <span>تغییر رمز عبور حساب کاربری</span>',
+            '    </div>',
+            '    <button class="ea-modal-close" id="ea-pwd-modal-close" title="بستن" aria-label="بستن" type="button">✕</button>',
+            '  </div>',
+            '  <div class="ea-modal-body" style="padding:20px;display:flex;flex-direction:column;gap:14px;">',
+            '    <div id="ea-pwd-feedback" class="ea-pwd-feedback" style="display:none;padding:10px 14px;border-radius:8px;font-size:0.82rem;font-weight:500;line-height:1.4;margin-bottom:4px;" role="alert"></div>',
+            '    <form id="ea-change-password-form" autocomplete="off" onsubmit="return false;" style="display:flex;flex-direction:column;gap:12px;">',
+            '      <div class="ea-form-group">',
+            '        <label for="ea-pwd-current" class="ea-form-label" style="display:block;margin-bottom:5px;font-size:0.8rem;font-weight:600;color:#cbd5e1;">رمز عبور فعلی <span style="color:#ef4444;">*</span></label>',
+            '        <input type="password" id="ea-pwd-current" class="ea-input" name="oldPassword" autocomplete="current-password" required placeholder="رمز عبور فعلی خود را وارد کنید" style="width:100%;box-sizing:border-box;direction:ltr;text-align:left;">',
+            '      </div>',
+            '      <div class="ea-form-group">',
+            '        <label for="ea-pwd-new" class="ea-form-label" style="display:block;margin-bottom:5px;font-size:0.8rem;font-weight:600;color:#cbd5e1;">رمز عبور جدید <span style="color:#ef4444;">*</span></label>',
+            '        <input type="password" id="ea-pwd-new" class="ea-input" name="newPassword" autocomplete="new-password" required placeholder="حداقل ۸ کاراکتر" style="width:100%;box-sizing:border-box;direction:ltr;text-align:left;">',
+            '        <div style="font-size:0.72rem;color:#94a3b8;margin-top:3px;">حداقل ۸ کاراکتر</div>',
+            '      </div>',
+            '      <div class="ea-form-group">',
+            '        <label for="ea-pwd-confirm" class="ea-form-label" style="display:block;margin-bottom:5px;font-size:0.8rem;font-weight:600;color:#cbd5e1;">تکرار رمز عبور جدید <span style="color:#ef4444;">*</span></label>',
+            '        <input type="password" id="ea-pwd-confirm" class="ea-input" name="confirmPassword" autocomplete="new-password" required placeholder="تکرار رمز عبور جدید" style="width:100%;box-sizing:border-box;direction:ltr;text-align:left;">',
+            '      </div>',
+            '    </form>',
+            '  </div>',
+            '  <div class="ea-modal-footer" style="padding:14px 20px;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid rgba(255,255,255,0.08);">',
+            '    <button type="button" class="ea-btn" id="ea-pwd-cancel-btn">انصراف</button>',
+            '    <button type="button" class="ea-btn ea-btn-primary" id="ea-pwd-submit-btn">تأیید تغییر رمز</button>',
+            '  </div>',
+            '</div>'
+        ].join('\n');
+
+        document.body.appendChild(overlay);
+
+        var closeFn = function () {
+            overlay.remove();
+            document.removeEventListener('keydown', escListener);
+        };
+
+        var escListener = function(e) {
+            if (e.key === 'Escape') closeFn();
+        };
+        document.addEventListener('keydown', escListener);
+
+        document.getElementById('ea-pwd-modal-close').onclick = closeFn;
+        document.getElementById('ea-pwd-cancel-btn').onclick = closeFn;
+        overlay.onclick = function (e) {
+            if (e.target === overlay) closeFn();
+        };
+
+        var currentInput = document.getElementById('ea-pwd-current');
+        var newInput = document.getElementById('ea-pwd-new');
+        var confirmInput = document.getElementById('ea-pwd-confirm');
+        var feedback = document.getElementById('ea-pwd-feedback');
+        var submitBtn = document.getElementById('ea-pwd-submit-btn');
+
+        currentInput.focus();
+
+        var setFeedback = function(msg, isSuccess) {
+            feedback.style.display = 'block';
+            if (isSuccess) {
+                feedback.className = 'ea-pwd-feedback ea-pwd-feedback-success';
+                feedback.style.background = 'rgba(34, 197, 94, 0.15)';
+                feedback.style.borderColor = 'rgba(34, 197, 94, 0.4)';
+                feedback.style.color = '#86efac';
+            } else {
+                feedback.className = 'ea-pwd-feedback ea-pwd-feedback-error';
+                feedback.style.background = 'rgba(239, 68, 68, 0.15)';
+                feedback.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+                feedback.style.color = '#fca5a5';
+            }
+            feedback.innerHTML = escapeHtml(msg);
+        };
+
+        var clearFeedback = function() {
+            feedback.style.display = 'none';
+            feedback.innerHTML = '';
+        };
+
+        var doSubmit = function() {
+            clearFeedback();
+            var oldVal = currentInput.value.trim();
+            var newVal = newInput.value;
+            var confVal = confirmInput.value;
+
+            // Client-side validations
+            if (!oldVal) {
+                setFeedback('لطفاً رمز عبور فعلی را وارد کنید.', false);
+                currentInput.focus();
+                return;
+            }
+            if (!newVal) {
+                setFeedback('لطفاً رمز عبور جدید را وارد کنید.', false);
+                newInput.focus();
+                return;
+            }
+            if (newVal.length < 8) {
+                setFeedback('رمز عبور جدید باید حداقل دارای ۸ کاراکتر باشد.', false);
+                newInput.focus();
+                return;
+            }
+            if (!confVal) {
+                setFeedback('لطفاً تکرار رمز عبور جدید را وارد کنید.', false);
+                confirmInput.focus();
+                return;
+            }
+            if (newVal !== confVal) {
+                setFeedback('رمز عبور جدید با تکرار آن مطابقت ندارد.', false);
+                confirmInput.focus();
+                return;
+            }
+            if (oldVal === newVal) {
+                setFeedback('رمز عبور جدید نباید با رمز عبور فعلی یکسان باشد.', false);
+                newInput.focus();
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="ea-spinner-sm"></span> در حال بررسی...';
+
+            var headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            };
+            var token = (document.head && (document.head.getAttribute('data-requesttoken') || (document.head.dataset && document.head.dataset.requesttoken))) ||
+                        (window.OC && window.OC.requestToken);
+            if (token) {
+                headers['requesttoken'] = token;
+            }
+
+            fetch('/index.php/apps/archive_autotag/api/user/change-password', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({
+                    oldPassword: oldVal,
+                    newPassword: newVal,
+                    confirmPassword: confVal
+                })
+            })
+            .then(function(res) {
+                return res.json().then(function(data) {
+                    if (res.ok && data && (data.status === 'success' || data.code === 'SUCCESS')) {
+                        setFeedback(data.message || 'رمز عبور شما با موفقیت به‌روزرسانی شد.', true);
+                        currentInput.value = '';
+                        newInput.value = '';
+                        confirmInput.value = '';
+                        submitBtn.style.display = 'none';
+                        if (typeof showToast === 'function') {
+                            showToast('رمز عبور شما با موفقیت به‌روزرسانی شد.');
+                        }
+                        setTimeout(function() {
+                            closeFn();
+                        }, 1200);
+                    } else {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = 'تأیید تغییر رمز';
+                        var errMsg = (data && data.message) ? data.message : 'خطا در ثبت رمز عبور جدید.';
+                        setFeedback(errMsg, false);
+                    }
+                });
+            })
+            .catch(function(err) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'تأیید تغییر رمز';
+                setFeedback('خطای ارتباط با سرور. لطفاً مجدداً تلاش کنید.', false);
+            });
+        };
+
+        submitBtn.onclick = doSubmit;
+        [currentInput, newInput, confirmInput].forEach(function(inp) {
+            inp.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    doSubmit();
+                }
+            });
+        });
+    }
+
+    // Expose for external invocation if needed
+    window.eaOpenChangePasswordModal = openChangePasswordModal;
+    window.eaOpenPasswordModal = openChangePasswordModal;
+
+    // Automatic trigger if URL contains action=change_password or hash #change-password
+    try {
+        var checkAutoTriggerPasswordModal = function() {
+            var search = window.location.search || '';
+            var hash = window.location.hash || '';
+            if (search.indexOf('action=change_password') !== -1 || hash === '#change-password') {
+                setTimeout(function() {
+                    openChangePasswordModal();
+                    if (window.history && window.history.replaceState) {
+                        try {
+                            var cleanSearch = search.replace(/([?&])action=change_password(&|$)/, '$1').replace(/[?&]$/, '');
+                            var cleanUrl = window.location.pathname + (cleanSearch ? '?' + cleanSearch : '');
+                            window.history.replaceState(null, '', cleanUrl);
+                        } catch (err) {}
+                    }
+                }, 100);
+            }
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', checkAutoTriggerPasswordModal);
+        } else {
+            checkAutoTriggerPasswordModal();
+        }
+        window.addEventListener('hashchange', checkAutoTriggerPasswordModal);
+    } catch (e) {}
 
     // Render: Header & Search Ribbon
     function renderApp() {

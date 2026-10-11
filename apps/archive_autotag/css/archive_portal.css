@@ -3095,3 +3095,60 @@ button.ea-drawer-close {
   padding: 0 !important;
   height: 0 !important;
 }
+
+/* Change Password Button in Header Brand Profile Area */
+.ea-brand-user-wrapper {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.ea-change-password-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  padding: 0 8px !important;
+  font-size: 0.68rem !important;
+  font-weight: 600 !important;
+  color: #fb923c !important;
+  background: rgba(249, 115, 22, 0.12) !important;
+  border: 1px solid rgba(249, 115, 22, 0.35) !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  transition: all 0.18s ease !important;
+  line-height: 1 !important;
+  text-decoration: none !important;
+}
+
+.ea-change-password-btn:hover {
+  background: rgba(249, 115, 22, 0.22) !important;
+  border-color: #f97316 !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.25) !important;
+}
+
+.ea-change-password-btn:active {
+  transform: translateY(0) scale(0.97) !important;
+}
+
+.ea-change-password-btn svg {
+  width: 11px !important;
+  height: 11px !important;
+  flex-shrink: 0 !important;
+}
+
+/* Password Modal Custom Styles */
+.ea-modal-card-password {
+  background: #0f172a !important;
+  border: 1px solid rgba(249, 115, 22, 0.25) !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(249, 115, 22, 0.15) !important;
+}
+
+.ea-pwd-feedback {
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}

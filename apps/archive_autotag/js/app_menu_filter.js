@@ -2,25 +2,14 @@
     'use strict';
 
     function isCurrentUserAdmin() {
+        // Trust only the server-provided primary-admin state for this app.
         try {
-            if (window.OC && (window.OC.currentUser === 'admin' || (window.OC.getCurrentUser && window.OC.getCurrentUser().uid === 'admin'))) {
-                return true;
-            }
-            if (window.oc_current_user === 'admin' || window._oc_is_admin === true) {
-                return true;
-            }
-            const userMeta = document.querySelector('meta[name="user"]');
-            if (userMeta && userMeta.getAttribute('content') === 'admin') {
-                return true;
-            }
-            if (window.OCP && window.OCP.InitialState) {
-                const appIsAdmin = window.OCP.InitialState.loadState('archive_autotag', 'is_admin');
-                if (typeof appIsAdmin === 'boolean') {
-                    return appIsAdmin;
-                }
-            }
-            if (window.OC && typeof window.OC.isUserAdmin === 'function') {
-                return window.OC.isUserAdmin();
+            if (window.OCP && window.OCP.InitialState &&
+                typeof window.OCP.InitialState.loadState === 'function') {
+                return window.OCP.InitialState.loadState(
+                    'archive_autotag',
+                    'is_admin'
+                ) === true;
             }
         } catch (e) {}
         return false;
@@ -293,6 +282,48 @@
                 item.style.setProperty('display', 'none', 'important');
             });
 
+            // Suppress Accounts and View Profile for Regular Users and Group Admins.
+            // Settings remains VISIBLE and routes directly to the limited password change modal.
+            // Primary System Administrator preserves full unhindered access.
+            if (!isCurrentUserAdmin()) {
+                const nonAdminHiddenItems = document.querySelectorAll(
+                    '#user-menu #core_users, #user-menu [data-id="core_users"], #user-menu a[href*="/settings/users"], ' +
+                    '#user-menu #profile, #user-menu [data-id="profile"], #user-menu a[href*="/u/"], ' +
+                    '.account-menu #core_users, .account-menu [data-id="core_users"], .account-menu a[href*="/settings/users"], ' +
+                    '.account-menu #profile, .account-menu [data-id="profile"], .account-menu a[href*="/u/"], ' +
+                    '.user-menu #core_users, .user-menu [data-id="core_users"], .user-menu a[href*="/settings/users"], ' +
+                    '.user-menu #profile, .user-menu [data-id="profile"], .user-menu a[href*="/u/"]'
+                );
+                nonAdminHiddenItems.forEach(item => {
+                    item.style.display = 'none';
+                    item.style.setProperty('display', 'none', 'important');
+                    const parentLi = item.closest('li');
+                    if (parentLi) {
+                        parentLi.style.display = 'none';
+                        parentLi.style.setProperty('display', 'none', 'important');
+                    }
+                });
+
+                // Ensure Settings menu item is visible and configured for non-admins
+                const nonAdminSettingsItems = document.querySelectorAll(
+                    '#user-menu #settings, #user-menu [data-id="settings"], ' +
+                    '#user-menu a[href*="/settings/user"], #user-menu a[href*="/settings/personal"], ' +
+                    '.account-menu #settings, .account-menu [data-id="settings"], ' +
+                    '.account-menu a[href*="/settings/user"], .account-menu a[href*="/settings/personal"], ' +
+                    '.user-menu #settings, .user-menu [data-id="settings"], ' +
+                    '.user-menu a[href*="/settings/user"], .user-menu a[href*="/settings/personal"]'
+                );
+                nonAdminSettingsItems.forEach(item => {
+                    item.style.removeProperty('display');
+                    const parentLi = item.closest('li');
+                    if (parentLi) {
+                        parentLi.style.removeProperty('display');
+                    }
+                    item.setAttribute('title', 'تنظیمات (تغییر رمز عبور)');
+                    item.setAttribute('aria-label', 'تنظیمات (تغییر رمز عبور)');
+                });
+            }
+
             
             // Mount Animated Delicate Bank Maskan Watermark Banner in Header Start
             const header = document.getElementById('header');
@@ -338,8 +369,8 @@
             return;
         }
 
-        // Non-admin user: Back-Office Guard: /apps/files is strictly reserved for Admin users
-        if (window.location.pathname.includes('/apps/files')) {
+        // Non-admin user: Back-Office Guard: /apps/files and /u/ profile pages are strictly reserved for Admin users
+        if (window.location.pathname.includes('/apps/files') || window.location.pathname.includes('/u/')) {
             window.location.replace('/index.php/apps/archive_autotag/');
             return;
         }
@@ -401,6 +432,49 @@
             });
         } catch (err) {}
     }
+
+    // Intercept Settings menu click for non-admin users to open the limited Change Password modal
+    document.addEventListener('click', function(e) {
+        if (isCurrentUserAdmin()) {
+            return;
+        }
+
+        const settingsTarget = e.target && e.target.closest && e.target.closest(
+            '#user-menu #settings, #user-menu [data-id="settings"], ' +
+            '#user-menu a[href*="/settings/user"], #user-menu a[href*="/settings/personal"], ' +
+            '.account-menu #settings, .account-menu [data-id="settings"], ' +
+            '.account-menu a[href*="/settings/user"], .account-menu a[href*="/settings/personal"], ' +
+            '.user-menu #settings, .user-menu [data-id="settings"], ' +
+            '.user-menu a[href*="/settings/user"], .user-menu a[href*="/settings/personal"]'
+        );
+
+        if (settingsTarget) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Close the user menu popover if open
+            try {
+                const menuTrigger = document.querySelector('#user-menu button, .avatardiv, #settings .avatardiv');
+                if (menuTrigger && typeof menuTrigger.click === 'function') {
+                    menuTrigger.click();
+                }
+            } catch (err) {}
+
+            // Open dedicated password change modal
+            if (typeof window.eaOpenChangePasswordModal === 'function') {
+                window.eaOpenChangePasswordModal();
+            } else if (typeof window.eaOpenPasswordModal === 'function') {
+                window.eaOpenPasswordModal();
+            } else {
+                const pwBtn = document.getElementById('ea-change-password-btn');
+                if (pwBtn) {
+                    pwBtn.click();
+                } else {
+                    window.location.href = '/index.php/apps/archive_autotag/?action=change_password';
+                }
+            }
+        }
+    }, true); // useCapture: true ensures interception before any Nextcloud router
 
     window.purgeNonAdminApps = applyAppMenuFilter;
 

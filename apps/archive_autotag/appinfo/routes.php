@@ -5,6 +5,8 @@ declare(strict_types=1);
 return [
     'routes' => [
         ['name' => 'Page#index', 'url' => '/', 'verb' => 'GET'],
+        // Dedicated Self-Service Password Change (Requirement 6 and 7)
+        ['name' => 'Password#changePassword', 'url' => '/api/user/change-password', 'verb' => 'POST'],
         ['name' => 'TagFilter#listVisibleTags', 'url' => '/api/tags', 'verb' => 'GET'],
         ['name' => 'TagFilter#filterByTags', 'url' => '/api/filter', 'verb' => 'GET'],
         ['name' => 'TagFilter#listAllArchiveFiles', 'url' => '/api/files', 'verb' => 'GET'],

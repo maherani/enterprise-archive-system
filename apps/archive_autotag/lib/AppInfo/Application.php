@@ -11,7 +11,9 @@ use OCA\ArchiveAutoTag\Listener\NodeCreatedListener;
 use OCA\ArchiveAutoTag\Listener\NodeDeletedListener;
 use OCA\ArchiveAutoTag\Listener\NodeRenamedListener;
 use OCA\ArchiveAutoTag\Listener\NodeWrittenListener;
+use OCA\ArchiveAutoTag\Middleware\AccountSecurityPolicyMiddleware;
 use OCA\ArchiveAutoTag\Service\AutoTagService;
+use OCA\ArchiveAutoTag\Service\PrimarySystemAdminResolver;
 use OCA\ArchiveAutoTag\Service\FileOwnershipService;
 use OCA\ArchiveAutoTag\Service\FolderPolicyService;
 use OCA\ArchiveAutoTag\Service\UploadLimitService;
@@ -71,6 +73,43 @@ class Application extends App implements IBootstrap {
             \OCA\ArchiveAutoTag\Security\Permission\IPermissionResolver::class,
             fn($c) => $c->get(\OCA\ArchiveAutoTag\Security\Permission\CentralPermissionResolver::class)
         );
+
+        // Shared source of truth for the configured Primary System Administrator.
+        $context->registerService(
+            PrimarySystemAdminResolver::class,
+            static fn($c) => new PrimarySystemAdminResolver(
+                $c->get(\OCP\IConfig::class),
+                $c->get(IGroupManager::class),
+                $c->get(\Psr\Log\LoggerInterface::class)
+            )
+        );
+
+        // Server-Side Account Security Policy Middleware (Global enforcement for settings & credential management)
+        $context->registerMiddleware(AccountSecurityPolicyMiddleware::class, true);
+    }
+
+    /**
+     * Uses the same resolver as the account-security middleware.
+     */
+    private static function isPrimarySystemAdmin(?\OCP\IUser $user): bool {
+        if ($user === null) {
+            return false;
+        }
+
+        try {
+            $resolver = \OC::$server->get(PrimarySystemAdminResolver::class);
+            return $resolver->isPrimarySystemAdmin($user);
+        } catch (\Throwable $exception) {
+            try {
+                \OC::$server->get(\Psr\Log\LoggerInterface::class)->error(
+                    'Application: Failed to resolve Primary System Administrator state.',
+                    ['exception' => $exception]
+                );
+            } catch (\Throwable $ignored) {
+                // Fail closed if logging is unavailable.
+            }
+            return false;
+        }
     }
 
     public function boot(IBootContext $context): void {
@@ -90,8 +129,7 @@ class Application extends App implements IBootstrap {
                 $navigationManager = $container->get(\OCP\INavigationManager::class);
                 $allApps = array_values($navigationManager->getAll());
                 if ($user !== null) {
-                    $groupManager = $container->get(IGroupManager::class);
-                    if (!$groupManager->isAdmin($user->getUID())) {
+                    if (!self::isPrimarySystemAdmin($user)) {
                         return array_values(array_filter($allApps, static function ($app) {
                             return ($app['id'] ?? '') === self::APP_ID;
                         }));
@@ -108,24 +146,18 @@ class Application extends App implements IBootstrap {
                 $navigationManager = $container->get(\OCP\INavigationManager::class);
                 $settingsNav = $navigationManager->getAll('settings');
                 if ($user !== null) {
-                    $groupManager = $container->get(IGroupManager::class);
-                    if (!$groupManager->isAdmin($user->getUID())) {
+                    if (!self::isPrimarySystemAdmin($user)) {
                         unset($settingsNav['core_apps'], $settingsNav['appstore']);
                     }
                 }
                 return $settingsNav;
             });
 
-            // Also provide is_admin state for frontend scripts
+            // This UI state represents the configured Primary System Administrator only.
             $initialStateService->provideLazyInitialState(self::APP_ID, 'is_admin', static function () {
                 $container = \OC::$server;
                 $userSession = $container->get(IUserSession::class);
-                $user = $userSession->getUser();
-                if ($user !== null) {
-                    $groupManager = $container->get(IGroupManager::class);
-                    return $groupManager->isAdmin($user->getUID());
-                }
-                return false;
+                return self::isPrimarySystemAdmin($userSession->getUser());
             });
 
             // Provide is_group_admin and subadmin_groups for folder creation workflow

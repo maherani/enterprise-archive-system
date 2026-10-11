@@ -858,3 +858,99 @@ button[type="submit"]:active,
     }
 }
 /* == ea-return-portal-btn end == */
+
+/* =========================================================================
+   10. Non-Admin User Account Menu Sanitization (Regular Users & Group Admins)
+   Hide Accounts and View Profile in User/Account Dropdown.
+   Settings remains VISIBLE and routes to limited password change modal.
+   Strictly scoped to user/account dropdowns to prevent hiding generic /u/ links.
+   ========================================================================= */
+html.ea-non-admin #user-menu #core_users,
+html.ea-non-admin #user-menu [data-id="core_users"],
+html.ea-non-admin #user-menu a[href*="/settings/users"],
+html.ea-non-admin #user-menu #profile,
+html.ea-non-admin #user-menu [data-id="profile"],
+html.ea-non-admin #user-menu a[href*="/u/"],
+html.ea-non-admin #user-menu li:has(> #core_users),
+html.ea-non-admin #user-menu li:has(> a[href*="/settings/users"]),
+html.ea-non-admin #user-menu li:has(> #profile),
+html.ea-non-admin #user-menu li:has(> a[href*="/u/"]),
+html.ea-non-admin .account-menu #core_users,
+html.ea-non-admin .account-menu [data-id="core_users"],
+html.ea-non-admin .account-menu a[href*="/settings/users"],
+html.ea-non-admin .account-menu #profile,
+html.ea-non-admin .account-menu [data-id="profile"],
+html.ea-non-admin .account-menu a[href*="/u/"],
+html.ea-non-admin .account-menu li:has(> #core_users),
+html.ea-non-admin .account-menu li:has(> a[href*="/settings/users"]),
+html.ea-non-admin .account-menu li:has(> #profile),
+html.ea-non-admin .account-menu li:has(> a[href*="/u/"]),
+html.ea-non-admin .user-menu #core_users,
+html.ea-non-admin .user-menu [data-id="core_users"],
+html.ea-non-admin .user-menu a[href*="/settings/users"],
+html.ea-non-admin .user-menu #profile,
+html.ea-non-admin .user-menu [data-id="profile"],
+html.ea-non-admin .user-menu a[href*="/u/"],
+html.ea-non-admin .user-menu li:has(> #core_users),
+html.ea-non-admin .user-menu li:has(> a[href*="/settings/users"]),
+html.ea-non-admin .user-menu li:has(> #profile),
+html.ea-non-admin .user-menu li:has(> a[href*="/u/"]),
+body.ea-non-admin #user-menu #core_users,
+body.ea-non-admin #user-menu [data-id="core_users"],
+body.ea-non-admin #user-menu a[href*="/settings/users"],
+body.ea-non-admin #user-menu #profile,
+body.ea-non-admin #user-menu [data-id="profile"],
+body.ea-non-admin #user-menu a[href*="/u/"],
+body.ea-non-admin #user-menu li:has(> #core_users),
+body.ea-non-admin #user-menu li:has(> a[href*="/settings/users"]),
+body.ea-non-admin #user-menu li:has(> #profile),
+body.ea-non-admin #user-menu li:has(> a[href*="/u/"]),
+body.ea-non-admin .account-menu #core_users,
+body.ea-non-admin .account-menu [data-id="core_users"],
+body.ea-non-admin .account-menu a[href*="/settings/users"],
+body.ea-non-admin .account-menu #profile,
+body.ea-non-admin .account-menu [data-id="profile"],
+body.ea-non-admin .account-menu a[href*="/u/"],
+body.ea-non-admin .account-menu li:has(> #core_users),
+body.ea-non-admin .account-menu li:has(> a[href*="/settings/users"]),
+body.ea-non-admin .account-menu li:has(> #profile),
+body.ea-non-admin .account-menu li:has(> a[href*="/u/"]),
+body.ea-non-admin .user-menu #core_users,
+body.ea-non-admin .user-menu [data-id="core_users"],
+body.ea-non-admin .user-menu a[href*="/settings/users"],
+body.ea-non-admin .user-menu #profile,
+body.ea-non-admin .user-menu [data-id="profile"],
+body.ea-non-admin .user-menu a[href*="/u/"],
+body.ea-non-admin .user-menu li:has(> #core_users),
+body.ea-non-admin .user-menu li:has(> a[href*="/settings/users"]),
+body.ea-non-admin .user-menu li:has(> #profile),
+body.ea-non-admin .user-menu li:has(> a[href*="/u/"]) {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Hide Security / OTP / WebAuthn / App Passwords settings sections if visited directly by non-admins */
+html.ea-non-admin #app-navigation a[href*="/settings/user/security"],
+html.ea-non-admin #app-navigation [data-id="security"],
+html.ea-non-admin #security-totp,
+html.ea-non-admin #twofactor-totp,
+html.ea-non-admin #webauthn,
+html.ea-non-admin #app-tokens,
+html.ea-non-admin .app-tokens,
+html.ea-non-admin #security-otp,
+body.ea-non-admin #app-navigation a[href*="/settings/user/security"],
+body.ea-non-admin #app-navigation [data-id="security"],
+body.ea-non-admin #security-totp,
+body.ea-non-admin #twofactor-totp,
+body.ea-non-admin #webauthn,
+body.ea-non-admin #app-tokens,
+body.ea-non-admin .app-tokens,
+body.ea-non-admin #security-otp {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
