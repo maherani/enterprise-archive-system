@@ -53,7 +53,11 @@ services:
       - ./nginx/maintenance.html:/usr/share/nginx/html/maintenance.html:ro
     networks:
       - archive_net
+      - ai_chat_net
 
 networks:
   archive_net:
     driver: bridge
+  ai_chat_net:
+    name: ai_chat_net
+    external: true

@@ -12,6 +12,7 @@ use OCA\ArchiveAutoTag\Listener\NodeDeletedListener;
 use OCA\ArchiveAutoTag\Listener\NodeRenamedListener;
 use OCA\ArchiveAutoTag\Listener\NodeWrittenListener;
 use OCA\ArchiveAutoTag\Middleware\AccountSecurityPolicyMiddleware;
+use OCA\ArchiveAutoTag\Service\AiOutboxService;
 use OCA\ArchiveAutoTag\Service\AutoTagService;
 use OCA\ArchiveAutoTag\Service\PrimarySystemAdminResolver;
 use OCA\ArchiveAutoTag\Service\FileOwnershipService;
@@ -39,6 +40,8 @@ use OCP\Util;
 
 class Application extends App implements IBootstrap {
     public const APP_ID = 'archive_autotag';
+
+    private ?IGroupManager $groupManager = null;
 
     public function __construct() {
         parent::__construct(self::APP_ID);
@@ -84,6 +87,50 @@ class Application extends App implements IBootstrap {
             )
         );
 
+        // Enterprise Archive Outbox Service for AI Integration
+        $context->registerService(
+            AiOutboxService::class,
+            static fn($c) => new AiOutboxService(
+                $c->get(\OCP\IDBConnection::class),
+                $c->get(\Psr\Log\LoggerInterface::class),
+                $c->get(\OCP\IGroupManager::class),
+                $c->get(\OCA\ArchiveAutoTag\Security\Permission\IPermissionResolver::class)
+            )
+        );
+
+        // Explicit registration for NodeWrittenListener guaranteeing AiOutboxService injection
+        $context->registerService(
+            NodeWrittenListener::class,
+            static fn($c) => new NodeWrittenListener(
+                $c->get(AutoTagService::class),
+                $c->get(UploadLimitService::class),
+                $c->get(FileOwnershipService::class),
+                $c->get(IUserSession::class),
+                $c->get(AiOutboxService::class),
+                $c->get(\Psr\Log\LoggerInterface::class)
+            )
+        );
+
+        $context->registerService(
+            \OCA\ArchiveAutoTag\Listener\NodeDeletedListener::class,
+            static fn($c) => new \OCA\ArchiveAutoTag\Listener\NodeDeletedListener(
+                $c->get(AutoTagService::class),
+                $c->get(AiOutboxService::class),
+                $c->get(IUserSession::class),
+                $c->get(\Psr\Log\LoggerInterface::class)
+            )
+        );
+
+        $context->registerService(
+            \OCA\ArchiveAutoTag\Listener\NodeRenamedListener::class,
+            static fn($c) => new \OCA\ArchiveAutoTag\Listener\NodeRenamedListener(
+                $c->get(AutoTagService::class),
+                $c->get(AiOutboxService::class),
+                $c->get(IUserSession::class),
+                $c->get(\Psr\Log\LoggerInterface::class)
+            )
+        );
+
         // Server-Side Account Security Policy Middleware (Global enforcement for settings & credential management)
         $context->registerMiddleware(AccountSecurityPolicyMiddleware::class, true);
     }
@@ -113,6 +160,19 @@ class Application extends App implements IBootstrap {
     }
 
     public function boot(IBootContext $context): void {
+        $context->injectFn(static function (\Psr\Log\LoggerInterface $logger): void {
+            $logger->info('archive_autotag: DIAGNOSTIC Application::boot reached');
+        });
+
+        // Ensure default ai_chat_access group exists
+        try {
+            $this->groupManager = \OC::$server->get(IGroupManager::class);
+            if (!$this->groupManager->groupExists('ai_chat_access')) {
+                $this->groupManager->createGroup('ai_chat_access');
+            }
+        } catch (\Throwable $t) {
+        }
+
         // Global App Launcher & Navigation restriction: for non-admin groups, only show "??????? ?????"
         Util::addScript(self::APP_ID, 'app_menu_filter');
         Util::addStyle(self::APP_ID, 'app_menu_filter');

@@ -1,5 +1,16 @@
 # نیازمندی ۱۰: نقشه راه هوش مصنوعی آفلاین و محلی (Air-Gapped On-Premise AI Architecture Roadmap)
 
+> [!NOTE]
+> ## به‌روزرسانی معماری: گذار به معماری تفکیک‌شده AI Box و رویدادمحور با RabbitMQ (معماری نسخه ۱.۲)
+> این سند در ابتدا بر مبنای طرح پیشنهادی اولیه سایدکار و پایگاه دانش FTS5 تدوین شده بود. با تصویب نهایی **معماری نسخه ۱.۲** (مدون در سند `docs/AI_Box_Enterprise_Archive_Integration_Architecture.md` در مخزن `ai-box`):
+> ۱. **تفکیک کامل سامانه هوش مصنوعی (Decoupled System of Intelligence):** پردازش هوش مصنوعی، مدل‌های زبانی و پایگاه داده برداری (LanceDB/AnythingLLM) از سرور آرشیو جدا شده و در مخزن و سامانه مستقل **AI Box** مستقر گردیده‌اند تا هیچ بار پردازشی یا ریسک اختلالی متوجه سرور عملیاتی Enterprise Archive نشود.
+> ۲. **مرجعیت رسمی و الگوی Outbox در آرشیو:** سامانه Enterprise Archive منحصراً منبع رسمی اسناد، متادیتا و مجوزها (System of Record) است. پس از آپلود موفق هر فایل، یک رکورد در جدول پایدار `archive_ai_outbox` در PostgreSQL ثبت می‌شود.
+> ۳. **انتقال پیام با RabbitMQ:** تبادل رویدادها بین آرشیو و AI Box منحصراً از طریق کارگزار پیام **RabbitMQ** صورت می‌گیرد؛ استفاده از Inbox مستقل بر پایه HTTP/SQLite منسوخ اعلام شده و در معماری هدف جایی ندارد.
+> ۴. **مدیریت وظایف و پایگاه داده Task DB در AI Box:** وضعیت وظایف پردازش، تلاش مجدد (Retry)، بازیابی خرابی و تأیید برداری منحصراً در Task DB محلی AI Box مدیریت می‌شود.
+> ۵. **منع اسکن مستقیم دیسک و پیمایش پوشه‌ها:** اتصال AI Box به فایل‌ها منحصراً بر پایه رویداد و از طریق رابط رسمی و ممیزی‌شده [نیازمندی ۱۱](11_secure_ai_file_retrieval_api.md) انجام شده و هرگونه پیمایش مستقیم سیستم‌فایل یا اسکن دوره‌ای اکیداً منتفی است.
+
+
+
 ## ۱. شرح نیازمندی (Problem Statement & Business Need)
 اسناد موجود در آرشیو سازمانی و بانکی شامل داده‌های با طبقه‌بندی بالا (نظیر قراردادهای مالی، گزارش‌های ممیزی، مستندات محرمانه امنیت و صورت‌حساب‌ها) هستند که بر اساس الزامات حاکمیتی، قوانین بانک مرکزی و اصول پدافند غیرعامل، هرگونه خروج داده یا ارسال به سرویس‌های ابری عمومی و APIهای خارجی (نظیر OpenAI، Claude، Gemini و ...) اکیداً ممنوع است (Zero Data Egress).
 از سوی دیگر، نیاز مبرم مدیران و کارشناسان سازمان به قابلیت‌های پردازش هوشمند اسناد شامل:
@@ -66,6 +77,37 @@
                                       (با کنترل Human Approval برای اقدامات حساس)
 ```
 
+
+### ۴.۱. معماری هدف مصوب: جریان رویدادمحور Outbox ➔ RabbitMQ ➔ AI Box Task DB (معماری نسخه ۱.۲)
+
+مطابق نسخهٔ ۱.۲ معماری، ارتباط میان سامانه آرشیو و جعبه هوش مصنوعی بر پایه تفکیک کامل لایه‌ها و رویدادمحوری پایدار بازطراحی شده است:
+
+```
++─────────────────────────────────────────────────────────────────────────────+
+|                         Enterprise Archive System                           |
+|  1. آپلود موفق فایل توسط کاربر / سرویس                                       |
+|  2. ثبت همزمان در جدول تراکنشی پایدار: archive_ai_outbox (PostgreSQL)       |
+|  3. ارسال مطمئن رویداد توسط Outbox Relay به RabbitMQ با Publisher Confirm    |
++─────────────────────────────────────────────────────────────────────────────+
+                                       │
+                                       ▼ (Exchange: archive.events / Queue: ai_box.file_events)
++─────────────────────────────────────────────────────────────────────────────+
+|                             RabbitMQ Message Broker                         |
+|  - تضمین پایداری صف و پیام (Durable Exchange / Durable Queue / Persistent)  |
+|  - تحویل به کانسومر و صدور ACK فقط پس از Commit قطعی در Task DB             |
++─────────────────────────────────────────────────────────────────────────────+
+                                       │
+                                       ▼
++─────────────────────────────────────────────────────────────────────────────+
+|                               AI Box System                                 |
+|  1. دریافت پیام رویداد در AI Box Worker                                      |
+|  2. ثبت پایدار وضعیت در Task DB محلی (ai_box_tasks.db)                       |
+|  3. واکشی فایل از آرشیو از طریق API امن نیازمندی ۱۱ یا کلاینت WebDAV         |
+|  4. اعتبارسنجی بایت‌به‌بایت در Gateway و ارسال به AnythingLLM / LanceDB     |
+|  5. راستی‌آزمایی ثبت بردارها توسط IndexVerifier و تبدیل وضعیت به INDEXED    |
++─────────────────────────────────────────────────────────────────────────────+
+```
+
 ## ۵. رفتار پیش‌فرض Nextcloud و شکاف موجود (Nextcloud Default Behavior vs Custom Need)
 در Nextcloud پیش‌فرض:
 ۱. دستیار Nextcloud Assistant معمولاً برای پردازش‌های زبان طبیعی به سرویس‌های ابری (مانند OpenAI) یا سرورهای خارجی نیازمند کارت‌های گرافیکی حجیم وابستگی دارد.
@@ -111,6 +153,32 @@ CREATE TABLE IF NOT EXISTS ai_inference_audit (
     created_at INTEGER NOT NULL
 );
 ```
+
+
+### ۷.۱. جدول تراکنشی Outbox در Enterprise Archive (`archive_ai_outbox` در PostgreSQL)
+در معماری مصوب ۱.۲، رویدادهای ورود اسناد به صورت تراکنشی در جدول زیر در پایگاه داده PostgreSQL آرشیو ذخیره می‌شوند:
+
+```sql
+CREATE TABLE oc_archive_ai_outbox (
+    id BIGSERIAL PRIMARY KEY,
+    event_id VARCHAR(64) NOT NULL UNIQUE,       -- شناسه یکتای رویداد (UUID)
+    event_type VARCHAR(64) NOT NULL,            -- نوع رویداد (مثلاً file.created)
+    file_id BIGINT NOT NULL,                    -- شناسه یکتای فایل در آرشیو
+    file_path VARCHAR(1024) NOT NULL,           -- مسیر فایل در آرشیو
+    file_name VARCHAR(255) NOT NULL,            -- نام فایل
+    owner_uid VARCHAR(64) NOT NULL,             -- مالک سند
+    group_name VARCHAR(128) NOT NULL,           -- گروه سازمانی مرتبط
+    mime_type VARCHAR(128) NOT NULL,            -- نوع داده
+    file_size BIGINT NOT NULL,                  -- حجم دقیق فایل به بایت
+    sha256_hash VARCHAR(64) NOT NULL,           -- هش کامل محتوا
+    status VARCHAR(32) NOT NULL DEFAULT 'PENDING', -- PENDING, PUBLISHED, FAILED, DEAD_LETTER
+    retry_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    published_at TIMESTAMP WITH TIME ZONE NULL
+);
+CREATE INDEX idx_arch_ai_outbox_status ON oc_archive_ai_outbox(status);
+```
+*(توجه: جدول SQLite FTS5 ذکرشده در زیر مربوط به طرح آزمایشی اولیه است و در معماری هدف، پایگاه داده برداری در AI Box قرار دارد).*
 
 ## ۸. ساختار کد و فایل‌های پیاده‌سازی (Code Structure & File Breakdown)
 * **سند مرجع معماری هوش مصنوعی:**
@@ -204,6 +272,8 @@ CREATE TABLE IF NOT EXISTS ai_inference_audit (
 * [ ] پشتیبان‌گیری از دیتابیس تک‌فایلی `archive_kb.sqlite` در کنار سایر بکاپ‌ها.
 
 ## ۲۲. ارتباط با سایر اسناد (Related Documents)
+* **سند رسمی معماری اتصال (نسخه ۱.۲):** [AI_Box_Enterprise_Archive_Integration_Architecture.md](../../../ai-box/docs/AI_Box_Enterprise_Archive_Integration_Architecture.md)
+* **سند نیازمندی ۱۱ (API واکشی امن اسناد):** [11_secure_ai_file_retrieval_api.md](11_secure_ai_file_retrieval_api.md)
 * سند مرجع [docs/AI_ON_PREMISE_ARCHITECTURE.md](file:///home/alborz/enterprise-archive-system/docs/AI_ON_PREMISE_ARCHITECTURE.md)
 * سند نیازمندی [Prompts/AI Connect.md.txt](file:///home/alborz/enterprise-archive-system/Prompts/AI%20Connect.md.txt)
 * سند [08_access_control_and_tag_isolation.md](file:///home/alborz/enterprise-archive-system/docs/requirements/08_access_control_and_tag_isolation.md)

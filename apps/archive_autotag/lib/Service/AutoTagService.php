@@ -36,6 +36,10 @@ class AutoTagService {
             throw new \InvalidArgumentException('Tag name cannot be empty');
         }
 
+        if (strlen($name) > 64) {
+            $name = mb_strcut($name, 0, 64, 'UTF-8');
+        }
+
         $cleanSearch = mb_strtolower($name, 'UTF-8');
         $allTags = $this->tagManager->getAllTags();
         foreach ($allTags as $tag) {
@@ -216,8 +220,10 @@ class AutoTagService {
 
     /**
      * Automatically tag a file or folder with all ancestor folder names.
+     * When $pruneStaleSystemTags is true (e.g. after Move/Rename), any stale restricted
+     * system folder tags no longer in the ancestor chain are removed while preserving custom/group tags.
      */
-    public function tagNodeHierarchy(Node $node): void {
+    public function tagNodeHierarchy(Node $node, bool $pruneStaleSystemTags = false): void {
         try {
             $nodeName = $node->getName();
 
@@ -229,9 +235,6 @@ class AutoTagService {
             $ancestorNames = $this->getAncestorFolderNames($node);
             // Strict folder hierarchy tags: do not convert internal technical share GIDs (like 'SOC' or 'admin') into tags
             $allTagNames = array_values(array_unique($ancestorNames));
-            if (empty($allTagNames)) {
-                return;
-            }
 
             $tagIdsToAssign = [];
             foreach ($allTagNames as $tagName) {
@@ -245,7 +248,29 @@ class AutoTagService {
 
             $objectId = (string)$node->getId();
             $existing = $this->tagMapper->getTagIdsForObjects([$objectId], 'files');
-            $existingTagIds = $existing[$objectId] ?? [];
+            $existingTagIds = array_map('strval', $existing[$objectId] ?? []);
+
+            if ($pruneStaleSystemTags && !empty($existingTagIds)) {
+                $candidateStaleIds = array_values(array_diff($existingTagIds, $tagIdsToAssign));
+                if (!empty($candidateStaleIds)) {
+                    $allTags = $this->tagManager->getAllTags();
+                    $staleSystemTagIds = [];
+                    foreach ($candidateStaleIds as $staleId) {
+                        $tagObj = $allTags[(int)$staleId] ?? $allTags[$staleId] ?? null;
+                        if ($tagObj !== null && !$tagObj->isUserAssignable()) {
+                            $staleSystemTagIds[] = (string)$staleId;
+                        }
+                    }
+                    if (!empty($staleSystemTagIds)) {
+                        $this->tagMapper->unassignTags($objectId, 'files', $staleSystemTagIds);
+                        $this->logger->info("archive_autotag: Unassigned stale ancestor tags [" . implode(', ', $staleSystemTagIds) . "] from node '{$nodeName}' (ID: {$objectId})");
+                    }
+                }
+            }
+
+            if (empty($tagIdsToAssign)) {
+                return;
+            }
 
             $newTagIds = array_diff($tagIdsToAssign, $existingTagIds);
             if (!empty($newTagIds)) {
@@ -281,50 +306,69 @@ class AutoTagService {
     }
 
     /**
-     * Propagate folder rename to all descendant files and subfolders:
+     * Propagate folder rename or move to all descendant files and subfolders:
      * - In-place tag rename if old tag was uniquely used by this folder.
      * - Otherwise, replace old tag with new tag across descendants.
+     * - When moved to a new parent path, resynchronize full ancestor hierarchy on the folder and all descendants.
      * - Reconcile all tags and prune any obsolete tags.
      */
-    public function handleFolderRenamed(Folder $targetFolder, string $oldName, string $newName): void {
+    public function handleFolderRenamed(
+        Folder $targetFolder,
+        string $oldName,
+        string $newName,
+        string $sourcePath = '',
+        string $targetPath = '',
+    ): void {
         try {
-            if ($oldName === $newName || trim($oldName) === '' || trim($newName) === '') {
+            $nameChanged = ($oldName !== $newName && trim($oldName) !== '' && trim($newName) !== '');
+            $parentMoved = (
+                $sourcePath !== '' &&
+                $targetPath !== '' &&
+                dirname(rtrim($sourcePath, '/')) !== dirname(rtrim($targetPath, '/'))
+            );
+
+            if (!$nameChanged && !$parentMoved) {
                 return;
             }
 
-            $oldTag = $this->findTagByName($oldName);
-            $newTag = $this->findTagByName($newName);
+            if ($nameChanged) {
+                $oldTag = $this->findTagByName($oldName);
+                $newTag = $this->findTagByName($newName);
 
-            // Check how many active folders in the filesystem still use $oldName
-            $sqlCountOld = "
-                SELECT COUNT(fileid)
-                FROM oc_filecache
-                WHERE mimetype = 2
-                  AND path LIKE 'files/%'
-                  AND path NOT LIKE 'files_trashbin%'
-                  AND name = ?
-            ";
-            $countOldName = (int)$this->db->executeQuery($sqlCountOld, [$oldName])->fetchOne();
+                // Check how many active folders in the filesystem still use $oldName
+                $sqlCountOld = "
+                    SELECT COUNT(fileid)
+                    FROM oc_filecache
+                    WHERE mimetype = 2
+                      AND path LIKE 'files/%'
+                      AND path NOT LIKE 'files_trashbin%'
+                      AND name = ?
+                ";
+                $countOldName = (int)$this->db->executeQuery($sqlCountOld, [$oldName])->fetchOne();
 
-            // If no other folder has oldName and new tag does not exist yet: rename tag in-place!
-            if ($countOldName === 0 && $oldTag !== null && $newTag === null) {
-                $this->tagManager->updateTag((string)$oldTag->getId(), $newName, true, false, null);
-                $this->logger->info("archive_autotag: In-place renamed tag ID {$oldTag->getId()} from '{$oldName}' to '{$newName}'");
-                $newTagId = (string)$oldTag->getId();
-                $oldTagId = null; // No unassign needed since tag itself was renamed
-            } else {
-                if ($newTag === null) {
-                    $newTag = $this->getOrCreateRestrictedTag($newName);
+                // If no other folder has oldName and new tag does not exist yet: rename tag in-place!
+                if ($countOldName === 0 && $oldTag !== null && $newTag === null) {
+                    $this->tagManager->updateTag((string)$oldTag->getId(), $newName, true, false, null);
+                    $this->logger->info("archive_autotag: In-place renamed tag ID {$oldTag->getId()} from '{$oldName}' to '{$newName}'");
+                } else {
+                    if ($newTag === null) {
+                        $newTag = $this->getOrCreateRestrictedTag($newName);
+                    }
+                    $oldTagId = $oldTag ? (string)$oldTag->getId() : null;
+                    $newTagId = (string)$newTag->getId();
+                    $this->propagateRenameRecursive($targetFolder, $oldTagId, $newTagId);
                 }
-                $oldTagId = $oldTag ? (string)$oldTag->getId() : null;
-                $newTagId = (string)$newTag->getId();
-                $this->propagateRenameRecursive($targetFolder, $oldTagId, $newTagId);
             }
 
-            // Always run full reconciliation after rename
+            if ($parentMoved) {
+                $this->tagNodeHierarchy($targetFolder, true);
+                $this->retagAllRecursive($targetFolder, true);
+            }
+
+            // Always run full reconciliation after rename/move
             $this->reconcileAllTags();
         } catch (\Throwable $e) {
-            $this->logger->error("archive_autotag: Error handling folder rename: " . $e->getMessage());
+            $this->logger->error("archive_autotag: Error handling folder rename/move: " . $e->getMessage());
         }
     }
 
@@ -434,6 +478,9 @@ class AutoTagService {
                     }
                     if ($this->userManager->userExists($segment)) {
                         continue;
+                    }
+                    if (strlen($segment) > 64) {
+                        $segment = mb_strcut($segment, 0, 64, 'UTF-8');
                     }
                     $categoryNames[mb_strtolower($segment)] = $segment;
                 }
@@ -552,16 +599,16 @@ class AutoTagService {
     }
 
     /**
-     * Recursively scan a folder and retag all descendant files with their hierarchy.
+     * Recursively scan a folder and retag all descendant files/folders with their hierarchy.
      */
-    public function retagAllRecursive(Folder $folder): int {
+    public function retagAllRecursive(Folder $folder, bool $pruneStaleSystemTags = false): int {
         $count = 0;
         $nodes = $folder->getDirectoryListing();
         foreach ($nodes as $node) {
-            $this->tagNodeHierarchy($node);
+            $this->tagNodeHierarchy($node, $pruneStaleSystemTags);
             $count++;
             if ($node instanceof Folder) {
-                $count += $this->retagAllRecursive($node);
+                $count += $this->retagAllRecursive($node, $pruneStaleSystemTags);
             }
         }
         return $count;

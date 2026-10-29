@@ -13,9 +13,89 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+check_and_reset_stale_task() {
+    if [ ! -f "$STATUS_FILE" ]; then
+        return 0
+    fi
+
+    python3 - "$STATUS_FILE" "$QUEUE_FILE" << 'PYEOF' 2>/dev/null || true
+import sys, json, os, time, subprocess
+from datetime import datetime
+
+status_file = sys.argv[1]
+queue_file = sys.argv[2]
+
+try:
+    with open(status_file, 'r', encoding='utf-8') as f:
+        st = json.load(f)
+except Exception:
+    sys.exit(0)
+
+status_val = st.get('status', '')
+if status_val not in ('IN_PROGRESS', 'PENDING'):
+    sys.exit(0)
+
+queue_exists = os.path.exists(queue_file)
+
+has_active_proc = False
+try:
+    cmd = ["pgrep", "-f", "backup_system\\.sh|backup_instance_data\\.sh|backup_full_instance\\.sh|restore_instance_data\\.sh|restore_system\\.sh|test_instance_data_backup\\.sh|test_system_backup\\.sh|test_restore\\.sh|orchestrate_disaster_recovery\\.sh"]
+    out = subprocess.check_output(cmd, text=True).strip()
+    if out:
+        has_active_proc = True
+except Exception:
+    has_active_proc = False
+
+now = time.time()
+age_sec = 0
+started_at = st.get('started_at')
+if started_at:
+    try:
+        clean_iso = started_at.replace('Z', '+00:00')
+        dt = datetime.fromisoformat(clean_iso)
+        age_sec = max(0, now - dt.timestamp())
+    except Exception:
+        age_sec = max(0, now - os.path.getmtime(status_file))
+else:
+    age_sec = max(0, now - os.path.getmtime(status_file))
+
+is_stale = False
+reason = ""
+if not queue_exists and not has_active_proc:
+    is_stale = True
+    reason = "عدم وجود فایل صف و پردازش فعال متناظر"
+elif age_sec > 600:
+    is_stale = True
+    reason = f"پایان مهلت زمانی مجاز ({int(age_sec)}s > 600s)"
+
+if is_stale:
+    task_id = st.get('task_id', 'unknown')
+    action = st.get('action', 'none')
+    clean_msg = "تسک معلق به دلیل عدم وجود پردازش فعال/پایان مهلت زمانی پاکسازی شد."
+    reset_data = {
+        "status": "IDLE",
+        "action": "none",
+        "task_id": task_id,
+        "progress": 0,
+        "message": clean_msg
+    }
+    with open(status_file, 'w', encoding='utf-8') as f:
+        json.dump(reset_data, f, ensure_ascii=False, indent=2)
+    try:
+        os.chmod(status_file, 0o660)
+    except Exception:
+        pass
+    print(f"[DAEMON] [WARN] Cleaned up stale orphaned task (Task ID: {task_id}, Action: {action}, Reason: {reason}). Status reset to IDLE.")
+PYEOF
+}
+
+# Startup stale task cleanup
+check_and_reset_stale_task
+
 echo "[DAEMON] Enterprise Archive Backup & Recovery Daemon started (PID: $$)..."
 
 while true; do
+    check_and_reset_stale_task
     if [ -f "$QUEUE_FILE" ]; then
         STATUS=$(python3 -c "import json; q=json.load(open('$QUEUE_FILE')); print(q.get('status', ''))" 2>/dev/null || echo "")
         if [ "$STATUS" = "PENDING" ]; then

@@ -1,0 +1,14 @@
+{
+  "mappings": {
+    "منابع انسانی": {
+      "slug": "mnabe-ansany-random123",
+      "display_name": "منابع انسانی",
+      "updated_at": "2026-10-26T18:18:56Z"
+    },
+    "دپارتمان مالی": {
+      "slug": "dpartman-maly",
+      "display_name": "دپارتمان مالی",
+      "updated_at": "2026-10-26T18:17:18Z"
+    }
+  }
+}

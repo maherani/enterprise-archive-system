@@ -31,6 +31,12 @@ return [
         ['name' => 'AiFile#openapiSpec', 'url' => '/api/openapi.json', 'verb' => 'GET'],
         ['name' => 'AiFile#swaggerUi', 'url' => '/api/docs', 'verb' => 'GET'],
 
+        // AI Outbox API for Independent Integration Layer
+        ['name' => 'AiOutboxApi#getPendingEvents', 'url' => '/api/v1/outbox/pending', 'verb' => 'GET'],
+        ['name' => 'AiOutboxApi#ackEvent', 'url' => '/api/v1/outbox/ack', 'verb' => 'POST'],
+        ['name' => 'AiOutboxApi#failEvent', 'url' => '/api/v1/outbox/fail', 'verb' => 'POST'],
+        ['name' => 'AiOutboxApi#getWorkspaceAcl', 'url' => '/api/v1/acl/workspaces', 'verb' => 'GET'],
+
         // AI Security Admin & Interactive Testing Console
         ['name' => 'AiAdmin#overview', 'url' => '/api/ai/admin/overview', 'verb' => 'GET'],
         ['name' => 'AiAdmin#createService', 'url' => '/api/ai/admin/services/create', 'verb' => 'POST'],
@@ -116,6 +122,12 @@ return [
         ['name' => 'AiFile#getMetadata', 'url' => '/api/v1/ai/files/{fileId}/metadata', 'verb' => 'GET'],
         ['name' => 'AiFile#openapiSpec', 'url' => '/api/openapi.json', 'verb' => 'GET'],
         ['name' => 'AiFile#swaggerUi', 'url' => '/api/docs', 'verb' => 'GET'],
+
+        // AI Outbox API for Independent Integration Layer
+        ['name' => 'AiOutboxApi#getPendingEvents', 'url' => '/api/v1/outbox/pending', 'verb' => 'GET'],
+        ['name' => 'AiOutboxApi#ackEvent', 'url' => '/api/v1/outbox/ack', 'verb' => 'POST'],
+        ['name' => 'AiOutboxApi#failEvent', 'url' => '/api/v1/outbox/fail', 'verb' => 'POST'],
+        ['name' => 'AiOutboxApi#getWorkspaceAcl', 'url' => '/api/v1/acl/workspaces', 'verb' => 'GET'],
 
         // AI Security Admin & Interactive Testing Console
         ['name' => 'AiAdmin#overview', 'url' => '/api/ai/admin/overview', 'verb' => 'GET'],

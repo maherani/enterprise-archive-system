@@ -5459,7 +5459,7 @@
             '    <div style="font-size:14px;font-weight:600;color:var(--ea-text-main, #f1f5f9);">📋 استریم یکپارچه ممیزی ۴ دامنه سازمانی</div>',
             '    <div style="display:flex;gap:8px;align-items:center;">',
             '      <label style="font-size:12px;color:var(--ea-text-muted);">دامنه:</label>',
-            '      <select id="ea-audit-rel-domain-filter" style="background:#0f172a;color:#f1f5f9;border:1px solid #334155;border-radius:6px;padding:4px 8px;font-size:12px;">',
+            '      <select id="ea-audit-rel-domain-filter" style="background:#1e293b;color:#ffffff;border:1px solid #475569;border-radius:6px;padding:4px 8px;font-size:12px;">',
             '        <option value="">همه دامنه‌ها (Unified)</option>',
             '        <option value="ai">واکشی اسناد AI</option>',
             '        <option value="tag">حاکمیت تگ‌های گروهی</option>',
@@ -5769,7 +5769,7 @@
             '      <h4 style="margin:0;font-size:0.95rem;color:var(--ea-text-main);">افزودن یا ویرایش اشتراک گروه</h4>',
             '      <div>',
             '        <label style="display:block;margin-bottom:6px;font-size:0.85rem;color:var(--ea-text-muted);">انتخاب گروه کاربری:</label>',
-            '        <select id="ea-share-group-select" class="ea-input" style="width:100%;padding:8px 12px;background:#1e293b;border:1px solid #334155;color:#f1f5f9;border-radius:6px;">',
+            '        <select id="ea-share-group-select" class="ea-input" style="width:100%;padding:8px 12px;background:#1e293b;border:1px solid #475569;color:#ffffff;border-radius:6px;">',
             '          <option value="">در حال بارگذاری گروه‌ها...</option>',
             '        </select>',
             '      </div>',
@@ -6035,7 +6035,7 @@
             '    <button class="ea-ai-tab ' + (backupConsoleState.activeTab === 'schedule' ? 'active' : '') + '" data-tab="schedule">⚙️ زمان‌بندی و پالیسی نگهداری</button>',
             '    <button class="ea-ai-tab ' + (backupConsoleState.activeTab === 'terminal' ? 'active' : '') + '" data-tab="terminal">💻 دستورات ترمینال و راهنما</button>',
             '  </div>',
-            '  <div class="ea-modal-body" id="ea-backup-console-body" style="flex:1;overflow-y:auto;overflow-x:hidden;padding:18px 24px;">',
+            '  <div class="ea-modal-body" id="ea-backup-console-body" style="flex:1;overflow-y:auto;overflow-x:auto;padding:18px 24px;">',
             '    <div style="text-align:center;padding:40px;color:var(--ea-text-muted);">در حال بارگذاری اطلاعات پشتیبان‌گیری...</div>',
             '  </div>',
             '  <div class="ea-modal-footer" style="flex-shrink:0;display:flex;justify-content:space-between;align-items:center;">',
@@ -6187,26 +6187,26 @@
         if (!backups || backups.length === 0) {
             html.push('<div style="padding:40px;text-align:center;background:var(--ea-surface-card);border:1px solid var(--ea-border);border-radius:8px;color:var(--ea-text-muted);">هیچ نسخه پشتیبانی یافت نشد. می‌توانید با دکمه بالا یک نسخه جدید ایجاد کنید.</div>');
         } else {
-            html.push('<div style="border:1px solid var(--ea-border);border-radius:8px;background:var(--ea-surface-card);overflow:hidden;">');
-            html.push('  <table class="ea-table" style="width:100%;border-collapse:collapse;table-layout:fixed;text-align:right;">');
+            html.push('<div class="ea-backup-table-wrapper" style="border:1px solid var(--ea-border);border-radius:8px;background:var(--ea-surface-card);overflow-x:auto;overflow-y:hidden;width:100%;-webkit-overflow-scrolling:touch;margin-bottom:16px;">');
+            html.push('  <table class="ea-table ea-backup-table" style="width:100%;min-width:1160px;border-collapse:collapse;text-align:right;">');
             html.push('    <colgroup>');
-            html.push('      <col style="width:26%;">');
-            html.push('      <col style="width:13%;">');
-            html.push('      <col style="width:14%;">');
-            html.push('      <col style="width:8%;">');
-            html.push('      <col style="width:12%;">');
-            html.push('      <col style="width:12%;">');
-            html.push('      <col style="width:15%;">');
+            html.push('      <col style="width:26%;min-width:260px;">');
+            html.push('      <col style="width:12%;min-width:130px;">');
+            html.push('      <col style="width:13%;min-width:140px;">');
+            html.push('      <col style="width:8%;min-width:85px;">');
+            html.push('      <col style="width:11%;min-width:110px;">');
+            html.push('      <col style="width:12%;min-width:135px;">');
+            html.push('      <col style="width:18%;min-width:270px;">');
             html.push('    </colgroup>');
             html.push('    <thead>');
-            html.push('      <tr style="border-bottom:1px solid var(--ea-border);background:rgba(255,255,255,0.02);">');
-            html.push('        <th style="padding:10px 12px;font-size:0.83rem;">نام فایل آرشیو</th>');
-            html.push('        <th style="padding:10px 8px;font-size:0.83rem;text-align:center;">نوع پشتیبان</th>');
-            html.push('        <th style="padding:10px 10px;font-size:0.83rem;text-align:center;">تاریخ ایجاد</th>');
-            html.push('        <th style="padding:10px 8px;font-size:0.83rem;text-align:center;">حجم</th>');
-            html.push('        <th style="padding:10px 8px;font-size:0.83rem;text-align:center;">صحت هش SHA-256</th>');
-            html.push('        <th style="padding:10px 8px;font-size:0.83rem;text-align:center;">آزمون سلامت</th>');
-            html.push('        <th style="padding:10px 8px;font-size:0.83rem;text-align:center;">عملیات</th>');
+            html.push('      <tr style="background:var(--ea-surface-elevated);border-bottom:1px solid var(--ea-border);color:var(--ea-text-muted);">');
+            html.push('        <th style="padding:12px 14px;font-size:0.84rem;font-weight:700;">نام فایل آرشیو</th>');
+            html.push('        <th style="padding:12px 10px;font-size:0.84rem;font-weight:700;text-align:center;">نوع پشتیبان</th>');
+            html.push('        <th style="padding:12px 10px;font-size:0.84rem;font-weight:700;text-align:center;">تاریخ ایجاد</th>');
+            html.push('        <th style="padding:12px 8px;font-size:0.84rem;font-weight:700;text-align:center;">حجم</th>');
+            html.push('        <th style="padding:12px 8px;font-size:0.84rem;font-weight:700;text-align:center;">صحت هش SHA-256</th>');
+            html.push('        <th style="padding:12px 8px;font-size:0.84rem;font-weight:700;text-align:center;">آزمون سلامت</th>');
+            html.push('        <th style="padding:12px 10px;font-size:0.84rem;font-weight:700;text-align:center;">عملیات</th>');
             html.push('      </tr>');
             html.push('    </thead>');
             html.push('    <tbody>');
@@ -6253,21 +6253,21 @@
                 }
 
                 html.push('      <tr style="border-bottom:1px solid var(--ea-border-light, rgba(255,255,255,0.05));">');
-                html.push('        <td style="padding:8px 12px;font-family:monospace;font-size:0.83rem;direction:ltr;text-align:left;overflow:hidden;">');
-                html.push('          <div style="font-weight:bold;color:var(--ea-text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeHtml(b.filename) + '">' + escapeHtml(b.filename) + '</div>');
+                html.push('        <td style="padding:10px 14px;font-family:monospace;font-size:0.83rem;direction:ltr;text-align:left;">');
+                html.push('          <div style="font-weight:bold;color:var(--ea-text-main);word-break:break-all;line-height:1.4;" title="' + escapeHtml(b.filename) + '">' + escapeHtml(b.filename) + '</div>');
                 if (b.sha256) {
-                    html.push('          <div style="font-size:0.72rem;color:var(--ea-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeHtml(b.sha256) + '">هش: ' + escapeHtml(b.sha256.substring(0, 16)) + '...</div>');
+                    html.push('          <div style="font-size:0.72rem;color:var(--ea-text-muted);word-break:break-all;margin-top:2px;" title="' + escapeHtml(b.sha256) + '">هش: ' + escapeHtml(b.sha256.substring(0, 16)) + '...</div>');
                 }
                 html.push('        </td>');
-                html.push('        <td style="padding:8px 8px;text-align:center;white-space:nowrap;">' + typeBadge + '</td>');
-                html.push('        <td style="padding:8px 10px;font-size:0.82rem;white-space:nowrap;direction:ltr;text-align:center;color:var(--ea-text-muted);">' + escapeHtml(b.mtime_iso ? b.mtime_iso.replace('T', ' ').substring(0, 19) : '-') + '</td>');
-                html.push('        <td style="padding:8px 8px;font-size:0.82rem;font-family:monospace;direction:ltr;text-align:center;font-weight:600;">' + escapeHtml(b.size_human || '-') + '</td>');
-                html.push('        <td style="padding:8px 8px;text-align:center;white-space:nowrap;">' + shaBadge + '</td>');
-                html.push('        <td style="padding:8px 8px;text-align:center;white-space:nowrap;">' + testBadge + '</td>');
-                html.push('        <td style="padding:8px 8px;text-align:center;white-space:nowrap;">');
-                html.push('          <div style="display:inline-flex;gap:4px;align-items:center;justify-content:center;">');
-                html.push('            <a href="' + downloadUrl + '" class="ea-btn ea-btn-sm"  title="دانلود فایل آرشیو">📥 دریافت</a>');
-                html.push('            ' + (isData ? '<button class="ea-btn ea-btn-sm ea-btn-test-sandbox" data-file="' + escapeHtml(b.filename) + '" ' + (isTaskRunning ? 'disabled' : '') + ' style="border-color:rgba(2,132,199,0.5);color:#38bdf8;" title="بازسازی آزمایشی Database و فایل‌های این نسخه در محیط کاملاً ایزوله؛ بدون هیچ تغییر در سامانه عملیاتی">🧪 تست Restore در Sandbox</button>' : '<button class="ea-btn ea-btn-sm ea-btn-test-sandbox" data-file="' + escapeHtml(b.filename) + '" ' + (isTaskRunning ? 'disabled' : '') + ' style="border-color:rgba(99,102,241,0.4);color:#818cf8;" title="تست بازیابی ایزوله در سندباکس موقت بدون دستکاری داده‌های اصلی">🧪 تست</button>') + '');
+                html.push('        <td style="padding:10px 8px;text-align:center;white-space:nowrap;">' + typeBadge + '</td>');
+                html.push('        <td style="padding:10px 10px;font-size:0.82rem;white-space:nowrap;direction:ltr;text-align:center;color:var(--ea-text-muted);">' + escapeHtml(b.mtime_iso ? b.mtime_iso.replace('T', ' ').substring(0, 19) : '-') + '</td>');
+                html.push('        <td style="padding:10px 8px;font-size:0.82rem;font-family:monospace;direction:ltr;text-align:center;font-weight:600;white-space:nowrap;">' + escapeHtml(b.size_human || '-') + '</td>');
+                html.push('        <td style="padding:10px 8px;text-align:center;white-space:nowrap;">' + shaBadge + '</td>');
+                html.push('        <td style="padding:10px 8px;text-align:center;white-space:nowrap;">' + testBadge + '</td>');
+                html.push('        <td style="padding:10px 12px;text-align:center;white-space:nowrap;">');
+                html.push('          <div style="display:inline-flex;gap:6px;align-items:center;justify-content:center;white-space:nowrap;">');
+                html.push('            <a href="' + downloadUrl + '" class="ea-btn ea-btn-sm" style="white-space:nowrap;" title="دانلود فایل آرشیو">📥 دریافت</a>');
+                html.push('            ' + (isData ? '<button class="ea-btn ea-btn-sm ea-btn-test-sandbox" data-file="' + escapeHtml(b.filename) + '" ' + (isTaskRunning ? 'disabled' : '') + ' style="border-color:rgba(2,132,199,0.5);color:#38bdf8;white-space:nowrap;" title="بازسازی آزمایشی Database و فایل‌های این نسخه در محیط کاملاً ایزوله؛ بدون هیچ تغییر در سامانه عملیاتی">🧪 تست Restore در Sandbox</button>' : '<button class="ea-btn ea-btn-sm ea-btn-test-sandbox" data-file="' + escapeHtml(b.filename) + '" ' + (isTaskRunning ? 'disabled' : '') + ' style="border-color:rgba(99,102,241,0.4);color:#818cf8;white-space:nowrap;" title="تست بازیابی ایزوله در سندباکس موقت بدون دستکاری داده‌های اصلی">🧪 تست</button>') + '');
                 html.push('            ' + restoreBtn);
                 html.push('          </div>');
                 html.push('        </td>');
@@ -7244,4 +7244,380 @@
     }
 
     startMaintenanceWatcher();
+})();
+// =========================================================================
+// Enterprise Archive AI Chatbot Module
+// =========================================================================
+(function initAIChatbot() {
+    var portalRoot = document.getElementById('archive-portal-root');
+    var isAiChatAllowed = portalRoot && portalRoot.getAttribute('data-ai-chat-allowed') === 'true';
+    if (!isAiChatAllowed) {
+        return;
+    }
+
+    var chatState = {
+        isOpen: false,
+        workspaces: [],
+        currentWorkspace: null,
+        isStreaming: false,
+        abortController: null
+    };
+
+    // 1. Create floating launcher button
+    var chatBtn = document.createElement('button');
+    chatBtn.id = 'ea-ai-chat-btn';
+    chatBtn.className = 'ea-ai-chat-btn';
+    chatBtn.title = 'دستیار هوشمند سازمانی';
+    chatBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg><span>دستیار هوشمند</span>';
+
+    // 2. Create Drawer Backdrop & Panel
+    var backdrop = document.createElement('div');
+    backdrop.id = 'ea-chat-drawer-backdrop';
+    backdrop.className = 'ea-chat-drawer-backdrop';
+
+    backdrop.innerHTML = [
+        '<div class="ea-chat-drawer" role="dialog" aria-modal="true" aria-label="دستیار هوشمند سازمانی">',
+        '  <div class="ea-chat-header">',
+        '    <div class="ea-chat-header-top">',
+        '      <div class="ea-chat-title-group">',
+        '        <h2>دستیار هوشمند سازمانی</h2>',
+        '        <span class="ea-chat-status-badge">برخط</span>',
+        '      </div>',
+        '      <button class="ea-chat-close-btn" id="ea-chat-close-btn" aria-label="بستن">✕</button>',
+        '    </div>',
+        '    <div class="ea-chat-ws-select-row">',
+        '      <span>فضای کاری:</span>',
+        '      <select class="ea-chat-ws-select" id="ea-chat-ws-select" aria-label="انتخاب فضای کاری">',
+        '        <option value="">در حال استعلام...</option>',
+        '      </select>',
+        '    </div>',
+        '  </div>',
+        '  <div class="ea-chat-messages" id="ea-chat-messages">',
+        '    <div class="ea-chat-msg ea-assistant">سلام! من دستیار هوشمند بایگانی اسناد سازمانی هستم. سؤالی در رابطه با اسناد بخش خود دارید؟</div>',
+        '  </div>',
+        '  <div class="ea-chat-input-bar">',
+        '    <textarea class="ea-chat-input" id="ea-chat-input" placeholder="سؤال خود را اینجا بنویسید..." rows="1"></textarea>',
+        '    <button class="ea-chat-send-btn" id="ea-chat-send-btn" type="button">ارسال</button>',
+        '    <button class="ea-chat-stop-btn" id="ea-chat-stop-btn" type="button" style="display: none;">توقف</button>',
+        '  </div>',
+        '</div>'
+    ].join('\n');
+
+    document.body.appendChild(chatBtn);
+    document.body.appendChild(backdrop);
+
+    var closeBtn = backdrop.querySelector('#ea-chat-close-btn');
+    var wsSelect = backdrop.querySelector('#ea-chat-ws-select');
+    var messagesContainer = backdrop.querySelector('#ea-chat-messages');
+    var inputEl = backdrop.querySelector('#ea-chat-input');
+    var sendBtn = backdrop.querySelector('#ea-chat-send-btn');
+    var stopBtn = backdrop.querySelector('#ea-chat-stop-btn');
+
+    function openChat() {
+        chatState.isOpen = true;
+        backdrop.classList.add('ea-open');
+        if (!chatState.workspaces.length) {
+            loadWorkspaces();
+        }
+        inputEl.focus();
+    }
+
+    function closeChat() {
+        chatState.isOpen = false;
+        backdrop.classList.remove('ea-open');
+    }
+
+    chatBtn.addEventListener('click', openChat);
+    closeBtn.addEventListener('click', closeChat);
+    backdrop.addEventListener('click', function (e) {
+        if (e.target === backdrop) closeChat();
+    });
+
+    // Fetch authorized workspaces
+    function loadWorkspaces() {
+        wsSelect.innerHTML = '<option value="">در حال استعلام...</option>';
+        fetch('/ai-gateway/api/v1/workspaces', {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(function (res) {
+            if (!res.ok) {
+                throw new Error(res.status === 401 ? 'نشست کاربری نامعتبر است' : 'عدم دسترسی به فضاها (' + res.status + ')');
+            }
+            return res.json();
+        })
+        .then(function (data) {
+            var list = (data && data.workspaces) || [];
+            chatState.workspaces = list;
+            wsSelect.innerHTML = '';
+            if (!list.length) {
+                var opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'هیچ فضای مجازی یافت نشد';
+                wsSelect.appendChild(opt);
+                chatState.currentWorkspace = null;
+                return;
+            }
+            list.forEach(function (ws, idx) {
+                var opt = document.createElement('option');
+                opt.value = ws.slug;
+                opt.textContent = ws.name || ws.slug;
+                wsSelect.appendChild(opt);
+                if (idx === 0) chatState.currentWorkspace = ws.slug;
+            });
+        })
+        .catch(function (err) {
+            wsSelect.innerHTML = '<option value="">خطا در دریافت فضاها</option>';
+            appendSystemMessage('خطا در بارگذاری فضاهای کاری: ' + err.message);
+        });
+    }
+
+    wsSelect.addEventListener('change', function () {
+        chatState.currentWorkspace = wsSelect.value;
+    });
+
+    function appendSystemMessage(text) {
+        var msgDiv = document.createElement('div');
+        msgDiv.className = 'ea-chat-msg ea-system-msg';
+        msgDiv.textContent = text;
+        messagesContainer.appendChild(msgDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function appendUserMessage(text) {
+        var msgDiv = document.createElement('div');
+        msgDiv.className = 'ea-chat-msg ea-user';
+        msgDiv.textContent = text;
+        messagesContainer.appendChild(msgDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function createAssistantMessage() {
+        var msgDiv = document.createElement('div');
+        msgDiv.className = 'ea-chat-msg ea-assistant';
+        var textSpan = document.createElement('span');
+        textSpan.className = 'ea-msg-text';
+        msgDiv.appendChild(textSpan);
+        messagesContainer.appendChild(msgDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        var seenSources = {};
+        var sourcesContainer = null;
+
+        return {
+            element: msgDiv,
+            textSpan: textSpan,
+            updateText: function (chunk) {
+                if (typeof chunk === 'string' && chunk.length > 0) {
+                    textSpan.textContent += chunk;
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }
+            },
+            addSources: function (sources) {
+                if (!sources || !Array.isArray(sources) || !sources.length) return;
+                var newSources = [];
+                for (var i = 0; i < sources.length; i++) {
+                    var s = sources[i];
+                    if (!s || typeof s !== 'object') continue;
+                    // Deduplicate sources primarily by stable id, fallback to normalized title, then text prefix
+                    var key = s.id ? ('id:' + s.id) : (s.title ? ('title:' + String(s.title).trim().toLowerCase()) : ('text:' + (s.text ? String(s.text).slice(0, 60) : i)));
+                    if (!seenSources[key]) {
+                        seenSources[key] = true;
+                        newSources.push(s);
+                    }
+                }
+                if (!newSources.length) return;
+
+                if (!sourcesContainer) {
+                    sourcesContainer = document.createElement('div');
+                    sourcesContainer.className = 'ea-chat-sources';
+                    var label = document.createElement('div');
+                    label.className = 'ea-chat-sources-label';
+                    label.textContent = 'اسناد منبع پاسخ:';
+                    sourcesContainer.appendChild(label);
+                    msgDiv.appendChild(sourcesContainer);
+                }
+
+                newSources.forEach(function (s) {
+                    var item = document.createElement('div');
+                    item.className = 'ea-chat-source-item';
+                    var titleEl = document.createElement('div');
+                    titleEl.className = 'ea-chat-source-title';
+                    titleEl.textContent = s.title || s.name || s.filename || 'سند نامشخص';
+                    item.appendChild(titleEl);
+
+                    var snippet = s.text || s.snippet || s.content;
+                    if (snippet) {
+                        var snippetEl = document.createElement('div');
+                        snippetEl.className = 'ea-chat-source-snippet';
+                        var cleanSnippet = String(snippet).trim();
+                        snippetEl.textContent = cleanSnippet.length > 250 ? cleanSnippet.slice(0, 250) + '...' : cleanSnippet;
+                        item.appendChild(snippetEl);
+                    }
+                    // Internal URLs (e.g. file:///app/...) are never rendered as clickable links
+                    sourcesContainer.appendChild(item);
+                });
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+        };
+    }
+
+    function sendMessage() {
+        var text = inputEl.value.trim();
+        if (!text || chatState.isStreaming) return;
+        if (!chatState.currentWorkspace) {
+            appendSystemMessage('لطفاً ابتدا یک فضای کاری مجاز را انتخاب نمایید.');
+            return;
+        }
+
+        appendUserMessage(text);
+        inputEl.value = '';
+        inputEl.style.height = '42px';
+
+        var assistantMsg = createAssistantMessage();
+        chatState.isStreaming = true;
+        sendBtn.style.display = 'none';
+        stopBtn.style.display = 'inline-flex';
+
+        chatState.abortController = new AbortController();
+
+        var slug = chatState.currentWorkspace;
+        var url = '/ai-gateway/api/workspace/' + encodeURIComponent(slug) + '/stream-chat';
+
+        fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json, text/event-stream',
+                'X-Archive-Chat': 'true'
+            },
+            body: JSON.stringify({ message: text }),
+            signal: chatState.abortController.signal
+        })
+        .then(function (res) {
+            if (!res.ok) {
+                return res.json().then(function (errData) {
+                    throw new Error(errData.error || (res.status === 403 ? 'عدم دسترسی به این فضای کاری' : 'خطای سرور (' + res.status + ')'));
+                }, function () {
+                    throw new Error('خطای درخواست (کد ' + res.status + ')');
+                });
+            }
+
+            var contentType = (res.headers.get('content-type') || '').toLowerCase();
+
+            // Handle Standard JSON response (e.g. from External AI Box or non-streaming endpoints)
+            if (contentType.indexOf('application/json') !== -1) {
+                return res.json().then(function (json) {
+                    if (json.error) {
+                        appendSystemMessage('خطای استنتاج: ' + json.error);
+                    }
+                    var text = json.textResponse || json.response || json.text || json.message || '';
+                    if (typeof text === 'string' && text.length > 0) {
+                        assistantMsg.updateText(text);
+                    }
+                    var sources = json.sources || json.citations || [];
+                    if (Array.isArray(sources) && sources.length) {
+                        assistantMsg.addSources(sources);
+                    }
+                    finishStreaming();
+                });
+            }
+
+            // Handle SSE streaming response (text/event-stream or chunked transfer)
+            var reader = res.body.getReader();
+            var decoder = new TextDecoder('utf-8');
+            var buffer = '';
+            var streamFinalized = false;
+
+            function readLoop() {
+                return reader.read().then(function (result) {
+                    if (result.done) {
+                        if (buffer.trim()) {
+                            try {
+                                var rawJson = JSON.parse(buffer.trim());
+                                var txt = rawJson.textResponse || rawJson.response || rawJson.text || '';
+                                if (txt && !assistantMsg.textSpan.textContent) {
+                                    assistantMsg.updateText(txt);
+                                }
+                                var srcs = rawJson.sources || rawJson.citations || [];
+                                if (Array.isArray(srcs) && srcs.length) {
+                                    assistantMsg.addSources(srcs);
+                                }
+                            } catch (e) {}
+                        }
+                        finishStreaming();
+                        return;
+                    }
+                    buffer += decoder.decode(result.value, { stream: true });
+                    var lines = buffer.split('\n');
+                    buffer = lines.pop(); // keep remainder
+                    for (var i = 0; i < lines.length; i++) {
+                        var line = lines[i].trim();
+                        var raw = '';
+                        if (line.startsWith('data:')) {
+                            raw = line.slice(5).trim();
+                        } else if (line.startsWith('{') && line.endsWith('}')) {
+                            raw = line;
+                        }
+                        if (!raw) continue;
+                        try {
+                            var json = JSON.parse(raw);
+                            if (json.error) {
+                                appendSystemMessage('خطای استنتاج: ' + json.error);
+                            }
+                            // 1. Process text chunk independently (only non-empty string)
+                            var chunk = json.textResponse || json.response || json.text;
+                            if (typeof chunk === 'string' && chunk.length > 0) {
+                                assistantMsg.updateText(chunk);
+                            }
+                            // 2. Process sources independently with deduplication
+                            var chunkSources = json.sources || json.citations;
+                            if (chunkSources && Array.isArray(chunkSources) && chunkSources.length) {
+                                assistantMsg.addSources(chunkSources);
+                            }
+                            // 3. Acknowledge stream completion markers without early abortion
+                            if (json.type === 'finalizeResponseStream' || json.close === true) {
+                                streamFinalized = true;
+                            }
+                        } catch (e) {
+                            // partial JSON line, wait for remainder
+                        }
+                    }
+                    return readLoop();
+                });
+            }
+
+            return readLoop();
+        })
+        .catch(function (err) {
+            if (err.name === 'AbortError') {
+                appendSystemMessage('پاسخ توسط کاربر متوقف شد.');
+            } else {
+                appendSystemMessage('خطا: ' + err.message);
+            }
+            finishStreaming();
+        });
+    }
+
+    function finishStreaming() {
+        chatState.isStreaming = false;
+        chatState.abortController = null;
+        sendBtn.style.display = 'inline-flex';
+        stopBtn.style.display = 'none';
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    stopBtn.addEventListener('click', function () {
+        if (chatState.abortController) {
+            chatState.abortController.abort();
+        }
+    });
+
+    inputEl.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
 })();

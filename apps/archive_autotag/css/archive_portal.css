@@ -3152,3 +3152,443 @@ button.ea-drawer-close {
   border: 1px solid transparent;
   transition: all 0.2s ease;
 }
+
+/* =========================================================================
+   Enterprise Archive AI Chatbot Widget Styles
+   ========================================================================= */
+
+.ea-ai-chat-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  color: #ffffff;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 9999px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(2, 132, 199, 0.35);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  direction: rtl;
+}
+
+.ea-ai-chat-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 6px 22px rgba(2, 132, 199, 0.5);
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+}
+
+.ea-ai-chat-btn svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* Chat Drawer Overlay */
+.ea-chat-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: flex;
+  justify-content: flex-end;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  direction: rtl;
+}
+
+.ea-chat-drawer-backdrop.ea-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ea-chat-drawer {
+  width: 480px;
+  max-width: 95vw;
+  height: 100%;
+  background: #0f172a;
+  border-left: 1px solid rgba(56, 189, 248, 0.2);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(-100%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ea-chat-drawer-backdrop.ea-open .ea-chat-drawer {
+  transform: translateX(0);
+}
+
+/* Chat Header */
+.ea-chat-header {
+  padding: 16px 20px;
+  background: #1e293b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ea-chat-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ea-chat-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ea-chat-title-group h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.ea-chat-status-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.ea-chat-close-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ea-chat-close-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+}
+
+.ea-chat-ws-select-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.ea-chat-ws-select {
+  flex: 1;
+  background-color: #1e293b !important;
+  border: 1px solid #475569 !important;
+  border-radius: 6px !important;
+  padding: 6px 10px;
+  color: #ffffff !important;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ea-chat-ws-select:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25) !important;
+}
+
+/* Chat Messages */
+.ea-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ea-chat-msg {
+  max-width: 85%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.ea-chat-msg.ea-user {
+  align-self: flex-start;
+  background: #0284c7;
+  color: #ffffff;
+  border-bottom-right-radius: 2px;
+}
+
+.ea-chat-msg.ea-assistant {
+  align-self: flex-end;
+  background: #1e293b;
+  color: #f1f5f9;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom-left-radius: 2px;
+}
+
+.ea-chat-msg.ea-system-msg {
+  align-self: center;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  font-size: 12px;
+  text-align: center;
+  max-width: 95%;
+}
+
+.ea-chat-sources {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ea-chat-sources-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ea-chat-source-item {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+}
+
+.ea-chat-source-title {
+  font-weight: 600;
+  color: #93c5fd;
+  margin-bottom: 2px;
+}
+
+.ea-chat-source-snippet {
+  color: #94a3b8;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+/* Chat Input Bar */
+.ea-chat-input-bar {
+  padding: 14px 20px;
+  background: #1e293b;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.ea-chat-input {
+  flex: 1;
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #f8fafc;
+  font-family: inherit;
+  font-size: 13px;
+  resize: none;
+  height: 42px;
+  max-height: 120px;
+  outline: none;
+  line-height: 1.4;
+}
+
+.ea-chat-input:focus {
+  border-color: #38bdf8;
+}
+
+.ea-chat-send-btn, .ea-chat-stop-btn {
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+}
+
+.ea-chat-send-btn {
+  background: #0284c7;
+  color: #ffffff;
+}
+
+.ea-chat-send-btn:hover {
+  background: #0369a1;
+}
+
+.ea-chat-stop-btn {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.ea-chat-stop-btn:hover {
+  background: #dc2626;
+}
+
+
+/* ==========================================================================
+   Global High-Contrast Corporate Dropdown (<select> & <option>) Styling
+   ========================================================================== */
+select,
+.ea-form-select,
+.ea-chat-ws-select,
+.ea-input select,
+select.ea-input,
+#ea-audit-rel-domain-filter,
+#ea-share-group-select,
+#ea-insp-type,
+#ea-insp-op,
+#ea-chat-ws-select {
+  color-scheme: dark;
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+  border: 1px solid #475569 !important;
+  border-radius: 6px !important;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  outline: none !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+select:focus,
+.ea-form-select:focus,
+.ea-chat-ws-select:focus,
+.ea-input select:focus,
+select.ea-input:focus,
+#ea-audit-rel-domain-filter:focus,
+#ea-share-group-select:focus,
+#ea-insp-type:focus,
+#ea-insp-op:focus,
+#ea-chat-ws-select:focus {
+  border-color: #3b82f6 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25) !important;
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+}
+
+/* Options dropdown list styling */
+select option,
+.ea-form-select option,
+.ea-chat-ws-select option,
+.ea-input option,
+option {
+  color-scheme: dark;
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+  padding: 8px 12px;
+}
+
+select option:checked,
+select option:hover,
+.ea-form-select option:checked,
+.ea-form-select option:hover,
+option:checked,
+option:hover {
+  background-color: #334155 !important;
+  color: #ffffff !important;
+}
+
+select option:disabled,
+option:disabled {
+  color: #64748b !important;
+  background-color: #0f172a !important;
+}
+
+
+/* ==========================================================================
+   Backup & Recovery Console Table (Responsive Horizontal Scroll & Dark Layout)
+   ========================================================================== */
+.ea-backup-table-wrapper {
+  width: 100%;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--ea-border);
+  border-radius: 8px;
+  background: var(--ea-surface-card);
+  margin-bottom: 20px;
+  scrollbar-width: thin;
+  scrollbar-color: #475569 #0f172a;
+}
+
+.ea-backup-table-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+.ea-backup-table-wrapper::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-radius: 4px;
+}
+
+.ea-backup-table-wrapper::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+.ea-backup-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+.ea-backup-table {
+  width: 100%;
+  min-width: 1160px;
+  border-collapse: collapse;
+  text-align: right;
+}
+
+.ea-backup-table th {
+  background: var(--ea-surface-elevated);
+  border-bottom: 1px solid var(--ea-border);
+  color: var(--ea-text-muted);
+  font-weight: 700;
+  font-size: 0.84rem;
+  padding: 12px 12px;
+  white-space: nowrap;
+}
+
+.ea-backup-table td {
+  padding: 10px 12px;
+  font-size: 0.84rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--ea-border-light, rgba(255, 255, 255, 0.05));
+}
+
+.ea-backup-table tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ea-backup-table .ea-btn {
+  white-space: nowrap !important;
+}

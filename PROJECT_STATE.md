@@ -98,11 +98,11 @@ enterprise-archive-system/
 │   ├── restore_db.sh                 # Full Nextcloud & database disaster recovery engine with credential alignment
 ?   ??? set-group-quota.sh            # Automated batch quota configurator for groups
 ??? docs/                             # Architectural and operational documentation
-?   ??? AI_ON_PREMISE_ARCHITECTURE.md
+?   ??? AI_ON_PREMISE_ARCHITECTURE.md # (Historical/Deprecated monolith proposal; superseded by AI Box Architecture v1.2)
 ?   ??? DATA_PERSISTENCE_AND_RELIABILITY.md
 ?   ??? DEPLOYMENT_RUNBOOK.md         # Comprehensive runbook and bare server deployment guide
 ?   ??? FILE_ACL_AND_TAG_ISOLATION.md # Architecture & operational guide for File ACL & Tag Isolation
-?   ??? implementation_plan.md
+?   ??? implementation_plan.md        # (Historical/Deprecated early plan; superseded by AI Box Architecture v1.2)
 ?   ??? test_plan.md                  # Comprehensive manual and automated test plan
 ??? nextcloud/                        # Nextcloud persistent HTML & data volume
 ??? nginx/
@@ -491,6 +491,13 @@ Status: **Completed**
     - Embedded offline Swagger UI accessible at `/index.php/apps/archive_autotag/api/docs` with auto-configured CSRF token injection and dynamic endpoint definitions.
 - **Verification:**
   - Comprehensive automated test suite `tests/test_ai_file_retrieval_api.py` passed 10/10 tests (Metadata, Content streaming, Audit logging, ACL enforcement, Bearer auth, Swagger UI).
+
+- **Target Architecture Alignment (Architecture v1.2):**
+  - Enterprise Archive operates strictly as the System of Record.
+  - File upload events are captured in a transactional Outbox (`archive_ai_outbox` in PostgreSQL) and reliably relayed to RabbitMQ (`archive.events` exchange).
+  - External ingestion, vectorization, and LLM chat take place inside the decoupled **AI Box** (`~/ai-box`).
+  - The AI Box worker consumes events from RabbitMQ, logs state in its local Task DB, and retrieves file binaries on-demand via this Step 15 API (`/apps/archive_autotag/api/ai/file/{fileId}`) using authenticated service tokens.
+  - Standalone HTTP/SQLite Inbox is discarded; no directory crawling or global WebDAV PROPFIND polling is used.
 
 Status: **Completed**
 
@@ -896,3 +903,14 @@ All 30 integration suites (including security, ACL, and AI Audit semantics) pass
 - **Group Share Permission Inference:** Added backend logic in \GroupShareService\ to automatically append \UPDATE\ (2) permission if \CREATE\ (4) is granted, preventing WebDAV stream errors during client-side uploads.
 - **Native Group Name Resolution:** Fixed database query errors in \Application.php\ and \FolderRequestService.php\ by shifting to \IGroupManager->getDisplayName()\ for robust, native retrieval of Farsi group names.
 - **Frontend Presentation Layer (\rchive_portal.js\):** Extracted \subadmin_groups_details\ and \member_groups_details\ into Nextcloud's \OCP.InitialState\ and REST API responses. The folder creation modal, group tags modal, and target path drop-downs now display rich, localized Farsi names (e.g. \مرکز عملیات و پاسخ‌گویی امنیت سایبری(SOC)\) instead of raw IDs.
+
+### Integration Layer & Enterprise Archive Outbox (Requirement 10 & 11 Implementation Phase 1)
+- **Archive AI Outbox Migration:** Created `Version2700Date20261020000001.php` defining table `archive_ai_outbox` (`oc_archive_ai_outbox`) in PostgreSQL for durable, transactional event recording. (توجه: فایل Migration در کد تعریف شده اما هنوز روی پایگاه‌داده آزمایشی زنده اجرا نشده است).
+- **Outbox Service & DI Registration:** Implemented `AiOutboxService.php` enforcing strict file qualifications (Fail-Closed). سرویس `AiOutboxService` و شنوندهٔ `NodeWrittenListener` صریحاً در کانتینر DI در `Application.php` با Factory قطعی ثبت شدند تا سرویس هرگز `null` نمانده و خطای سازنده رخ ندهد.
+- **Upload Hook Integration & Unverified Behavior Disclaimer:** شنوندهٔ `NodeWrittenListener` رویداد درج Outbox را فراخوانی می‌کند. در مدل تئوری و آزمون شبیه‌سازی‌شده، پرتاب استثنا منجر به صدور خطای HTTP 500 در SabreDAV می‌شود؛ اما **رفتار واقعی پاسخ HTTP 500 در شکست Outbox و سازگاری نهایی Listener با چرخه حیات Nextcloud تا زمان اجرای آزمون واقعی روی کانتینر فعال، «تأییدنشده در محیط واقعی» باقی می‌ماند** (همچنین محدودیت معماری Nextcloud مبنی بر عدم وجود تراکنش دوفازی 2PC بین فایل‌سیستم و دیتابیس پابرجاست).
+- **Secure Internal Outbox API:** Implemented `AiOutboxApiController.php` exposing token-authenticated endpoints (`/api/v1/outbox/pending`, `/api/v1/outbox/ack`, `/api/v1/outbox/fail`) registered in `routes.php`.
+- **Standalone Integration Layer & AMQP Maintenance:** پیاده‌سازی ناشر Outbox و پراکسی استریمینگ فایل. برای کاهش پیچیدگی نگهداری پروتکل در محیط عملیاتی، کتابخانه معتبر `pika` در `requirements.txt` و آداپتور `PikaAMQPClient` در `amqp_client.py` افزوده شد. **سازگاری واقعی کلاینت AMQP با Broker تا زمان اتصال به RabbitMQ زنده، «تأییدنشده در محیط واقعی» است.**
+- **Automated Verification:** Verified by 19 passing isolated/unit automated tests (شامل آزمون‌های واحد پروتکل، ناشر، پراکسی و آزمون شبیه‌سازی‌شدهٔ شکست Outbox).
+- **Canonical Architecture:** Documented in `docs/AI_Box_Enterprise_Archive_Integration_Architecture.md` (v1.3 Draft).
+
+Status: **کد و تست‌های واحد گام اول تکمیل شد؛ اعتبارسنجی انتهابه‌انتها (E2E) در محیط زنده همچنان باقی‌مانده است (19/19 Isolated Tests Passing)**

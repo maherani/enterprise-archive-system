@@ -50,5 +50,6 @@ $userDisplay = (string)($_['displayName'] ?? '');
      data-initial-dir="<?php p($_['initialDir'] ?? ''); ?>"
      data-initial-display-dir="<?php p($_['initialDisplayDir'] ?? ''); ?>"
      data-show-welcome="<?php echo $showWelcome ? '1' : '0'; ?>"
-     data-public-base-url="<?php p($_['publicBaseUrl'] ?? '/'); ?>">
+     data-public-base-url="<?php p($_['publicBaseUrl'] ?? '/'); ?>"
+     data-ai-chat-allowed="<?php echo (!empty($_['isAiChatAllowed'])) ? 'true' : 'false'; ?>">
 </div>

@@ -710,7 +710,7 @@
             '      <h4 style="margin:0;font-size:0.95rem;color:#f1f5f9;">افزودن یا ویرایش اشتراک گروه</h4>',
             '      <div>',
             '        <label style="display:block;margin-bottom:6px;font-size:0.85rem;color:#94a3b8;">انتخاب گروه کاربری:</label>',
-            '        <select id="ea-share-group-select" style="width:100%;padding:8px 12px;background:#1e293b;border:1px solid #334155;color:#f1f5f9;border-radius:6px;direction:rtl;">',
+            '        <select id="ea-share-group-select" style="width:100%;padding:8px 12px;background:#1e293b;border:1px solid #475569;color:#ffffff;border-radius:6px;direction:rtl;">',
             '          <option value="">در حال بارگذاری گروه‌ها...</option>',
             '        </select>',
             '      </div>',

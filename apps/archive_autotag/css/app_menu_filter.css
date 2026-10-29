@@ -954,3 +954,76 @@ body.ea-non-admin #security-otp {
     visibility: hidden !important;
     pointer-events: none !important;
 }
+
+
+/* ==========================================================================
+   Global High-Contrast Corporate Dropdown (<select> & <option>) Styling
+   ========================================================================== */
+select,
+.ea-form-select,
+.ea-chat-ws-select,
+.ea-input select,
+select.ea-input,
+#ea-audit-rel-domain-filter,
+#ea-share-group-select,
+#ea-insp-type,
+#ea-insp-op,
+#ea-chat-ws-select {
+  color-scheme: dark;
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+  border: 1px solid #475569 !important;
+  border-radius: 6px !important;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  outline: none !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+select:focus,
+.ea-form-select:focus,
+.ea-chat-ws-select:focus,
+.ea-input select:focus,
+select.ea-input:focus,
+#ea-audit-rel-domain-filter:focus,
+#ea-share-group-select:focus,
+#ea-insp-type:focus,
+#ea-insp-op:focus,
+#ea-chat-ws-select:focus {
+  border-color: #3b82f6 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25) !important;
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+}
+
+/* Options dropdown list styling */
+select option,
+.ea-form-select option,
+.ea-chat-ws-select option,
+.ea-input option,
+option {
+  color-scheme: dark;
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+  padding: 8px 12px;
+}
+
+select option:checked,
+select option:hover,
+.ea-form-select option:checked,
+.ea-form-select option:hover,
+option:checked,
+option:hover {
+  background-color: #334155 !important;
+  color: #ffffff !important;
+}
+
+select option:disabled,
+option:disabled {
+  color: #64748b !important;
+  background-color: #0f172a !important;
+}

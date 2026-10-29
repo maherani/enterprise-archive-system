@@ -8,6 +8,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\TemplateResponse;
+use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\ISession;
 use OCP\IURLGenerator;
@@ -21,6 +22,7 @@ class PageController extends Controller {
         private readonly NavigationController $navigationController,
         private readonly ISession $session,
         private readonly IURLGenerator $urlGenerator,
+        private readonly IGroupManager $groupManager,
     ) {
         parent::__construct(Application::APP_ID, $request);
     }
@@ -38,6 +40,11 @@ class PageController extends Controller {
         $user = $this->userSession->getUser();
         $uid = $user !== null ? $user->getUID() : '';
         $highest = $this->navigationController->getHighestAccessibleDir($uid !== '' ? $uid : null);
+
+        $isAiChatAllowed = false;
+        if ($user !== null && $uid !== '') {
+            $isAiChatAllowed = $this->groupManager->isAdmin($uid) || $this->groupManager->isInGroup($uid, 'ai_chat_access');
+        }
 
         $sessionKey = 'ea_welcome_seen_' . $uid;
         $alreadySeen = $uid !== '' && (bool)$this->session->get($sessionKey);
@@ -57,6 +64,7 @@ class PageController extends Controller {
             'initialDisplayDir' => $highest['display_dir'] ?? '/',
             'showWelcome' => $showWelcome ? '1' : '0',
             'publicBaseUrl' => $publicBaseUrl,
+            'isAiChatAllowed' => $isAiChatAllowed,
         ];
 
         return new TemplateResponse(Application::APP_ID, 'main', $params);

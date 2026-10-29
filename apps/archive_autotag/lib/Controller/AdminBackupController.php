@@ -191,7 +191,7 @@ class AdminBackupController extends Controller {
         if (file_exists($this->statusFile)) {
             $data = json_decode((string)file_get_contents($this->statusFile), true);
             if (is_array($data)) {
-                $taskStatus = $data;
+                $taskStatus = $this->normalizeTaskStatus($data);
             }
         }
 
@@ -585,7 +585,7 @@ class AdminBackupController extends Controller {
         if (file_exists($this->statusFile)) {
             $data = json_decode((string)file_get_contents($this->statusFile), true);
             if (is_array($data)) {
-                $status = $data;
+                $status = $this->normalizeTaskStatus($data);
                 if (($status['action'] ?? '') === 'test' && ($status['status'] ?? '') === 'SUCCESS' && !isset($status['details'])) {
                     $logPath = $this->backupDir . '/.test_last_run.log';
                     $logContent = file_exists($logPath) ? (string)file_get_contents($logPath) : '';
@@ -896,4 +896,36 @@ class AdminBackupController extends Controller {
             'data' => $status,
         ]);
     }
+
+    /**
+     * Stale task guard: If task is IN_PROGRESS or PENDING, check if queue file exists.
+     * If orphaned (queue file missing and > 10 minutes elapsed since started_at),
+     * normalize the status to IDLE and isTaskRunning: false with a timeout message
+     * to prevent locking the frontend UI.
+     */
+    private function normalizeTaskStatus(array $data): array {
+        $st = (string)($data['status'] ?? '');
+        if ($st === 'IN_PROGRESS' || $st === 'PENDING') {
+            $queueExists = file_exists($this->queueFile);
+            $startedAt = (string)($data['started_at'] ?? '');
+            $ageSec = 0;
+            if (!empty($startedAt)) {
+                $ts = strtotime($startedAt);
+                if ($ts !== false) {
+                    $ageSec = max(0, time() - $ts);
+                }
+            } else if (file_exists($this->statusFile)) {
+                $ageSec = max(0, time() - filemtime($this->statusFile));
+            }
+
+            if (!$queueExists && $ageSec > 600) {
+                $data['status'] = 'IDLE';
+                $data['isTaskRunning'] = false;
+                $data['progress'] = 0;
+                $data['message'] = 'تسک معلق به دلیل عدم وجود پردازش فعال/پایان مهلت زمانی پاکسازی شد.';
+            }
+        }
+        return $data;
+    }
+
 }
