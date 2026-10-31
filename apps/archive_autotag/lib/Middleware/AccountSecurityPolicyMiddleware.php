@@ -221,13 +221,22 @@ class AccountSecurityPolicyMiddleware extends Middleware {
     #[\Override]
     public function beforeController(Controller $controller, string $methodName): void {
         $controllerClass = ltrim(get_class($controller), '\\');
+        $pathInfo = (string)$this->request->getPathInfo();
 
-        if (!isset(self::BLOCKED_TARGETS[$controllerClass])) {
-            return;
+        $isUsersRoute = (
+            preg_match('#^/settings/users(/|$)#i', $pathInfo) === 1 ||
+            preg_match('#^/ocs/v[12]\.php/cloud/(users|groups)(/|$)#i', $pathInfo) === 1
+        );
+
+        $isBlockedController = false;
+        if (isset(self::BLOCKED_TARGETS[$controllerClass])) {
+            $blockedMethods = self::BLOCKED_TARGETS[$controllerClass];
+            if (in_array('*', $blockedMethods, true) || in_array($methodName, $blockedMethods, true)) {
+                $isBlockedController = true;
+            }
         }
 
-        $blockedMethods = self::BLOCKED_TARGETS[$controllerClass];
-        if (!in_array('*', $blockedMethods, true) && !in_array($methodName, $blockedMethods, true)) {
+        if (!$isBlockedController && !$isUsersRoute) {
             return;
         }
 
@@ -237,8 +246,8 @@ class AccountSecurityPolicyMiddleware extends Middleware {
             return;
         }
 
-        if ($this->isPrimarySystemAdmin($user)) {
-            // Full Primary System Administrator: unrestricted access
+        if ($user->getUID() === 'admin' && $this->isPrimarySystemAdmin($user)) {
+            // Root 'admin' user: full unrestricted access
             return;
         }
 

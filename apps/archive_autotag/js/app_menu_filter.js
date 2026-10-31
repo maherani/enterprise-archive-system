@@ -2,8 +2,12 @@
     'use strict';
 
     function isCurrentUserAdmin() {
-        // Trust only the server-provided primary-admin state for this app.
+        // Trust only the server-provided primary-admin state and verify UID is strictly 'admin'.
         try {
+            var uid = _eaGetCurrentUserId();
+            if (uid && uid !== 'admin') {
+                return false;
+            }
             if (window.OCP && window.OCP.InitialState &&
                 typeof window.OCP.InitialState.loadState === 'function') {
                 return window.OCP.InitialState.loadState(
@@ -284,8 +288,29 @@
 
             // Suppress Accounts and View Profile for Regular Users and Group Admins.
             // Settings remains VISIBLE and routes directly to the limited password change modal.
-            // Primary System Administrator preserves full unhindered access.
-            if (!isCurrentUserAdmin()) {
+            // Primary System Administrator ('admin') preserves full unhindered access to Users / Accounts.
+            if (isCurrentUserAdmin()) {
+                if (document.documentElement) {
+                    document.documentElement.classList.remove('ea-non-admin');
+                }
+                if (document.body) {
+                    document.body.classList.remove('ea-non-admin');
+                }
+                const adminUsersItems = document.querySelectorAll(
+                    '#user-menu #core_users, #user-menu [data-id="core_users"], #user-menu a[href*="/settings/users"], ' +
+                    '.account-menu #core_users, .account-menu [data-id="core_users"], .account-menu a[href*="/settings/users"], ' +
+                    '.user-menu #core_users, .user-menu [data-id="core_users"], .user-menu a[href*="/settings/users"]'
+                );
+                adminUsersItems.forEach(item => {
+                    item.style.removeProperty('display');
+                    item.style.removeProperty('visibility');
+                    const parentLi = item.closest('li');
+                    if (parentLi) {
+                        parentLi.style.removeProperty('display');
+                        parentLi.style.removeProperty('visibility');
+                    }
+                });
+            } else {
                 const nonAdminHiddenItems = document.querySelectorAll(
                     '#user-menu #core_users, #user-menu [data-id="core_users"], #user-menu a[href*="/settings/users"], ' +
                     '#user-menu #profile, #user-menu [data-id="profile"], #user-menu a[href*="/u/"], ' +
@@ -369,8 +394,8 @@
             return;
         }
 
-        // Non-admin user: Back-Office Guard: /apps/files and /u/ profile pages are strictly reserved for Admin users
-        if (window.location.pathname.includes('/apps/files') || window.location.pathname.includes('/u/')) {
+        // Non-admin user: Back-Office Guard: /settings/users, /apps/files and /u/ profile pages are strictly reserved for root 'admin' user
+        if (window.location.pathname.includes('/settings/users') || window.location.pathname.includes('/apps/files') || window.location.pathname.includes('/u/')) {
             window.location.replace('/index.php/apps/archive_autotag/');
             return;
         }

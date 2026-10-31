@@ -173,10 +173,13 @@ class Application extends App implements IBootstrap {
         } catch (\Throwable $t) {
         }
 
-        // Enforce Enterprise White-Label policy: defaultapp='files', empty skeletondirectory, and disable dashboard/firstrunwizard
+        // Enforce Enterprise White-Label policy: defaultapp='files', empty skeletondirectory, primary_system_admin_uid='admin', and disable dashboard/firstrunwizard
         try {
             /** @var \OCP\IConfig $config */
             $config = \OC::$server->get(\OCP\IConfig::class);
+            if ($config->getSystemValueString('primary_system_admin_uid', '') === '') {
+                $config->setSystemValue('primary_system_admin_uid', 'admin');
+            }
             if ($config->getSystemValueString('defaultapp', '') !== 'files') {
                 $config->setSystemValue('defaultapp', 'files');
             }
@@ -211,7 +214,7 @@ class Application extends App implements IBootstrap {
                     return !in_array(($app['id'] ?? ''), ['dashboard', 'firstrunwizard'], true);
                 }));
                 if ($user !== null) {
-                    if (!self::isPrimarySystemAdmin($user)) {
+                    if ($user->getUID() !== 'admin' || !self::isPrimarySystemAdmin($user)) {
                         return array_values(array_filter($allApps, static function ($app) {
                             return ($app['id'] ?? '') === self::APP_ID;
                         }));
@@ -220,26 +223,25 @@ class Application extends App implements IBootstrap {
                 return $allApps;
             });
 
-            // Also filter settingsNavEntries to remove core_apps (App store) for non-admin users
+            // Filter settingsNavEntries: keep core_users (Users/Accounts) exclusively for root 'admin', remove for all other users
             $initialStateService->provideLazyInitialState('core', 'settingsNavEntries', static function () {
                 $container = \OC::$server;
                 $userSession = $container->get(IUserSession::class);
                 $user = $userSession->getUser();
                 $navigationManager = $container->get(\OCP\INavigationManager::class);
                 $settingsNav = $navigationManager->getAll('settings');
-                if ($user !== null) {
-                    if (!self::isPrimarySystemAdmin($user)) {
-                        unset($settingsNav['core_apps'], $settingsNav['appstore']);
-                    }
+                if ($user === null || $user->getUID() !== 'admin' || !self::isPrimarySystemAdmin($user)) {
+                    unset($settingsNav['core_apps'], $settingsNav['appstore'], $settingsNav['core_users']);
                 }
                 return $settingsNav;
             });
 
-            // This UI state represents the configured Primary System Administrator only.
+            // This UI state represents the root Primary System Administrator ('admin') only.
             $initialStateService->provideLazyInitialState(self::APP_ID, 'is_admin', static function () {
                 $container = \OC::$server;
                 $userSession = $container->get(IUserSession::class);
-                return self::isPrimarySystemAdmin($userSession->getUser());
+                $user = $userSession->getUser();
+                return $user !== null && $user->getUID() === 'admin' && self::isPrimarySystemAdmin($user);
             });
 
             // Provide is_group_admin and subadmin_groups for folder creation workflow

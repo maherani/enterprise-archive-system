@@ -30,10 +30,13 @@ final class PrimarySystemAdminResolver {
 
         try {
             $primaryUid = trim(
-                (string)$this->config->getSystemValue('primary_system_admin_uid', '')
+                (string)$this->config->getSystemValue('primary_system_admin_uid', 'admin')
             );
+            if ($primaryUid === '') {
+                $primaryUid = 'admin';
+            }
 
-            if ($primaryUid === '' || !hash_equals($primaryUid, $user->getUID())) {
+            if ($user->getUID() !== 'admin' || !hash_equals($primaryUid, $user->getUID())) {
                 return false;
             }
 
