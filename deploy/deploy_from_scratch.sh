@@ -161,8 +161,15 @@ docker exec -u www-data archive_app php occ theming:config name "سامانه ب
 docker exec -u www-data archive_app php occ theming:config slogan "مدیریت، رده‌بندی و آرشیو امن اسناد" >/dev/null 2>&1 || true
 docker exec -u www-data archive_app php occ theming:config color "#11141b" >/dev/null 2>&1 || true
 
-# Clean user provisioning: disable default skeleton files (prevents Photos/Documents/Templates clutter)
+# Clean user provisioning & White-Label landing: enforce files as defaultapp and empty skeletondirectory
+docker exec -u www-data archive_app php occ config:system:set defaultapp --value="files" >/dev/null
 docker exec -u www-data archive_app php occ config:system:set skeletondirectory --value="" >/dev/null
+docker exec archive_app bash -c "rm -rf /var/www/html/core/skeleton/*" 2>/dev/null || true
+
+# Disable Nextcloud default promotional/dashboard apps
+for disabled_app in dashboard firstrunwizard; do
+    docker exec -u www-data archive_app php occ app:disable "$disabled_app" >/dev/null 2>&1 || true
+done
 
 # Security & API automation: password confirmation bypass for local/trusted subnets
 docker exec -u www-data archive_app php occ config:system:set allowed_no_password_confirmation_ranges 0 --value="127.0.0.1/32" >/dev/null
@@ -185,13 +192,10 @@ docker exec archive_app mkdir -p /var/www/html/custom_apps/archive_autotag
 docker cp apps/archive_autotag/. archive_app:/var/www/html/custom_apps/archive_autotag/
 docker exec archive_app chown -R www-data:www-data /var/www/html/custom_apps/archive_autotag
 
-# Deploy Enterprise Archive 2-Slide Wizard Patch
-if [ -d "apps/archive_autotag/firstrunwizard_patch" ]; then
-    docker cp apps/archive_autotag/firstrunwizard_patch/main-DypLm1fH.chunk.mjs archive_app:/var/www/html/apps/firstrunwizard/js/main-DypLm1fH.chunk.mjs 2>/dev/null || true
-    docker cp apps/archive_autotag/firstrunwizard_patch/firstrunwizard-style.css archive_app:/var/www/html/apps/firstrunwizard/css/firstrunwizard-style.css 2>/dev/null || true
-    docker exec archive_app chown www-data:www-data /var/www/html/apps/firstrunwizard/js/main-DypLm1fH.chunk.mjs /var/www/html/apps/firstrunwizard/css/firstrunwizard-style.css 2>/dev/null || true
-    echo -e "  ${GREEN}✔${NC} Enterprise Archive 2-Slide Wizard patch deployed."
-fi
+# Ensure Nextcloud promotional/wizard apps remain strictly disabled
+docker exec -u www-data archive_app php occ app:disable dashboard >/dev/null 2>&1 || true
+docker exec -u www-data archive_app php occ app:disable firstrunwizard >/dev/null 2>&1 || true
+echo -e "  ${GREEN}✔${NC} Nextcloud dashboard and firstrunwizard disabled (White-Label enforced)."
 
 # Enable companion apps
 for app in admin_audit systemtags files_sharing activity; do

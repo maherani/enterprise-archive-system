@@ -173,12 +173,32 @@ class Application extends App implements IBootstrap {
         } catch (\Throwable $t) {
         }
 
+        // Enforce Enterprise White-Label policy: defaultapp='files', empty skeletondirectory, and disable dashboard/firstrunwizard
+        try {
+            /** @var \OCP\IConfig $config */
+            $config = \OC::$server->get(\OCP\IConfig::class);
+            if ($config->getSystemValueString('defaultapp', '') !== 'files') {
+                $config->setSystemValue('defaultapp', 'files');
+            }
+            if ($config->getSystemValueString('skeletondirectory', 'default') !== '') {
+                $config->setSystemValue('skeletondirectory', '');
+            }
+            /** @var \OCP\App\IAppManager $appManager */
+            $appManager = \OC::$server->get(\OCP\App\IAppManager::class);
+            foreach (['dashboard', 'firstrunwizard'] as $disabledApp) {
+                if ($appManager->isEnabledForUser($disabledApp)) {
+                    $appManager->disableApp($disabledApp);
+                }
+            }
+        } catch (\Throwable $t) {
+        }
+
         // Global App Launcher & Navigation restriction: for non-admin groups, only show "??????? ?????"
         Util::addScript(self::APP_ID, 'app_menu_filter');
         Util::addStyle(self::APP_ID, 'app_menu_filter');
 
 
-        // Restrict navigation and app launcher state: for non-admin users, only display "??????? ?????"
+        // Restrict navigation and app launcher state: filter out dashboard/firstrunwizard globally, and for non-admin users only display "??????? ?????"
         try {
             /** @var \OCP\IInitialStateService $initialStateService */
             $initialStateService = \OC::$server->get(\OCP\IInitialStateService::class);
@@ -187,7 +207,9 @@ class Application extends App implements IBootstrap {
                 $userSession = $container->get(IUserSession::class);
                 $user = $userSession->getUser();
                 $navigationManager = $container->get(\OCP\INavigationManager::class);
-                $allApps = array_values($navigationManager->getAll());
+                $allApps = array_values(array_filter($navigationManager->getAll(), static function ($app) {
+                    return !in_array(($app['id'] ?? ''), ['dashboard', 'firstrunwizard'], true);
+                }));
                 if ($user !== null) {
                     if (!self::isPrimarySystemAdmin($user)) {
                         return array_values(array_filter($allApps, static function ($app) {
