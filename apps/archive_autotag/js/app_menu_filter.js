@@ -353,11 +353,25 @@
             // Mount Animated Delicate Bank Maskan Watermark Banner in Header Start
             const header = document.getElementById('header');
             if (header && !document.body.classList.contains('body-login') && document.body.id !== 'body-login') {
+                header.style.setProperty('direction', 'ltr', 'important');
+                header.style.setProperty('flex-direction', 'row', 'important');
+
                 let headerStart = header.querySelector('.header-start');
                 if (!headerStart) {
                     headerStart = document.createElement('div');
                     headerStart.className = 'header-start';
                     header.insertBefore(headerStart, header.firstChild);
+                }
+                headerStart.style.setProperty('direction', 'ltr', 'important');
+                headerStart.style.setProperty('order', '1', 'important');
+
+                let headerEnd = header.querySelector('.header-end');
+                if (headerEnd) {
+                    headerEnd.style.setProperty('direction', 'ltr', 'important');
+                    headerEnd.style.setProperty('order', '2', 'important');
+                    headerEnd.style.setProperty('flex-direction', 'row', 'important');
+                    headerEnd.style.setProperty('margin-left', 'auto', 'important');
+                    headerEnd.style.setProperty('margin-right', '0', 'important');
                 }
 
                 let banner = document.getElementById('ea-header-animated-banner');

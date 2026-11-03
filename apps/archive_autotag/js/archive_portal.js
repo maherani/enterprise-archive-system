@@ -497,8 +497,16 @@
         var headerEnd = document.querySelector('#header .header-end');
         if (!headerEnd) return;
 
+        var header = document.getElementById('header');
+        if (header) {
+            header.style.setProperty('direction', 'ltr', 'important');
+            header.style.setProperty('flex-direction', 'row', 'important');
+        }
+
         var headerStart = document.querySelector('#header .header-start');
         if (headerStart) {
+            headerStart.style.setProperty('direction', 'ltr', 'important');
+            headerStart.style.setProperty('order', '1', 'important');
             var defaultAppMenu = headerStart.querySelector('.app-menu');
             if (defaultAppMenu) {
                 defaultAppMenu.style.display = 'none';
@@ -520,6 +528,12 @@
                 headerStart.appendChild(existingBanner);
             }
         }
+
+        headerEnd.style.setProperty('direction', 'ltr', 'important');
+        headerEnd.style.setProperty('order', '2', 'important');
+        headerEnd.style.setProperty('flex-direction', 'row', 'important');
+        headerEnd.style.setProperty('margin-left', 'auto', 'important');
+        headerEnd.style.setProperty('margin-right', '0', 'important');
 
         var existingBrand = document.getElementById('ea-header-brand-top');
         if (!existingBrand) {
