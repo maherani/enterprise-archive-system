@@ -1,5 +1,5 @@
 <?php
 $CONFIG = [
-  'defaultapp' => 'files',
+  'defaultapp' => 'archive_autotag',
   'skeletondirectory' => '',
 ];

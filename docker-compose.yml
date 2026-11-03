@@ -29,6 +29,7 @@ services:
       - ./nextcloud:/var/www/html
       - ./apps/archive_autotag:/var/www/html/custom_apps/archive_autotag
       - ./deploy:/var/www/html/deploy
+      - ./deploy/upgrade.exclude:/upgrade.exclude:ro
     environment:
       - POSTGRES_HOST=db
       - POSTGRES_DB=${POSTGRES_DB}

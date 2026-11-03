@@ -173,15 +173,15 @@ class Application extends App implements IBootstrap {
         } catch (\Throwable $t) {
         }
 
-        // Enforce Enterprise White-Label policy: defaultapp='files', empty skeletondirectory, primary_system_admin_uid='admin', and disable dashboard/firstrunwizard
+        // Enforce Enterprise White-Label policy: defaultapp='archive_autotag', empty skeletondirectory, primary_system_admin_uid='admin', and disable dashboard/firstrunwizard
         try {
             /** @var \OCP\IConfig $config */
             $config = \OC::$server->get(\OCP\IConfig::class);
             if ($config->getSystemValueString('primary_system_admin_uid', '') === '') {
                 $config->setSystemValue('primary_system_admin_uid', 'admin');
             }
-            if ($config->getSystemValueString('defaultapp', '') !== 'files') {
-                $config->setSystemValue('defaultapp', 'files');
+            if ($config->getSystemValueString('defaultapp', '') !== self::APP_ID) {
+                $config->setSystemValue('defaultapp', self::APP_ID);
             }
             if ($config->getSystemValueString('skeletondirectory', 'default') !== '') {
                 $config->setSystemValue('skeletondirectory', '');

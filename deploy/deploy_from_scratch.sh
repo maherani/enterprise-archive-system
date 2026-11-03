@@ -4,7 +4,7 @@ set -e
 # ==============================================================================
 # Enterprise Archive System - Zero-to-Production Deployment Script
 # Purpose: Fully deploy and configure the system from scratch on a bare server.
-# Version: 2.9.0 (Requirement 30 Compliant - Scenario B Engine)
+# Version: 2.9.1 (Requirement 30 Compliant - Scenario B Engine)
 # ==============================================================================
 
 BOLD='\033[1m'
@@ -161,8 +161,8 @@ docker exec -u www-data archive_app php occ theming:config name "سامانه ب
 docker exec -u www-data archive_app php occ theming:config slogan "مدیریت، رده‌بندی و آرشیو امن اسناد" >/dev/null 2>&1 || true
 docker exec -u www-data archive_app php occ theming:config color "#11141b" >/dev/null 2>&1 || true
 
-# Clean user provisioning & White-Label landing: enforce files as defaultapp and empty skeletondirectory
-docker exec -u www-data archive_app php occ config:system:set defaultapp --value="files" >/dev/null
+# Clean user provisioning & White-Label landing: enforce archive_autotag as defaultapp and empty skeletondirectory
+docker exec -u www-data archive_app php occ config:system:set defaultapp --value="archive_autotag" >/dev/null
 docker exec -u www-data archive_app php occ config:system:set skeletondirectory --value="" >/dev/null
 docker exec archive_app bash -c "rm -rf /var/www/html/core/skeleton/*" 2>/dev/null || true
 

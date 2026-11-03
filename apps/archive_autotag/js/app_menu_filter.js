@@ -389,13 +389,19 @@
     function applyAppMenuFilter() {
         sanitizeNextcloudShell();
 
+        // Direct all users (including root 'admin') away from legacy /apps/files to the dedicated Archive Portal
+        if (window.location.pathname.includes('/apps/files')) {
+            window.location.replace('/index.php/apps/archive_autotag/');
+            return;
+        }
+
         const isAdmin = isCurrentUserAdmin();
         if (isAdmin) {
             return;
         }
 
-        // Non-admin user: Back-Office Guard: /settings/users, /apps/files and /u/ profile pages are strictly reserved for root 'admin' user
-        if (window.location.pathname.includes('/settings/users') || window.location.pathname.includes('/apps/files') || window.location.pathname.includes('/u/')) {
+        // Non-admin user: Back-Office Guard: /settings/users and /u/ profile pages are strictly reserved for root 'admin' user
+        if (window.location.pathname.includes('/settings/users') || window.location.pathname.includes('/u/')) {
             window.location.replace('/index.php/apps/archive_autotag/');
             return;
         }

@@ -1,0 +1,7 @@
+/config/
+/data/
+/custom_apps/
+/themes/
+/deploy/
+/version.php
+/nextcloud-init-sync.lock
