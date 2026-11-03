@@ -410,9 +410,10 @@
             userMenuWrapper.style.setProperty('top', '52px', 'important');
             userMenuWrapper.style.setProperty('right', '8px', 'important');
             userMenuWrapper.style.setProperty('left', 'auto', 'important');
-            userMenuWrapper.style.setProperty('inset-inline-end', 'auto', 'important');
-            userMenuWrapper.style.setProperty('inset-inline-start', 'auto', 'important');
+            userMenuWrapper.style.setProperty('margin', '0', 'important');
             userMenuWrapper.style.setProperty('z-index', '2500', 'important');
+            userMenuWrapper.style.removeProperty('inset-inline-end');
+            userMenuWrapper.style.removeProperty('inset-inline-start');
         }
         const notifWrapper = document.getElementById('header-menu-notifications') || document.querySelector('#notifications .header-menu__wrapper');
         if (notifWrapper) {
@@ -420,9 +421,10 @@
             notifWrapper.style.setProperty('top', '52px', 'important');
             notifWrapper.style.setProperty('right', '52px', 'important');
             notifWrapper.style.setProperty('left', 'auto', 'important');
-            notifWrapper.style.setProperty('inset-inline-end', 'auto', 'important');
-            notifWrapper.style.setProperty('inset-inline-start', 'auto', 'important');
+            notifWrapper.style.setProperty('margin', '0', 'important');
             notifWrapper.style.setProperty('z-index', '2500', 'important');
+            notifWrapper.style.removeProperty('inset-inline-end');
+            notifWrapper.style.removeProperty('inset-inline-start');
         }
     }
 

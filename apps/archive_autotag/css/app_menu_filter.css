@@ -451,6 +451,7 @@ footer a[href*="nextcloud"],
 /* User Profile Menu and Header Menus - Strictly anchored to the top-right under the Avatar/Bell */
 .header-menu__wrapper,
 #header .header-menu__wrapper,
+.header-end .header-menu__wrapper,
 #header-end .header-menu__wrapper,
 #user-menu .header-menu__wrapper,
 .account-menu .header-menu__wrapper,
@@ -459,22 +460,23 @@ footer a[href*="nextcloud"],
     top: 52px !important;
     right: 8px !important;
     left: auto !important;
-    inset-inline-end: auto !important;
-    inset-inline-start: auto !important;
     margin: 0 !important;
+    max-width: calc(100vw - 16px) !important;
+    box-sizing: border-box !important;
     z-index: 2500 !important;
 }
 
 #header-menu-notifications,
 #header .header-end #header-menu-notifications,
+.header-end #header-menu-notifications,
 #notifications .header-menu__wrapper {
     position: fixed !important;
     top: 52px !important;
     right: 52px !important;
     left: auto !important;
-    inset-inline-end: auto !important;
-    inset-inline-start: auto !important;
     margin: 0 !important;
+    max-width: calc(100vw - 16px) !important;
+    box-sizing: border-box !important;
     z-index: 2500 !important;
 }
 
