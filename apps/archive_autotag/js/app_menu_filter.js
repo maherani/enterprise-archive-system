@@ -397,8 +397,43 @@
                 el.style.setProperty('display', 'none', 'important');
             });
 
+            // Ensure header dropdowns (user-menu & notifications) stay anchored to the top-right
+            _eaPositionHeaderDropdowns();
+
         } catch (e) {}
     }
+
+    function _eaPositionHeaderDropdowns() {
+        const userMenuWrapper = document.getElementById('header-menu-user-menu') || document.querySelector('#user-menu .header-menu__wrapper');
+        if (userMenuWrapper) {
+            userMenuWrapper.style.setProperty('position', 'fixed', 'important');
+            userMenuWrapper.style.setProperty('top', '52px', 'important');
+            userMenuWrapper.style.setProperty('right', '8px', 'important');
+            userMenuWrapper.style.setProperty('left', 'auto', 'important');
+            userMenuWrapper.style.setProperty('inset-inline-end', 'auto', 'important');
+            userMenuWrapper.style.setProperty('inset-inline-start', 'auto', 'important');
+            userMenuWrapper.style.setProperty('z-index', '2500', 'important');
+        }
+        const notifWrapper = document.getElementById('header-menu-notifications') || document.querySelector('#notifications .header-menu__wrapper');
+        if (notifWrapper) {
+            notifWrapper.style.setProperty('position', 'fixed', 'important');
+            notifWrapper.style.setProperty('top', '52px', 'important');
+            notifWrapper.style.setProperty('right', '52px', 'important');
+            notifWrapper.style.setProperty('left', 'auto', 'important');
+            notifWrapper.style.setProperty('inset-inline-end', 'auto', 'important');
+            notifWrapper.style.setProperty('inset-inline-start', 'auto', 'important');
+            notifWrapper.style.setProperty('z-index', '2500', 'important');
+        }
+    }
+
+    // Attach synchronous click capture for header menu triggers to position dropdowns immediately
+    document.addEventListener('click', function(e) {
+        if (e.target && e.target.closest && (e.target.closest('#user-menu') || e.target.closest('#notifications') || e.target.closest('.header-menu__trigger'))) {
+            _eaPositionHeaderDropdowns();
+            (window.requestAnimationFrame || window.setTimeout)(_eaPositionHeaderDropdowns, 0);
+            window.setTimeout(_eaPositionHeaderDropdowns, 40);
+        }
+    }, true);
 
     function applyAppMenuFilter() {
         sanitizeNextcloudShell();
