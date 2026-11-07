@@ -4,7 +4,7 @@ services:
     container_name: archive_db
     restart: unless-stopped
     volumes:
-      - ./db:/var/lib/postgresql/data
+      - archive_db_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
@@ -61,4 +61,9 @@ networks:
     driver: bridge
   ai_chat_net:
     name: ai_chat_net
+    external: true
+
+volumes:
+  archive_db_data:
+    name: enterprise-archive-system_archive_db_data
     external: true
